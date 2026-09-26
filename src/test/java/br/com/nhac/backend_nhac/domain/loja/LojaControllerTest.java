@@ -111,7 +111,7 @@ class LojaControllerTest {
                 "18:00-23:00", "Fechado", "11:00-23:00", "11:00-23:00", "11:00-23:00", "11:00-23:59", "11:00-23:59");
         LojaDetalhesDTO.FormasPagamentoDTO formasPagto = new LojaDetalhesDTO.FormasPagamentoDTO(true, true, true, true, false, false);
         LojaDetalhesDTO detalhes = new LojaDetalhesDTO(
-                "loja_1", "Sushi Ken", "Descrição completa", "Japonesa", "url", true, dadosOp, endereco, horarios, formasPagto);
+                "loja_1", "Sushi Ken", "Descrição completa", "Japonesa", "url", true, dadosOp, endereco, horarios, formasPagto, null, null);
         return detalhes;
     }
 

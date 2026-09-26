@@ -67,8 +67,10 @@ public class DespachoService {
                     "Só é possível despachar pedidos em PREPARANDO. Status atual: " + pedido.getStatus());
         }
 
-        if (pedido.getLoja() == null || pedido.getLoja().getGeoLocalizacao() == null) {
-            throw new RegraDeNegocioException("A loja do pedido não possui coordenadas GPS configuradas.");
+        if (pedido.getLoja() == null || pedido.getLoja().getGeoLocalizacao() == null
+                || (pedido.getLoja().getGeoLocalizacao().getGeoLat() == 0
+                    && pedido.getLoja().getGeoLocalizacao().getGeoLng() == 0)) {
+            throw new RegraDeNegocioException("Configure a localização da loja em Endereço da loja antes de buscar entregadores.");
         }
 
         double lojaLat = pedido.getLoja().getGeoLocalizacao().getGeoLat();
@@ -84,7 +86,7 @@ public class DespachoService {
 
         List<OfertaEntregaDTO> ofertasCriadas = new ArrayList<>();
         Instant agora = Instant.now();
-        Instant expiraEm = agora.plusSeconds(45); // 45 segundos para resposta
+        Instant expiraEm = agora.plusSeconds(90); // tempo para polling, leitura e resposta
 
         for (var item : entregadoresProximos) {
             Entregador entregador = item.entregador();

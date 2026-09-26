@@ -36,7 +36,9 @@ public record LojaDetalhesDTO(
         HorariosDTO horarios,
 
         @Schema(description = "Formas de pagamento aceitas pela loja")
-        FormasPagamentoDTO formasPagamento
+        FormasPagamentoDTO formasPagamento,
+        Double latitude,
+        Double longitude
 ) {
     @Schema(description = "Dados operacionais")
     public record DadosOperacionaisDTO(
@@ -93,7 +95,9 @@ public record LojaDetalhesDTO(
                 mapearDadosOperacionais(loja),
                 mapearEndereco(loja),
                 mapearHorarios(loja),
-                mapearFormasPagamento(loja)
+                mapearFormasPagamento(loja),
+                loja.getGeoLocalizacao() == null ? null : loja.getGeoLocalizacao().getGeoLat(),
+                loja.getGeoLocalizacao() == null ? null : loja.getGeoLocalizacao().getGeoLng()
         );
     }
 
