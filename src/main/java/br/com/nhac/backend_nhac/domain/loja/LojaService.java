@@ -12,6 +12,7 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 
 import br.com.nhac.backend_nhac.domain.loja.dto.LojaCreateDTO;
+import br.com.nhac.backend_nhac.domain.loja.dto.AtualizarLocalizacaoLojaDTO;
 import br.com.nhac.backend_nhac.domain.loja.dto.LojaDetalhesDTO;
 import br.com.nhac.backend_nhac.domain.loja.dto.LojaResumoDTO;
 import br.com.nhac.backend_nhac.domain.usuario.Papel;
@@ -147,6 +148,33 @@ public class LojaService {
     }
 
     @Transactional
+    @CacheEvict(cacheNames = {LOJAS, LOJA}, allEntries = true)
+    public LojaDetalhesDTO atualizarLocalizacao(String id, AtualizarLocalizacaoLojaDTO dto, Usuario usuarioLogado) {
+        if (usuarioLogado == null) {
+            throw new AcessoNegadoException("É necessário estar autenticado para atualizar a loja.");
+        }
+        Loja loja = lojaRepository.findById(id)
+                .orElseThrow(() -> new br.com.nhac.backend_nhac.exceptions.LojaNaoEncontradaException(id));
+        if (usuarioLogado.getPapel() != Papel.ADMIN
+                && !lojaAccessService.temAcessoALoja(usuarioLogado, id)) {
+            throw new AcessoNegadoException("Acesso negado: você não tem permissão para atualizar esta loja.");
+        }
+        if (!Double.isFinite(dto.latitude()) || !Double.isFinite(dto.longitude())
+                || Math.abs(dto.latitude()) > 90 || Math.abs(dto.longitude()) > 180
+                || (dto.latitude() == 0 && dto.longitude() == 0)) {
+            throw new RegraDeNegocioException("Informe coordenadas válidas do endereço da loja.");
+        }
+        GeoLocalizacao geo = loja.getGeoLocalizacao();
+        if (geo == null) geo = new GeoLocalizacao();
+        geo.setGeoLat(dto.latitude());
+        geo.setGeoLng(dto.longitude());
+        geo.setGeoHash(null);
+        loja.setGeoLocalizacao(geo);
+        return new LojaDetalhesDTO(lojaRepository.save(loja));
+    }
+
+
+    @Transactional
     @CacheEvict(cacheNames = {LOJAS, LOJA, PRODUTOS, PRODUTO}, allEntries = true)
     public LojaDetalhesDTO atualizarAbertura(String id, Boolean isAberto, Usuario usuarioLogado) {
     if (usuarioLogado == null) {
@@ -168,4 +196,3 @@ public class LojaService {
     loja.setAberto(isAberto);
     return new LojaDetalhesDTO(lojaRepository.save(loja));
 }}
-

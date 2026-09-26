@@ -116,6 +116,15 @@ class DespachoServiceTest {
     }
 
     @Test
+    void naoDespachaComCoordenadasPadraoDaLoja() {
+        loja.setGeoLocalizacao(new GeoLocalizacao(0, 0, null));
+        when(pedidoRepository.findById("ped_1")).thenReturn(Optional.of(pedido));
+
+        assertThrows(RegraDeNegocioException.class, () -> despachoService.despacharPedido("ped_1"));
+        verifyNoInteractions(entregadorService, ofertaEntregaRepository);
+    }
+
+    @Test
     @DisplayName("Deve aceitar oferta, atribuir pedido ao entregador e manter status PREPARANDO até a retirada")
     void deveAceitarOfertaComSucesso() {
         OfertaEntrega oferta = OfertaEntrega.builder()

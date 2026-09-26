@@ -17,6 +17,7 @@ import org.springframework.web.bind.annotation.RestController;
 import br.com.nhac.backend_nhac.domain.loja.dto.LojaCreateDTO;
 import br.com.nhac.backend_nhac.domain.loja.dto.LojaDetalhesDTO;
 import br.com.nhac.backend_nhac.domain.loja.dto.LojaResumoDTO;
+import br.com.nhac.backend_nhac.domain.loja.dto.AtualizarLocalizacaoLojaDTO;
 import br.com.nhac.backend_nhac.domain.usuario.Usuario;
 import br.com.nhac.backend_nhac.exceptions.ErroPadraoDTO;
 import io.swagger.v3.oas.annotations.Operation;
@@ -113,6 +114,15 @@ public class LojaController {
             @RequestBody @Valid LojaCreateDTO dto,
             @AuthenticationPrincipal Usuario usuarioLogado) {
         return ResponseEntity.ok(lojaService.atualizarLoja(id, dto, usuarioLogado));
+    }
+
+    @PatchMapping("/{id}/localizacao")
+    @Operation(summary = "Configurar coordenadas da loja para o despacho de entregas")
+    public ResponseEntity<LojaDetalhesDTO> atualizarLocalizacao(
+            @PathVariable String id,
+            @RequestBody @Valid AtualizarLocalizacaoLojaDTO dto,
+            @AuthenticationPrincipal Usuario usuarioLogado) {
+        return ResponseEntity.ok(lojaService.atualizarLocalizacao(id, dto, usuarioLogado));
     }
 
     @Operation(summary = "Abrir ou fechar a loja",

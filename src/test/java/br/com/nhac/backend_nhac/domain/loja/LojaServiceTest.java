@@ -28,6 +28,7 @@ import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 
 import br.com.nhac.backend_nhac.domain.loja.dto.LojaCreateDTO;
+import br.com.nhac.backend_nhac.domain.loja.dto.AtualizarLocalizacaoLojaDTO;
 import br.com.nhac.backend_nhac.domain.loja.dto.LojaDetalhesDTO;
 import br.com.nhac.backend_nhac.domain.loja.dto.LojaResumoDTO;
 import br.com.nhac.backend_nhac.domain.usuario.Papel;
@@ -38,6 +39,37 @@ import br.com.nhac.backend_nhac.exceptions.IdNaoEncontradoException;
 
 @ExtendWith(MockitoExtension.class)
 class LojaServiceTest {
+
+    @Test
+    void atualizaCoordenadasDoProprioEstabelecimento() {
+        Loja loja = construirLojaCompleta("loja_1", true);
+        Usuario dono = new Usuario();
+        dono.setId("dono_1");
+        dono.setPapel(Papel.LOJISTA);
+        when(lojaRepository.findById("loja_1")).thenReturn(Optional.of(loja));
+        when(lojaAccessService.temAcessoALoja(dono, "loja_1")).thenReturn(true);
+        when(lojaRepository.save(loja)).thenReturn(loja);
+
+        LojaDetalhesDTO resposta = lojaService.atualizarLocalizacao("loja_1",
+                new AtualizarLocalizacaoLojaDTO(-23.55, -46.63), dono);
+
+        assertEquals(-23.55, resposta.latitude());
+        assertEquals(-46.63, resposta.longitude());
+        verify(lojaRepository).save(loja);
+    }
+
+    @Test
+    void impedeAlteracaoDeCoordenadasDeOutraLoja() {
+        Loja loja = construirLojaCompleta("loja_1", true);
+        Usuario estranho = new Usuario();
+        estranho.setId("dono_2");
+        estranho.setPapel(Papel.LOJISTA);
+        when(lojaRepository.findById("loja_1")).thenReturn(Optional.of(loja));
+
+        assertThrows(AcessoNegadoException.class, () -> lojaService.atualizarLocalizacao("loja_1",
+                new AtualizarLocalizacaoLojaDTO(-23.55, -46.63), estranho));
+        verify(lojaRepository, never()).save(any());
+    }
 
     @Mock
     private LojaRepository lojaRepository;
