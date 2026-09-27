@@ -230,12 +230,28 @@ public class ChatService {
      */
     @Transactional
     public MensagemDTO enviarMensagem(String conversaId, Usuario remetente, String conteudo) {
+        return enviarMensagem(conversaId, remetente, conteudo, null);
+    }
+
+    @Transactional
+    public MensagemDTO enviarMensagem(String conversaId, Usuario remetente, String conteudo, String clientMessageId) {
         Conversa conversa = conversaRepository.findById(conversaId)
                 .orElseThrow(() -> new IdNaoEncontradoException("Conversa não encontrada."));
 
         RemetenteTipo tipo = resolverTipoRemetente(conversa, remetente);
 
-        Mensagem mensagem = new Mensagem("msg_" + UUID.randomUUID(), conversa, tipo, remetente.getId(), conteudo);
+        String id = "msg_" + (clientMessageId == null ? UUID.randomUUID() : UUID.fromString(clientMessageId));
+        var existente = mensagemRepository.findById(id);
+        if (existente.isPresent()) {
+            Mensagem anterior = existente.get();
+            if (!anterior.getConversa().getId().equals(conversaId)
+                    || !anterior.getRemetenteUsuarioId().equals(remetente.getId())
+                    || !anterior.getConteudo().equals(conteudo)) {
+                throw new AcessoNegadoException("Identificador de mensagem já utilizado.");
+            }
+            return new MensagemDTO(anterior);
+        }
+        Mensagem mensagem = new Mensagem(id, conversa, tipo, remetente.getId(), conteudo);
         mensagemRepository.save(mensagem);
 
         conversa.registrarNovaMensagem(tipo, truncarPreview(conteudo));

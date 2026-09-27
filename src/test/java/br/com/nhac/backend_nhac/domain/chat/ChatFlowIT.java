@@ -124,6 +124,22 @@ public class ChatFlowIT extends AbstractIntegrationTest {
     }
 
     @Test
+    void reenvioComMesmoIdentificadorNaoDuplicaMensagem() throws Exception {
+        String conversaId = abrirConversaComLoja(lojaA.getId());
+        String id = UUID.randomUUID().toString();
+        MensagemDTO primeira = chatService.enviarMensagem(conversaId, cliente, "Cheguei na loja", id);
+        MensagemDTO repetida = chatService.enviarMensagem(conversaId, cliente, "Cheguei na loja", id);
+        MensagemDTO segunda = chatService.enviarMensagem(conversaId, cliente, "Cheguei na loja", UUID.randomUUID().toString());
+
+        assertEquals(primeira.id(), repetida.id());
+        assertTrue(!primeira.id().equals(segunda.id()));
+        assertEquals(2, mensagemRepository.countByConversaId(conversaId));
+        mockMvc.perform(get("/api/v1/lojista/conversas").header("Authorization", "Bearer " + tokenDonoA))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.content[0].naoLidas").value(2));
+    }
+
+    @Test
     void fluxoCompletoDeConversa() throws Exception {
         // 1. Cliente abre uma conversa com a loja A
         String conversaId = abrirConversaComLoja(lojaA.getId());
