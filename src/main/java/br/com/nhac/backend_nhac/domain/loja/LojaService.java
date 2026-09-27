@@ -170,6 +170,15 @@ public class LojaService {
         geo.setGeoLng(dto.longitude());
         geo.setGeoHash(null);
         loja.setGeoLocalizacao(geo);
+        // O endereço textual e o ponto de retirada precisam mudar na mesma
+        // transação. Um PUT separado deixava pedidos serem despachados para
+        // as coordenadas antigas depois de uma alteração de endereço.
+        if (dto.endereco() != null) {
+            var endereco = dto.endereco();
+            loja.setEndereco(new EnderecoLoja(endereco.rua(), endereco.numero(),
+                    endereco.cidade(), endereco.estado(), endereco.cep(),
+                    endereco.bairro(), endereco.complemento()));
+        }
         return new LojaDetalhesDTO(lojaRepository.save(loja));
     }
 

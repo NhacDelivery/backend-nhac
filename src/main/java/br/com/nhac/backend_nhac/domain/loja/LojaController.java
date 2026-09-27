@@ -117,7 +117,7 @@ public class LojaController {
     }
 
     @PatchMapping("/{id}/localizacao")
-    @Operation(summary = "Configurar coordenadas da loja para o despacho de entregas")
+    @Operation(summary = "Configurar coordenadas e, opcionalmente, o endereço da loja em uma única operação")
     public ResponseEntity<LojaDetalhesDTO> atualizarLocalizacao(
             @PathVariable String id,
             @RequestBody @Valid AtualizarLocalizacaoLojaDTO dto,

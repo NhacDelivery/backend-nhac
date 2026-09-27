@@ -59,6 +59,29 @@ class LojaServiceTest {
     }
 
     @Test
+    void atualizaEnderecoECoordenadasJuntosSemAlterarOsDemaisDados() {
+        Loja loja = construirLojaCompleta("loja_1", true);
+        Usuario dono = new Usuario();
+        dono.setId("dono_1");
+        dono.setPapel(Papel.LOJISTA);
+        when(lojaRepository.findById("loja_1")).thenReturn(Optional.of(loja));
+        when(lojaAccessService.temAcessoALoja(dono, "loja_1")).thenReturn(true);
+        when(lojaRepository.save(loja)).thenReturn(loja);
+
+        var novoEndereco = new LojaCreateDTO.EnderecoDTO("Rua Nova", "45", "Osasco", "SP",
+                "06000-000", "Centro", "Loja B");
+        LojaDetalhesDTO resposta = lojaService.atualizarLocalizacao("loja_1",
+                new AtualizarLocalizacaoLojaDTO(-23.53, -46.79, novoEndereco), dono);
+
+        assertEquals("Rua Nova", resposta.endereco().rua());
+        assertEquals("45", resposta.endereco().numero());
+        assertEquals(-23.53, resposta.latitude());
+        assertEquals(-46.79, resposta.longitude());
+        assertEquals("Sushi Ken", resposta.nome());
+        verify(lojaRepository).save(loja);
+    }
+
+    @Test
     void impedeAlteracaoDeCoordenadasDeOutraLoja() {
         Loja loja = construirLojaCompleta("loja_1", true);
         Usuario estranho = new Usuario();
