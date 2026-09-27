@@ -45,7 +45,7 @@ public class ChatWebSocketController {
     @MessageMapping("/conversas/{conversaId}/enviar")
     public void enviar(@DestinationVariable String conversaId, EnviarMensagemDTO dto, Principal principal) {
         Usuario remetente = extrairUsuario(principal);
-        MensagemDTO mensagem = chatService.enviarMensagem(conversaId, remetente, dto.conteudo());
+        MensagemDTO mensagem = chatService.enviarMensagem(conversaId, remetente, dto.conteudo(), dto.clientMessageId());
         messagingTemplate.convertAndSend("/topic/conversas/" + conversaId, mensagem);
     }
 
