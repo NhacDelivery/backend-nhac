@@ -98,6 +98,9 @@ jobs:
         working-directory: Nhac
         run: flutter pub get
 
+      - name: Habilitar aceleracao do emulador
+        run: sudo chmod 666 /dev/kvm
+
       - name: Run isolated Android E2E three times
         uses: ReactiveCircus/android-emulator-runner@v2
         env:
@@ -111,10 +114,10 @@ jobs:
           api-level: 34
           arch: x86_64
           profile: pixel_2
-          cores: 2
-          ram-size: 2048M
-          heap-size: 512M
-          disk-size: 4096M
+          cores: 4
+          ram-size: 4096M
+          heap-size: 1024M
+          disk-size: 6144M
           disable-animations: true
           working-directory: Nhac
           script: ../backend-nhac/.github/scripts/run-client-e2e.sh
