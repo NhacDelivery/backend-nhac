@@ -214,6 +214,7 @@ public class PedidoService {
 
         pedido.alterarStatus(StatusPedido.PAGO);
         pedidoRepository.save(pedido);
+        publicarPush(pedido);
     }
 
     @Transactional
@@ -230,6 +231,7 @@ public class PedidoService {
 
         pedido.alterarStatus(StatusPedido.PAGO);
         pedidoRepository.save(pedido);
+        publicarPush(pedido);
     }
 
     @Transactional
@@ -303,6 +305,7 @@ public class PedidoService {
 
         pedido.alterarStatus(novoStatus);
         pedidoRepository.save(pedido);
+        publicarPush(pedido);
 
         // Despacho automático: quando a loja aceita o pedido e começa a
         // preparar, os motoboys próximos já recebem a oferta. Antes disso,
@@ -418,7 +421,13 @@ public class PedidoService {
         }
 
         pedidoRepository.save(pedido);
+        publicarPush(pedido);
         return true;
+    }
+
+    private void publicarPush(Pedido pedido) {
+        eventPublisher.publishEvent(new PedidoStatusPushEvent(
+                pedido.getId(), pedido.getUsuarioId(), pedido.getStatus()));
     }
 
     private void devolverEstoque(Pedido pedido) {

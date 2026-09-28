@@ -26,8 +26,8 @@ class MariaDbMigrationIT {
 
             var result = flyway.migrate();
 
-            assertEquals("1004", result.targetSchemaVersion);
-            assertEquals("1004", flyway.info().current().getVersion().getVersion());
+            assertEquals("1005", result.targetSchemaVersion);
+            assertEquals("1005", flyway.info().current().getVersion().getVersion());
         }
     }
 }

@@ -52,7 +52,8 @@ class AuditoriaMotoboyTest {
         var entregadores = mock(EntregadorRepository.class);
         var users = mock(UsuarioRepository.class);
         var service = new DespachoService(pedidos, ofertas, serviceEntregador,
-            entregadores, users, mock(SimpMessagingTemplate.class));
+            entregadores, users, mock(SimpMessagingTemplate.class),
+            mock(org.springframework.context.ApplicationEventPublisher.class));
         var user = new Usuario(); user.setId("u");
         var entregador = Entregador.builder().id("e").usuario(user).ativo(ativo).statusOperacional(status).build();
         when(serviceEntregador.buscarPorUsuarioComBloqueio(user)).thenReturn(entregador);

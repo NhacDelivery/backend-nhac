@@ -50,6 +50,9 @@ class UsuarioControllerTest {
     @MockitoBean
     private br.com.nhac.backend_nhac.domain.pedido.PedidoService pedidoService;
 
+    @MockitoBean
+    private DispositivoPushService dispositivoPushService;
+
     private static final String USUARIO_LOGADO_ID = "user_123";
 
     @BeforeEach
@@ -62,6 +65,15 @@ class UsuarioControllerTest {
                 new UsernamePasswordAuthenticationToken(usuarioMock, null, Collections.emptyList());
 
         SecurityContextHolder.getContext().setAuthentication(auth);
+    }
+
+    @Test
+    void naoPermiteRegistrarTokenEmContaDeOutroUsuario() throws Exception {
+        mockMvc.perform(put("/api/v1/usuarios/outro/push-token")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"token\":\"token-valido\"}"))
+                .andExpect(status().isForbidden());
+        verifyNoInteractions(dispositivoPushService);
     }
 
     @Test

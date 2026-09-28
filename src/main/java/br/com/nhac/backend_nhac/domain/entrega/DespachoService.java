@@ -36,6 +36,7 @@ public class DespachoService {
     private final EntregadorRepository entregadorRepository;
     private final UsuarioRepository usuarioRepository;
     private final SimpMessagingTemplate messagingTemplate;
+    private final org.springframework.context.ApplicationEventPublisher eventPublisher;
 
     public DespachoService(
             PedidoRepository pedidoRepository,
@@ -43,7 +44,8 @@ public class DespachoService {
             EntregadorService entregadorService,
             EntregadorRepository entregadorRepository,
             UsuarioRepository usuarioRepository,
-            SimpMessagingTemplate messagingTemplate
+            SimpMessagingTemplate messagingTemplate,
+            org.springframework.context.ApplicationEventPublisher eventPublisher
     ) {
         this.pedidoRepository = pedidoRepository;
         this.ofertaEntregaRepository = ofertaEntregaRepository;
@@ -51,6 +53,7 @@ public class DespachoService {
         this.entregadorRepository = entregadorRepository;
         this.usuarioRepository = usuarioRepository;
         this.messagingTemplate = messagingTemplate;
+        this.eventPublisher = eventPublisher;
     }
 
     @Transactional
@@ -322,6 +325,8 @@ public class DespachoService {
     }
 
     private void notificarStatus(Pedido pedido) {
+        eventPublisher.publishEvent(new br.com.nhac.backend_nhac.domain.pedido.PedidoStatusPushEvent(
+                pedido.getId(), pedido.getUsuarioId(), pedido.getStatus()));
         try {
             messagingTemplate.convertAndSend("/topic/pedidos/" + pedido.getId() + "/status", pedido.getStatus().name());
         } catch (Exception e) {

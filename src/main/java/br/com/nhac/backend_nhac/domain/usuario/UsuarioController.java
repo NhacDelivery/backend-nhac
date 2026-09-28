@@ -29,19 +29,37 @@ public class UsuarioController {
     private final TokenService tokenService;
     private final br.com.nhac.backend_nhac.domain.favorito.FavoritoService favoritoService;
     private final br.com.nhac.backend_nhac.domain.pedido.PedidoService pedidoService;
+    private final DispositivoPushService dispositivoPushService;
 
-    public UsuarioController(UsuarioService usuarioService, UsuarioRepository usuarioRepository, TokenService tokenService, br.com.nhac.backend_nhac.domain.favorito.FavoritoService favoritoService, br.com.nhac.backend_nhac.domain.pedido.PedidoService pedidoService) {
+    public UsuarioController(UsuarioService usuarioService, UsuarioRepository usuarioRepository, TokenService tokenService, br.com.nhac.backend_nhac.domain.favorito.FavoritoService favoritoService, br.com.nhac.backend_nhac.domain.pedido.PedidoService pedidoService, DispositivoPushService dispositivoPushService) {
         this.usuarioService = usuarioService;
         this.usuarioRepository = usuarioRepository;
         this.tokenService = tokenService;
         this.favoritoService = favoritoService;
         this.pedidoService = pedidoService;
+        this.dispositivoPushService = dispositivoPushService;
     }
 
     private void validarPropriedade(String idNaUrl, Usuario usuarioLogado) {
         if (!idNaUrl.equals(usuarioLogado.getId())) {
             throw new AcessoNegadoException("Acesso negado: não tem permissão para aceder ou modificar os dados de outro utilizador.");
         }
+    }
+
+    @PutMapping("/{id}/push-token")
+    public ResponseEntity<Void> registrarPushToken(@PathVariable String id,
+            @RequestBody @Valid PushTokenDTO dados, @AuthenticationPrincipal Usuario usuarioLogado) {
+        validarPropriedade(id, usuarioLogado);
+        dispositivoPushService.registrar(id, dados.token());
+        return ResponseEntity.noContent().build();
+    }
+
+    @DeleteMapping("/{id}/push-token")
+    public ResponseEntity<Void> removerPushToken(@PathVariable String id,
+            @RequestBody @Valid PushTokenDTO dados, @AuthenticationPrincipal Usuario usuarioLogado) {
+        validarPropriedade(id, usuarioLogado);
+        dispositivoPushService.remover(id, dados.token());
+        return ResponseEntity.noContent().build();
     }
 
     @GetMapping("/{id}")
