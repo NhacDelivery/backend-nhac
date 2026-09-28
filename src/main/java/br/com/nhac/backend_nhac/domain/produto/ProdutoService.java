@@ -95,6 +95,7 @@ public class ProdutoService {
         produto.setPeso(dto.peso());
         produto.setPercentualDesconto(dto.percentualDesconto());
         produto.setAtivo(dto.isAtivo());
+        produto.substituirAdicionais(dto.adicionais());
         if (dto.estoque() != null) {
             produto.setEstoque(dto.estoque());
         }

@@ -32,6 +32,8 @@ import br.com.nhac.backend_nhac.domain.loja.Loja;
 import br.com.nhac.backend_nhac.domain.loja.LojaAccessService;
 import br.com.nhac.backend_nhac.domain.loja.LojaRepository;
 import br.com.nhac.backend_nhac.domain.produto.dto.ProdutoAvaliacaoResumoDTO;
+import br.com.nhac.backend_nhac.domain.produto.dto.GrupoAdicionalDTO;
+import br.com.nhac.backend_nhac.domain.produto.dto.ItemAdicionalDTO;
 import br.com.nhac.backend_nhac.domain.produto.dto.ProdutoCreateDTO;
 import br.com.nhac.backend_nhac.domain.produto.dto.ProdutoResumoDTO;
 import br.com.nhac.backend_nhac.domain.produto.dto.ProdutoUpdateDTO;
@@ -315,6 +317,45 @@ class ProdutoServiceTest {
 
         verify(produtoRepository, times(1)).findById("produto_1");
         verify(produtoRepository, times(1)).save(any(Produto.class));
+    }
+
+    @Test
+    void devePersistirEPermitirRemoverAdicionaisNaEdicao() {
+        Usuario dono = criarUsuario("usuario_lojista_1", "LOJISTA");
+        Produto produto = produtoDeTeste();
+        var grupo = new GrupoAdicionalDTO("Molhos", false, 0, 1,
+                List.of(new ItemAdicionalDTO("Barbecue", new BigDecimal("2.50"))));
+        when(produtoRepository.findById("produto_1")).thenReturn(Optional.of(produto));
+        when(produtoRepository.save(produto)).thenReturn(produto);
+
+        produtoService.atualizarProduto("produto_1", new ProdutoUpdateDTO(
+                "Hossomaki", "Descrição", BigDecimal.TEN, "Sushi", "url", null, 0,
+                true, List.of(grupo), 10), dono);
+
+        assertEquals(1, produto.getAdicionais().size());
+        assertEquals(produto, produto.getAdicionais().get(0).getProduto());
+        assertEquals(new BigDecimal("2.50"), produto.getAdicionais().get(0).getItens().get(0).getPreco());
+        assertEquals(produto.getAdicionais().get(0),
+                produto.getAdicionais().get(0).getItens().get(0).getGrupoAdicional());
+
+        produtoService.atualizarProduto("produto_1", new ProdutoUpdateDTO(
+                "Hossomaki", "Descrição", BigDecimal.TEN, "Sushi", "url", null, 0,
+                true, List.of(), 10), dono);
+        assertTrue(produto.getAdicionais().isEmpty());
+    }
+
+    @Test
+    void deveMontarAdicionaisAoCriarProduto() {
+        Loja loja = criarLoja("loja_1", "usuario_lojista_1", true);
+        var grupo = new GrupoAdicionalDTO("Molhos", true, 1, 1,
+                List.of(new ItemAdicionalDTO("Barbecue", new BigDecimal("2.50"))));
+        ProdutoCreateDTO dados = new ProdutoCreateDTO("Hambúrguer", "Descrição",
+                BigDecimal.TEN, "Lanches", "url", null, null, List.of(grupo), 10);
+
+        Produto produto = dados.toEntity(loja, produtoRepository);
+        assertEquals(1, produto.getAdicionais().size());
+        assertEquals(produto, produto.getAdicionais().get(0).getProduto());
+        assertEquals(1, produto.getAdicionais().get(0).getItens().size());
     }
 
     @Test

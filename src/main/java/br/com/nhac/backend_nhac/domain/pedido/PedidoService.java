@@ -293,6 +293,10 @@ public class PedidoService {
         }
 
         if (novoStatus == StatusPedido.CANCELADO) {
+            if (pedido.getStatus() != StatusPedido.PENDENTE) {
+                throw new RegraDeNegocioException(
+                        "Pedido pago ou em preparo não pode ser cancelado sem um fluxo de estorno.");
+            }
             cancelarInternamente(pedido);
             return;
         }

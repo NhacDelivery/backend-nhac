@@ -28,6 +28,6 @@ public record GrupoAdicionalDTO(
 
         @Schema(description = "Lista de itens deste grupo de adicionais")
         @NotNull(message = "A lista de itens não pode ser nula.")
-        List<ItemAdicionalDTO> itens
+        List<@jakarta.validation.Valid ItemAdicionalDTO> itens
 ) {
 }

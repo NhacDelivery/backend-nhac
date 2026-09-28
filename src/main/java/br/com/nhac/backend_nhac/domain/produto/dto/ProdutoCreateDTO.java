@@ -42,7 +42,7 @@ public record ProdutoCreateDTO(
         Integer percentualDesconto,
 
         @Schema(description = "Lista de grupos de adicionais do produto", example = "[]")
-        List<GrupoAdicionalDTO> adicionais,
+        List<@jakarta.validation.Valid GrupoAdicionalDTO> adicionais,
 
         @Schema(description = "Quantidade em estoque. Se não informado, o produto nasce com o valor padrão do sistema (100).", example = "50")
         @PositiveOrZero(message = "O estoque não pode ser negativo.")

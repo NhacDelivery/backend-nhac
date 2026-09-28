@@ -602,6 +602,25 @@ class PedidoServiceTest {
     }
 
     @Test
+    void naoDeveCancelarPedidoPagoSemEstorno() {
+        Usuario dono = new Usuario();
+        dono.setId("dono_loja");
+        dono.setPapel(br.com.nhac.backend_nhac.domain.usuario.Papel.LOJISTA);
+        Loja loja = new Loja();
+        loja.setId("loja_1");
+        Pedido pedido = new Pedido();
+        pedido.setId("pedido_pago");
+        pedido.setLoja(loja);
+        pedido.setStatus(StatusPedido.PAGO);
+        when(pedidoRepository.findById("pedido_pago")).thenReturn(Optional.of(pedido));
+
+        assertThrows(RegraDeNegocioException.class,
+                () -> pedidoService.atualizarStatus("pedido_pago", StatusPedido.CANCELADO, dono));
+        assertEquals(StatusPedido.PAGO, pedido.getStatus());
+        verify(pedidoRepository, never()).save(any(Pedido.class));
+    }
+
+    @Test
     @DisplayName("Webhook de pagamento repetido deve ser idempotente")
     void webhookPagamentoRepetidoDeveSerIdempotente() {
         Pedido pedido = new Pedido();

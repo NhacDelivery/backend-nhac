@@ -46,7 +46,7 @@ public record ProdutoUpdateDTO(
         Boolean isAtivo,
 
         @Schema(description = "Lista de grupos de adicionais do produto", example = "[]")
-        List<GrupoAdicionalDTO> adicionais,
+        List<@jakarta.validation.Valid GrupoAdicionalDTO> adicionais,
 
         @Schema(description = "Quantidade em estoque disponível para venda. Opcional: se omitido, o estoque atual não é alterado.", example = "50")
         @PositiveOrZero(message = "O estoque não pode ser negativo.")

@@ -84,5 +84,27 @@ public class Produto {
         this.percentualDesconto = dto.percentualDesconto();
         this.isAtivo = true;
         this.criadoEm = Instant.now();
+        substituirAdicionais(dto.adicionais());
+    }
+
+    public void substituirAdicionais(List<br.com.nhac.backend_nhac.domain.produto.dto.GrupoAdicionalDTO> grupos) {
+        if (grupos == null) return;
+        adicionais.clear();
+        for (var dadosGrupo : grupos) {
+            GrupoAdicional grupo = new GrupoAdicional();
+            grupo.setProduto(this);
+            grupo.setNome(dadosGrupo.nome());
+            grupo.setObrigatorio(dadosGrupo.obrigatorio());
+            grupo.setMinimo(dadosGrupo.minimo());
+            grupo.setMaximo(dadosGrupo.maximo());
+            for (var dadosItem : dadosGrupo.itens()) {
+                ItemAdicional item = new ItemAdicional();
+                item.setGrupoAdicional(grupo);
+                item.setNome(dadosItem.nome());
+                item.setPreco(dadosItem.preco());
+                grupo.getItens().add(item);
+            }
+            adicionais.add(grupo);
+        }
     }
 }
