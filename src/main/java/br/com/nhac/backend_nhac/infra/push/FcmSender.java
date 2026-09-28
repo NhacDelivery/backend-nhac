@@ -18,16 +18,15 @@ import org.springframework.stereotype.Component;
 @Component
 public class FcmSender {
     private final StorageProperties storageProperties;
-    private final ObjectMapper mapper;
+    private final ObjectMapper mapper = new ObjectMapper();
     private final HttpClient http = HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(5)).build();
     private final boolean mockMode;
     private GoogleCredentials credentials;
     private String projectId;
 
-    public FcmSender(StorageProperties storageProperties, ObjectMapper mapper,
+    public FcmSender(StorageProperties storageProperties,
             @Value("${nhac.storage.mock-mode:false}") boolean mockMode) {
         this.storageProperties = storageProperties;
-        this.mapper = mapper;
         this.mockMode = mockMode;
     }
 
