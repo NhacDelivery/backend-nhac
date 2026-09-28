@@ -22,8 +22,7 @@ import java.util.UUID;
 /**
  * Cliente para upload de arquivos no Firebase Storage (que é, por baixo dos panos, um bucket do
  * Google Cloud Storage). Segue o mesmo padrão de mock-mode já usado em EmailService/TwilioSmsService:
- * sem credenciais reais configuradas, ou com nhac.storage.mock-mode=true, nada é enviado de verdade —
- * apenas logado e devolvido um placeholder — para o resto da aplicação continuar funcionando em dev/CI.
+ * O modo mock é explícito para testes; sem credenciais reais, o modo normal falha ao iniciar.
  *
  * IMPORTANTE: esta integração ainda não foi testada contra um bucket real (sem credenciais disponíveis
  * no ambiente em que foi escrita). Antes de usar em produção, configure as credenciais reais, rode
@@ -39,9 +38,6 @@ public class FirebaseStorageClient {
 
     @Value("${nhac.storage.mock-mode:true}")
     private boolean mockMode;
-
-    @Value("${nhac.storage.fail-on-error:false}")
-    private boolean failOnError;
 
     private Storage storage;
 
@@ -77,11 +73,7 @@ public void init() {
 
         logger.info("Firebase Storage Client inicializado com sucesso para o bucket '{}'.", properties.getBucketName());
     } catch (Exception e) {
-        if (failOnError) {
-            throw new IllegalStateException("Falha ao inicializar o Firebase Storage Client", e);
-        }
-        logger.error("Falha ao inicializar o Firebase Storage Client. Voltando para modo MOCK. Erro: {}", e.getMessage());
-        this.mockMode = true;
+        throw new IllegalStateException("Falha ao inicializar o Firebase Storage Client", e);
     }
 }
 
