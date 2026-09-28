@@ -135,6 +135,31 @@ public class EntregaController {
         return ResponseEntity.ok(rotaService.calcularRota(pedido));
     }
 
+    public record LocalizacaoEntregadorDTO(Double latitude, Double longitude,
+            java.time.Instant atualizadaEm) {}
+
+    @GetMapping("/{pedidoId}/localizacao-entregador")
+    @Operation(summary = "Posição recente do entregador desta corrida")
+    public ResponseEntity<LocalizacaoEntregadorDTO> obterLocalizacaoEntregador(
+            @PathVariable String pedidoId,
+            @AuthenticationPrincipal Usuario usuarioLogado) {
+        Pedido pedido = buscarPedido(pedidoId);
+        validarAcessoARota(pedido, usuarioLogado);
+        if (pedido.getStatus() != br.com.nhac.backend_nhac.domain.pedido.StatusPedido.PREPARANDO &&
+                pedido.getStatus() != br.com.nhac.backend_nhac.domain.pedido.StatusPedido.SAIU_ENTREGA) {
+            return ResponseEntity.noContent().build();
+        }
+        var entregador = pedido.getEntregador();
+        if (entregador == null || entregador.getLatitudeAtual() == null ||
+                entregador.getLongitudeAtual() == null || entregador.getUltimaAtualizacaoLocalizacao() == null ||
+                entregador.getUltimaAtualizacaoLocalizacao().isBefore(java.time.Instant.now().minusSeconds(120))) {
+            return ResponseEntity.noContent().build();
+        }
+        return ResponseEntity.ok(new LocalizacaoEntregadorDTO(
+                entregador.getLatitudeAtual(), entregador.getLongitudeAtual(),
+                entregador.getUltimaAtualizacaoLocalizacao()));
+    }
+
     private Pedido buscarPedido(String pedidoId) {
         return pedidoRepository.findById(pedidoId)
                 .orElseThrow(() -> new IdNaoEncontradoException("Pedido " + pedidoId + " não encontrado."));
