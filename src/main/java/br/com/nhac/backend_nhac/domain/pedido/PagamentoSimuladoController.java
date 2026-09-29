@@ -10,7 +10,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 @RestController
-@Profile("e2e")
+@Profile({"dev", "e2e"})
 @RequestMapping("/api/v1/pedidos")
 public class PagamentoSimuladoController {
     private final PedidoService pedidoService;

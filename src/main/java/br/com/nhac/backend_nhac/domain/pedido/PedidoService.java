@@ -269,13 +269,33 @@ public class PedidoService {
             throw new PagamentoIndisponivelException("A simulação está disponível apenas para PIX.");
         }
         validarPagamentoPendente(pedido);
+        if (!mockMode) {
+            // No sandbox a cobrança é encerrada antes de registrar a simulação,
+            // evitando que um PIX de teste possa ser pago depois do pedido avançar.
+            String status = asaasPaymentService.consultarStatus(pedido.getAsaasPaymentId());
+            if ("DELETED".equals(status)) {
+                throw new PagamentoIndisponivelException("A cobrança PIX já foi cancelada.");
+            }
+            if (!"RECEIVED".equals(status) && !"CONFIRMED".equals(status)) {
+                asaasPaymentService.cancelarCobranca(pedido.getAsaasPaymentId());
+            }
+        }
         pedido.alterarStatus(StatusPedido.PAGO);
         pedidoRepository.save(pedido);
         publicarStatus(pedido);
     }
 
     private boolean simulacaoDisponivel() {
-        return mockMode && java.util.Arrays.asList(environment.getActiveProfiles()).contains("e2e");
+        List<String> perfis = java.util.Arrays.asList(environment.getActiveProfiles());
+        if (mockMode) return perfis.contains("e2e");
+        if (!perfis.contains("dev")) return false;
+        String url = environment.getProperty("asaas.api.url", "");
+        try {
+            String host = java.net.URI.create(url).getHost();
+            return "sandbox.asaas.com".equals(host) || "api-sandbox.asaas.com".equals(host);
+        } catch (IllegalArgumentException e) {
+            return false;
+        }
     }
 
     private void validarPagamentoPendente(Pedido pedido) {

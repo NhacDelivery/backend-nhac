@@ -25,6 +25,7 @@ import org.mockito.Spy;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.math.BigDecimal;
+import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
 
@@ -98,6 +99,37 @@ class PedidoServiceTest {
 
         assertEquals("pedido-em-andamento", erro.getDetails().get("pedidoId"));
         verifyNoInteractions(lojaRepository, produtoRepository, stripePaymentService, asaasPaymentService);
+    }
+
+    @Test
+    void simulaPixSomenteNoSandboxEEncerraCobrancaAntesDeMarcarPago() {
+        when(environment.getActiveProfiles()).thenReturn(new String[]{"dev"});
+        when(environment.getProperty("asaas.api.url", ""))
+                .thenReturn("https://sandbox.asaas.com/api/v3");
+        Pedido pedido = new Pedido();
+        pedido.setId("pedido-pix");
+        pedido.setUsuarioId("user_teste_123");
+        pedido.setFormaPagamento("PIX");
+        pedido.setStatus(StatusPedido.PENDENTE);
+        pedido.setPagamentoExpiraEm(Instant.now().plusSeconds(120));
+        pedido.setAsaasPaymentId("pay-sandbox");
+        when(pedidoRepository.findLockedById("pedido-pix")).thenReturn(Optional.of(pedido));
+        when(asaasPaymentService.consultarStatus("pay-sandbox")).thenReturn("PENDING");
+
+        pedidoService.simularPagamento("pedido-pix", "user_teste_123");
+
+        assertEquals(StatusPedido.PAGO, pedido.getStatus());
+        var ordem = inOrder(asaasPaymentService, pedidoRepository);
+        ordem.verify(asaasPaymentService).cancelarCobranca("pay-sandbox");
+        ordem.verify(pedidoRepository).save(pedido);
+    }
+
+    @Test
+    void naoSimulaPixComPerfilDeProducao() {
+        when(environment.getActiveProfiles()).thenReturn(new String[]{"prod"});
+        assertThrows(AcessoNegadoException.class,
+                () -> pedidoService.simularPagamento("pedido-pix", "user_teste_123"));
+        verifyNoInteractions(asaasPaymentService, pedidoRepository);
     }
 
     @Test
