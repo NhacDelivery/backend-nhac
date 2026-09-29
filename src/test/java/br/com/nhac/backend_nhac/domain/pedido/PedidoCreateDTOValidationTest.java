@@ -54,4 +54,20 @@ class PedidoCreateDTOValidationTest {
         Set<ConstraintViolation<PedidoCreateDTO.ItemPedidoDTO>> violations = validator.validate(item);
         assertFalse(violations.isEmpty());
     }
+
+    @Test
+    void coordenadasDaEntregaDevemVirEmParEEntrarNoPedido() {
+        var incompleto = new PedidoCreateDTO.EnderecoEntregaDTO(
+                "Rua", "12", "Centro", "Osasco", "SP", "06000-000", null, -23.5, null);
+        assertFalse(validator.validate(incompleto).isEmpty());
+
+        var completo = new PedidoCreateDTO.EnderecoEntregaDTO(
+                "Rua", "12", "Centro", "Osasco", "SP", "06000-000", null, -23.5, -46.7);
+        assertTrue(validator.validate(completo).isEmpty());
+        var dto = new PedidoCreateDTO("loja", "PIX", null, null, null,
+                completo, null, List.of(new PedidoCreateDTO.ItemPedidoDTO("produto", "Nome", null, 1)));
+        var pedido = dto.toEntity(null);
+        assertTrue(pedido.getEntregaLatitude().equals(-23.5));
+        assertTrue(pedido.getEntregaLongitude().equals(-46.7));
+    }
 }

@@ -86,6 +86,11 @@ public record PedidoCreateDTO(
                                 this.enderecoEntrega().complemento()
                         );
                         pedido.setEnderecoEntrega(endereco);
+                        if (this.enderecoEntrega().latitude() != null &&
+                                this.enderecoEntrega().longitude() != null) {
+                                pedido.setEntregaLatitude(this.enderecoEntrega().latitude());
+                                pedido.setEntregaLongitude(this.enderecoEntrega().longitude());
+                        }
                 }
 
                 return pedido;
@@ -114,8 +119,22 @@ public record PedidoCreateDTO(
                 @Pattern(regexp = "\\d{5}-\\d{3}", message = "O CEP deve estar no formato XXXXX-XXX.")
                 String cep,
 
-                String complemento
-        ) {}
+                String complemento,
+                @DecimalMin(value = "-90.0") @DecimalMax(value = "90.0") Double latitude,
+                @DecimalMin(value = "-180.0") @DecimalMax(value = "180.0") Double longitude
+        ) {
+                @AssertTrue(message = "Informe latitude e longitude juntas para calcular a rota.")
+                public boolean isCoordenadasConsistentes() {
+                        return (latitude == null && longitude == null) ||
+                                (latitude != null && longitude != null &&
+                                 (latitude != 0 || longitude != 0));
+                }
+
+                public EnderecoEntregaDTO(String rua, String numero, String bairro, String cidade,
+                        String estado, String cep, String complemento) {
+                        this(rua, numero, bairro, cidade, estado, cep, complemento, null, null);
+                }
+        }
 
 
         @Schema(description = "Item individual que compõe o pedido (Snapshot para histórico)")

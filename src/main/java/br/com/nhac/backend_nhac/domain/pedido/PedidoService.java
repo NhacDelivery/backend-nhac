@@ -359,7 +359,9 @@ public class PedidoService {
                 n(dto.enderecoEntrega().cidade()),
                 n(dto.enderecoEntrega().estado()),
                 n(dto.enderecoEntrega().cep()),
-                n(dto.enderecoEntrega().complemento()));
+                n(dto.enderecoEntrega().complemento()),
+                dto.enderecoEntrega().latitude() == null ? "" : dto.enderecoEntrega().latitude().toString(),
+                dto.enderecoEntrega().longitude() == null ? "" : dto.enderecoEntrega().longitude().toString());
 
         String itens = dto.itens().stream()
                 .sorted(Comparator.comparing(PedidoCreateDTO.ItemPedidoDTO::produtoId)
