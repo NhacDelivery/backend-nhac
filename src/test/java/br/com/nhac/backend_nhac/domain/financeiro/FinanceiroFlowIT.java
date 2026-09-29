@@ -190,7 +190,19 @@ public class FinanceiroFlowIT extends AbstractIntegrationTest {
     void pedidoCanceladoNaoDeveEntrarNoFaturamentoMasDeveContarNaTaxaDeCancelamento() throws Exception {
         criarPedidoPago(1); // pedido válido: 40.00
 
-        // Cria um segundo pedido e cancela via PATCH /status
+        // Um cliente só pode manter um pedido ativo. Use outro cliente para
+        // preservar o cenário de dois pedidos no mesmo financeiro da loja.
+        Usuario outroCliente = new Usuario();
+        outroCliente.setId(UUID.randomUUID().toString());
+        outroCliente.setNome("Cliente Cancelamento");
+        outroCliente.setEmail("cancelamento.financeiro@teste.com");
+        outroCliente.setSenha("senha123");
+        outroCliente.setTelefone("11966660000");
+        outroCliente.setPapel(Papel.CLIENTE);
+        usuarioRepository.save(outroCliente);
+        String tokenOutroCliente = tokenService.gerarToken(outroCliente);
+
+        // Cria o pedido do segundo cliente e cancela via PATCH /status.
         PedidoCreateDTO.ItemPedidoDTO itemDto = new PedidoCreateDTO.ItemPedidoDTO(produto.getId(), produto.getNome(), null, 1);
         PedidoCreateDTO pedidoDto = new PedidoCreateDTO(
                 loja.getId(), "DINHEIRO", null, null, null,
@@ -198,7 +210,7 @@ public class FinanceiroFlowIT extends AbstractIntegrationTest {
                 null, List.of(itemDto)
         );
         String respostaPedido = mockMvc.perform(post("/api/v1/pedidos")
-                        .header("Authorization", "Bearer " + tokenCliente)
+                        .header("Authorization", "Bearer " + tokenOutroCliente)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(pedidoDto)))
                 .andExpect(status().isCreated())
