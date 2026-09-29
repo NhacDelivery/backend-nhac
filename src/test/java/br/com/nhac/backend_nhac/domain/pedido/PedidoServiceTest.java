@@ -490,7 +490,7 @@ class PedidoServiceTest {
         pedidoMock.setUsuarioId("user_123");
         pedidoMock.setStatus(StatusPedido.PENDENTE);
 
-        when(pedidoRepository.findById("pedido_123")).thenReturn(Optional.of(pedidoMock));
+        when(pedidoRepository.findLockedById("pedido_123")).thenReturn(Optional.of(pedidoMock));
 
         pedidoService.cancelarPedido("pedido_123", "user_123");
 
@@ -505,7 +505,7 @@ class PedidoServiceTest {
         pedidoMock.setId("pedido_123");
         pedidoMock.setUsuarioId("user_diferente");
 
-        when(pedidoRepository.findById("pedido_123")).thenReturn(Optional.of(pedidoMock));
+        when(pedidoRepository.findLockedById("pedido_123")).thenReturn(Optional.of(pedidoMock));
 
         assertThrows(AcessoNegadoException.class, () -> {
             pedidoService.cancelarPedido("pedido_123", "user_123");
@@ -520,7 +520,7 @@ class PedidoServiceTest {
         pedidoMock.setUsuarioId("user_123");
         pedidoMock.setStatus(StatusPedido.SAIU_ENTREGA);
 
-        when(pedidoRepository.findById("pedido_123")).thenReturn(Optional.of(pedidoMock));
+        when(pedidoRepository.findLockedById("pedido_123")).thenReturn(Optional.of(pedidoMock));
 
         assertThrows(RegraDeNegocioException.class, () -> {
             pedidoService.cancelarPedido("pedido_123", "user_123");
