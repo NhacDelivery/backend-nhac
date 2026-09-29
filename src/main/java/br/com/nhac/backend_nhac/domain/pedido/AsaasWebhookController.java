@@ -72,6 +72,7 @@ public class AsaasWebhookController {
 
             switch (notification) {
                 case "PAYMENT_RECEIVED":
+                case "PAYMENT_CONFIRMED":
                     if (asaasPaymentId != null && !asaasPaymentId.isEmpty()) {
                         log.info("Webhook Asaas confirmou pagamento {}", asaasPaymentId);
                         try {

@@ -87,6 +87,9 @@ public class Pedido {
     @Column(name = "criado_em")
     private Instant criadoEm;
 
+    @Column(name = "pagamento_expira_em")
+    private Instant pagamentoExpiraEm;
+
     @Column(name = "stripe_payment_intent_id")
     private String stripePaymentIntentId;
 

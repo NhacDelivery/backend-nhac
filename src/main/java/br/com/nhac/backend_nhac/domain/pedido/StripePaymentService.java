@@ -78,4 +78,31 @@ public class StripePaymentService {
             throw new RuntimeException("Falha ao comunicar com Stripe para criar PaymentIntent: " + e.getMessage(), e);
         }
     }
+
+    public String obterClientSecret(Pedido pedido) {
+        if (mockMode) return "e2e_mock_client_secret";
+        try {
+            return PaymentIntent.retrieve(pedido.getStripePaymentIntentId()).getClientSecret();
+        } catch (StripeException e) {
+            throw new IllegalStateException("Falha ao recuperar o pagamento com cartão.", e);
+        }
+    }
+
+    public String consultarStatus(String paymentIntentId) {
+        if (mockMode) return "requires_payment_method";
+        try {
+            return PaymentIntent.retrieve(paymentIntentId).getStatus();
+        } catch (StripeException e) {
+            throw new IllegalStateException("Falha ao consultar o pagamento com cartão.", e);
+        }
+    }
+
+    public void cancelarPaymentIntent(String paymentIntentId) {
+        if (mockMode) return;
+        try {
+            PaymentIntent.retrieve(paymentIntentId).cancel();
+        } catch (StripeException e) {
+            throw new IllegalStateException("Falha ao cancelar o pagamento com cartão.", e);
+        }
+    }
 }

@@ -9,6 +9,7 @@ import br.com.nhac.backend_nhac.domain.pedido.Pedido;
 import br.com.nhac.backend_nhac.domain.pedido.dto.PedidoCreateDTO;
 import br.com.nhac.backend_nhac.domain.produto.Produto;
 import br.com.nhac.backend_nhac.domain.usuario.Usuario;
+import br.com.nhac.backend_nhac.domain.usuario.UsuarioRepository;
 import br.com.nhac.backend_nhac.exceptions.IdNaoEncontradoException;
 import br.com.nhac.backend_nhac.domain.loja.LojaRepository;
 import br.com.nhac.backend_nhac.domain.pedido.PedidoRepository;
@@ -24,16 +25,19 @@ import org.mockito.Spy;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.math.BigDecimal;
+import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
 
 import org.springframework.context.ApplicationEventPublisher;
+import org.springframework.core.env.Environment;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import br.com.nhac.backend_nhac.exceptions.RegraDeNegocioException;
 import br.com.nhac.backend_nhac.exceptions.AcessoNegadoException;
+import br.com.nhac.backend_nhac.exceptions.PedidoAtivoException;
 import br.com.nhac.backend_nhac.domain.pedido.StatusPedido;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -50,6 +54,8 @@ class PedidoServiceTest {
     @Mock private LojaAccessService lojaAccessService;
     @Mock private ApplicationEventPublisher eventPublisher;
     @Mock private EntregadorRepository entregadorRepository;
+    @Mock private UsuarioRepository usuarioRepository;
+    @Mock private Environment environment;
 
     @Spy
     private FreteService freteService = new FreteService();
@@ -58,6 +64,12 @@ class PedidoServiceTest {
 
     @BeforeEach
     void configurarAcessoDaLoja() {
+        lenient().when(usuarioRepository.findLockedById(anyString()))
+                .thenAnswer(invocation -> {
+                    Usuario usuario = usuarioPadrao();
+                    usuario.setId(invocation.getArgument(0));
+                    return Optional.of(usuario);
+                });
         lenient().when(lojaAccessService.temAcessoALoja(any(Usuario.class), anyString()))
                 .thenAnswer(invocation -> {
                     Usuario usuario = invocation.getArgument(0);
@@ -72,6 +84,52 @@ class PedidoServiceTest {
         usuario.setEmail("teste@nhac.com");
         usuario.setTelefone("11999999999");
         return usuario;
+    }
+
+    @Test
+    void bloqueiaNovoPedidoEnquantoOAnteriorEstaAtivo() {
+        Pedido ativo = new Pedido();
+        ativo.setId("pedido-em-andamento");
+        ativo.setStatus(StatusPedido.PAGO);
+        when(pedidoRepository.findFirstByUsuarioIdAndStatusInOrderByCriadoEmDesc(
+                eq("user_teste_123"), anyList())).thenReturn(Optional.of(ativo));
+
+        PedidoAtivoException erro = assertThrows(PedidoAtivoException.class,
+                () -> pedidoService.finalizarPedido(null, usuarioPadrao(), null));
+
+        assertEquals("pedido-em-andamento", erro.getDetails().get("pedidoId"));
+        verifyNoInteractions(lojaRepository, produtoRepository, stripePaymentService, asaasPaymentService);
+    }
+
+    @Test
+    void simulaPixSomenteNoSandboxEEncerraCobrancaAntesDeMarcarPago() {
+        when(environment.getActiveProfiles()).thenReturn(new String[]{"dev"});
+        when(environment.getProperty("asaas.api.url", ""))
+                .thenReturn("https://sandbox.asaas.com/api/v3");
+        Pedido pedido = new Pedido();
+        pedido.setId("pedido-pix");
+        pedido.setUsuarioId("user_teste_123");
+        pedido.setFormaPagamento("PIX");
+        pedido.setStatus(StatusPedido.PENDENTE);
+        pedido.setPagamentoExpiraEm(Instant.now().plusSeconds(120));
+        pedido.setAsaasPaymentId("pay-sandbox");
+        when(pedidoRepository.findLockedById("pedido-pix")).thenReturn(Optional.of(pedido));
+        when(asaasPaymentService.consultarStatus("pay-sandbox")).thenReturn("PENDING");
+
+        pedidoService.simularPagamento("pedido-pix", "user_teste_123");
+
+        assertEquals(StatusPedido.PAGO, pedido.getStatus());
+        var ordem = inOrder(asaasPaymentService, pedidoRepository);
+        ordem.verify(asaasPaymentService).cancelarCobranca("pay-sandbox");
+        ordem.verify(pedidoRepository).save(pedido);
+    }
+
+    @Test
+    void naoSimulaPixComPerfilDeProducao() {
+        when(environment.getActiveProfiles()).thenReturn(new String[]{"prod"});
+        assertThrows(AcessoNegadoException.class,
+                () -> pedidoService.simularPagamento("pedido-pix", "user_teste_123"));
+        verifyNoInteractions(asaasPaymentService, pedidoRepository);
     }
 
     @Test
@@ -464,7 +522,7 @@ class PedidoServiceTest {
         pedidoMock.setUsuarioId("user_123");
         pedidoMock.setStatus(StatusPedido.PENDENTE);
 
-        when(pedidoRepository.findById("pedido_123")).thenReturn(Optional.of(pedidoMock));
+        when(pedidoRepository.findLockedById("pedido_123")).thenReturn(Optional.of(pedidoMock));
 
         pedidoService.cancelarPedido("pedido_123", "user_123");
 
@@ -479,7 +537,7 @@ class PedidoServiceTest {
         pedidoMock.setId("pedido_123");
         pedidoMock.setUsuarioId("user_diferente");
 
-        when(pedidoRepository.findById("pedido_123")).thenReturn(Optional.of(pedidoMock));
+        when(pedidoRepository.findLockedById("pedido_123")).thenReturn(Optional.of(pedidoMock));
 
         assertThrows(AcessoNegadoException.class, () -> {
             pedidoService.cancelarPedido("pedido_123", "user_123");
@@ -494,7 +552,7 @@ class PedidoServiceTest {
         pedidoMock.setUsuarioId("user_123");
         pedidoMock.setStatus(StatusPedido.SAIU_ENTREGA);
 
-        when(pedidoRepository.findById("pedido_123")).thenReturn(Optional.of(pedidoMock));
+        when(pedidoRepository.findLockedById("pedido_123")).thenReturn(Optional.of(pedidoMock));
 
         assertThrows(RegraDeNegocioException.class, () -> {
             pedidoService.cancelarPedido("pedido_123", "user_123");
