@@ -9,11 +9,23 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
 import java.util.Optional;
+import java.time.Instant;
+import java.util.List;
+import jakarta.persistence.LockModeType;
+import org.springframework.data.jpa.repository.Lock;
 
 public interface PedidoRepository extends JpaRepository<Pedido, String> {
     Optional<Pedido> findByStripePaymentIntentId(String stripePaymentIntentId);
     Optional<Pedido> findByAsaasPaymentId(String asaasPaymentId);
     Optional<Pedido> findByUsuarioIdAndIdempotencyKey(String usuarioId, String idempotencyKey);
+
+    Optional<Pedido> findFirstByUsuarioIdAndStatusInOrderByCriadoEmDesc(String usuarioId, List<StatusPedido> status);
+
+    List<Pedido> findByStatusAndPagamentoExpiraEmLessThanEqual(StatusPedido status, Instant agora);
+
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("SELECT p FROM Pedido p WHERE p.id = :id")
+    Optional<Pedido> findLockedById(@Param("id") String id);
 
     @Modifying(clearAutomatically = true, flushAutomatically = true)
     @Query("UPDATE Pedido p SET p.entregador = :entregador, p.version = p.version + 1 WHERE p.id = :pedidoId AND p.entregador IS NULL AND p.status = br.com.nhac.backend_nhac.domain.pedido.StatusPedido.PREPARANDO")

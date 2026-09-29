@@ -7,11 +7,17 @@ import java.security.NoSuchAlgorithmException;
 import java.util.Comparator;
 import java.util.HexFormat;
 import java.util.Map;
+import java.util.List;
+import java.util.Optional;
+import java.time.Instant;
+import java.time.temporal.ChronoUnit;
 
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.core.env.Environment;
 import org.springframework.transaction.annotation.Transactional;
 
 import br.com.nhac.backend_nhac.domain.entregador.EntregadorRepository;
@@ -26,6 +32,7 @@ import br.com.nhac.backend_nhac.domain.pedido.dto.PedidoDetalheLojistaDTO;
 import br.com.nhac.backend_nhac.domain.pedido.dto.PedidoResponseDTO;
 import br.com.nhac.backend_nhac.domain.pedido.dto.PedidoResumoDTO;
 import br.com.nhac.backend_nhac.domain.pedido.dto.ResultadoCriacaoPedido;
+import br.com.nhac.backend_nhac.domain.pedido.dto.PagamentoPendenteDTO;
 import br.com.nhac.backend_nhac.domain.produto.Produto;
 import br.com.nhac.backend_nhac.domain.produto.ProdutoRepository;
 import br.com.nhac.backend_nhac.domain.usuario.Usuario;
@@ -41,9 +48,19 @@ import br.com.nhac.backend_nhac.exceptions.ProdutoInativoException;
 import br.com.nhac.backend_nhac.exceptions.ProdutoNaoEncontradoException;
 import br.com.nhac.backend_nhac.exceptions.QuantidadeInvalidaException;
 import br.com.nhac.backend_nhac.exceptions.RegraDeNegocioException;
+import br.com.nhac.backend_nhac.exceptions.PedidoAtivoException;
+import br.com.nhac.backend_nhac.exceptions.PagamentoIndisponivelException;
 
 @Service
 public class PedidoService {
+
+    private static final List<StatusPedido> STATUS_ATIVOS = List.of(
+            StatusPedido.PENDENTE, StatusPedido.PAGO, StatusPedido.PREPARANDO, StatusPedido.SAIU_ENTREGA);
+
+    @Value("${nhac.payments.mock-mode:false}")
+    private boolean mockMode;
+
+    private final Environment environment;
 
     private final br.com.nhac.backend_nhac.domain.cupom.CupomService cupomService;
     private final PedidoRepository pedidoRepository;
@@ -62,7 +79,8 @@ public class PedidoService {
                           StripePaymentService stripePaymentService, AsaasPaymentService asaasPaymentService,
                           ApplicationEventPublisher eventPublisher, FreteService freteService,
                           EntregadorRepository entregadorRepository,
-                          br.com.nhac.backend_nhac.domain.cupom.CupomService cupomService) {
+                          br.com.nhac.backend_nhac.domain.cupom.CupomService cupomService,
+                          Environment environment) {
         this.cupomService = cupomService;
         this.pedidoRepository = pedidoRepository;
         this.lojaRepository = lojaRepository;
@@ -74,20 +92,19 @@ public class PedidoService {
         this.eventPublisher = eventPublisher;
         this.freteService = freteService;
         this.entregadorRepository = entregadorRepository;
+        this.environment = environment;
     }
 
     @Transactional
     public ResultadoCriacaoPedido finalizarPedido(PedidoCreateDTO dto, Usuario usuarioLogado, String idempotencyKey) {
 
+        // A mesma trava protege chaves diferentes e chamadas sem chave.
+        usuarioRepository.findLockedById(usuarioLogado.getId())
+                .orElseThrow(() -> new IdNaoEncontradoException("Usuário autenticado não encontrado."));
+
         String idempotencyFingerprint = null;
         if (idempotencyKey != null && !idempotencyKey.isBlank()) {
             idempotencyFingerprint = calcularFingerprint(usuarioLogado.getId(), dto);
-
-            // Serializa tentativas concorrentes do MESMO usuário. Assim duas
-            // requisições com a mesma chave não passam juntas pelo "não existe"
-            // antes do INSERT. Usuários diferentes não se bloqueiam.
-            usuarioRepository.findLockedById(usuarioLogado.getId())
-                    .orElseThrow(() -> new IdNaoEncontradoException("Usuário autenticado não encontrado."));
 
             var existente = pedidoRepository.findByUsuarioIdAndIdempotencyKey(
                     usuarioLogado.getId(), idempotencyKey);
@@ -104,6 +121,9 @@ public class PedidoService {
             }
         }
 
+        pedidoRepository.findFirstByUsuarioIdAndStatusInOrderByCriadoEmDesc(usuarioLogado.getId(), STATUS_ATIVOS)
+                .ifPresent(ativo -> { throw new PedidoAtivoException(ativo.getId(), ativo.getStatus().name()); });
+
         Loja loja = lojaRepository.findByIdAndIsAbertoTrue(dto.lojaId())
                 .orElseThrow(() -> new LojaFechadaException(dto.lojaId()));
 
@@ -115,6 +135,12 @@ public class PedidoService {
         pedido.setIdempotencyKey(idempotencyKey);
         pedido.setIdempotencyFingerprint(idempotencyFingerprint);
         pedido.setUsuarioId(usuarioLogado.getId());
+        if ("PIX".equalsIgnoreCase(pedido.getFormaPagamento())
+                || "CARTAO".equalsIgnoreCase(pedido.getFormaPagamento())
+                || "STRIPE".equalsIgnoreCase(pedido.getFormaPagamento())
+                || "GOOGLE_PAY".equalsIgnoreCase(pedido.getFormaPagamento())) {
+            pedido.setPagamentoExpiraEm(pedido.getCriadoEm().plus(7, ChronoUnit.MINUTES));
+        }
 
         BigDecimal valorTotalItens = BigDecimal.ZERO;
 
@@ -200,6 +226,65 @@ public class PedidoService {
         }
     }
 
+    @Transactional(readOnly = true)
+    public Optional<PedidoResponseDTO> buscarPedidoAtivo(String usuarioId) {
+        return pedidoRepository.findFirstByUsuarioIdAndStatusInOrderByCriadoEmDesc(usuarioId, STATUS_ATIVOS)
+                .map(PedidoResponseDTO::new);
+    }
+
+    public PagamentoPendenteDTO buscarPagamento(String pedidoId, String usuarioId) {
+        Pedido pedido = pedidoRepository.findById(pedidoId)
+                .orElseThrow(() -> new IdNaoEncontradoException("Pedido não encontrado."));
+        if (!pedido.getUsuarioId().equals(usuarioId)) {
+            throw new AcessoNegadoException("Acesso negado: este pedido pertence a outro usuário.");
+        }
+        validarPagamentoPendente(pedido);
+
+        String forma = pedido.getFormaPagamento().toUpperCase(java.util.Locale.ROOT);
+        String pix = null;
+        String clientSecret = null;
+        if ("PIX".equals(forma)) {
+            pix = asaasPaymentService.obterCodigoPix(pedido);
+        } else if (List.of("CARTAO", "STRIPE", "GOOGLE_PAY").contains(forma)) {
+            clientSecret = stripePaymentService.obterClientSecret(pedido);
+        } else {
+            throw new PagamentoIndisponivelException("Este pedido não usa pagamento eletrônico.");
+        }
+        return new PagamentoPendenteDTO(pedidoId, forma, pedido.getStatus(), pedido.getPagamentoExpiraEm(),
+                pedido.getValorTotal(),
+                pix, pix, clientSecret, simulacaoDisponivel());
+    }
+
+    @Transactional
+    public void simularPagamento(String pedidoId, String usuarioId) {
+        if (!simulacaoDisponivel()) {
+            throw new AcessoNegadoException("Simulação de pagamento indisponível.");
+        }
+        Pedido pedido = pedidoRepository.findLockedById(pedidoId)
+                .orElseThrow(() -> new IdNaoEncontradoException("Pedido não encontrado."));
+        if (!pedido.getUsuarioId().equals(usuarioId)) {
+            throw new AcessoNegadoException("Acesso negado: este pedido pertence a outro usuário.");
+        }
+        if (!"PIX".equalsIgnoreCase(pedido.getFormaPagamento())) {
+            throw new PagamentoIndisponivelException("A simulação está disponível apenas para PIX.");
+        }
+        validarPagamentoPendente(pedido);
+        pedido.alterarStatus(StatusPedido.PAGO);
+        pedidoRepository.save(pedido);
+        publicarStatus(pedido);
+    }
+
+    private boolean simulacaoDisponivel() {
+        return mockMode && java.util.Arrays.asList(environment.getActiveProfiles()).contains("e2e");
+    }
+
+    private void validarPagamentoPendente(Pedido pedido) {
+        if (pedido.getStatus() != StatusPedido.PENDENTE || pedido.getPagamentoExpiraEm() == null
+                || !Instant.now().isBefore(pedido.getPagamentoExpiraEm())) {
+            throw new PagamentoIndisponivelException("O pagamento deste pedido não está mais disponível.");
+        }
+    }
+
     @Transactional
     public void marcarComoPagoPorPaymentIntentId(String paymentIntentId) {
         Pedido pedido = pedidoRepository.findByStripePaymentIntentId(paymentIntentId)
@@ -214,6 +299,7 @@ public class PedidoService {
 
         pedido.alterarStatus(StatusPedido.PAGO);
         pedidoRepository.save(pedido);
+        publicarStatus(pedido);
     }
 
     @Transactional
@@ -230,6 +316,7 @@ public class PedidoService {
 
         pedido.alterarStatus(StatusPedido.PAGO);
         pedidoRepository.save(pedido);
+        publicarStatus(pedido);
     }
 
     @Transactional
@@ -297,12 +384,14 @@ public class PedidoService {
                 throw new RegraDeNegocioException(
                         "Pedido pago ou em preparo não pode ser cancelado sem um fluxo de estorno.");
             }
+            cancelarCobrancaSePendente(pedido);
             cancelarInternamente(pedido);
             return;
         }
 
         pedido.alterarStatus(novoStatus);
         pedidoRepository.save(pedido);
+        publicarStatus(pedido);
 
         // Despacho automático: quando a loja aceita o pedido e começa a
         // preparar, os motoboys próximos já recebem a oferta. Antes disso,
@@ -325,7 +414,7 @@ public class PedidoService {
 
     @Transactional
     public void cancelarPedido(String pedidoId, String usuarioIdLogado) {
-        Pedido pedido = pedidoRepository.findById(pedidoId)
+        Pedido pedido = pedidoRepository.findLockedById(pedidoId)
                 .orElseThrow(() -> new IdNaoEncontradoException("Pedido não encontrado."));
 
         if (!pedido.getUsuarioId().equals(usuarioIdLogado)) {
@@ -340,7 +429,27 @@ public class PedidoService {
                     "O cliente só pode cancelar pedidos enquanto o pagamento estiver pendente.");
         }
 
+        // A cobrança precisa deixar de ser pagável antes de liberarmos estoque
+        // e permitirmos um novo pedido. Se o provedor falhar, mantenha ativo.
+        cancelarCobrancaSePendente(pedido);
+
         cancelarInternamente(pedido);
+    }
+
+    private void cancelarCobrancaSePendente(Pedido pedido) {
+        if (pedido.getAsaasPaymentId() != null) {
+            String status = asaasPaymentService.consultarStatus(pedido.getAsaasPaymentId());
+            if ("RECEIVED".equals(status) || "CONFIRMED".equals(status)) {
+                throw new PagamentoIndisponivelException("O pagamento já foi confirmado. Atualize o pedido.");
+            }
+            if (!"DELETED".equals(status)) asaasPaymentService.cancelarCobranca(pedido.getAsaasPaymentId());
+        } else if (pedido.getStripePaymentIntentId() != null) {
+            String status = stripePaymentService.consultarStatus(pedido.getStripePaymentIntentId());
+            if ("succeeded".equals(status) || "processing".equals(status)) {
+                throw new PagamentoIndisponivelException("O pagamento está em processamento. Atualize o pedido.");
+            }
+            if (!"canceled".equals(status)) stripePaymentService.cancelarPaymentIntent(pedido.getStripePaymentIntentId());
+        }
     }
 
     @Transactional
@@ -420,7 +529,23 @@ public class PedidoService {
         }
 
         pedidoRepository.save(pedido);
+        publicarStatus(pedido);
         return true;
+    }
+
+    @Transactional
+    public void cancelarPorExpiracao(String pedidoId) {
+        Pedido pedido = pedidoRepository.findLockedById(pedidoId)
+                .orElseThrow(() -> new IdNaoEncontradoException("Pedido não encontrado."));
+        if (pedido.getStatus() == StatusPedido.PENDENTE
+                && pedido.getPagamentoExpiraEm() != null
+                && !Instant.now().isBefore(pedido.getPagamentoExpiraEm())) {
+            cancelarInternamente(pedido);
+        }
+    }
+
+    private void publicarStatus(Pedido pedido) {
+        eventPublisher.publishEvent(new PedidoStatusAtualizadoEvent(pedido.getId(), pedido.getStatus()));
     }
 
     private void devolverEstoque(Pedido pedido) {

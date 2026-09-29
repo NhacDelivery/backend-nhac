@@ -48,6 +48,9 @@ public class AsaasPaymentServiceTest {
         ReflectionTestUtils.setField(asaasPaymentService, "asaasApiKey", testApiKey);
         ReflectionTestUtils.setField(asaasPaymentService, "asaasApiUrl", testApiUrl);
         ReflectionTestUtils.setField(asaasPaymentService, "gson", new Gson());
+        lenient().when(restTemplate.exchange(
+                contains("/pixQrCode"), eq(HttpMethod.GET), any(HttpEntity.class), eq(String.class)))
+                .thenReturn(ResponseEntity.ok("{\"payload\":\"000201...\"}"));
     }
 
     @Test
@@ -80,8 +83,8 @@ public class AsaasPaymentServiceTest {
         assertNotNull(resultado);
         assertEquals(pedido.getId(), resultado.pedidoId());
         assertNull(resultado.clientSecret(), "clientSecret deve ser null para cobranças Asaas");
-        assertEquals(pixCopyAndPaste, resultado.pixCopiaECola());
-        assertEquals(pixQrCode, resultado.qrCodeUrl());
+        assertEquals("000201...", resultado.pixCopiaECola());
+        assertEquals("000201...", resultado.qrCodeUrl());
         assertEquals(paymentId, pedido.getAsaasPaymentId());
 
         verify(restTemplate).postForEntity(eq(testApiUrl + "/customers"), any(HttpEntity.class), eq(String.class));
@@ -89,7 +92,7 @@ public class AsaasPaymentServiceTest {
     }
 
     @Test
-    @DisplayName("Deve criar cobrança PIX mesmo sem QR Code na resposta")
+    @DisplayName("Deve buscar o QR Code no endpoint próprio mesmo sem dados na criação")
     void deveCriarCobrancaPixSemQrCodeNaResposta() {
         Pedido pedido = criarPedidoTeste();
         String paymentId = "pay_test_789";
@@ -113,8 +116,8 @@ public class AsaasPaymentServiceTest {
 
         assertNotNull(resultado);
         assertEquals(pedido.getId(), resultado.pedidoId());
-        assertNull(resultado.qrCodeUrl(), "qrCodeUrl deve ser null quando não retornado pela API");
-        assertEquals(pixCopyAndPaste, resultado.pixCopiaECola());
+        assertEquals("000201...", resultado.qrCodeUrl());
+        assertEquals("000201...", resultado.pixCopiaECola());
     }
 
     @Test

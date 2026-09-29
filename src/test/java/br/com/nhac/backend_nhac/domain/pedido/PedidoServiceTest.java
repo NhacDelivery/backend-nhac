@@ -9,6 +9,7 @@ import br.com.nhac.backend_nhac.domain.pedido.Pedido;
 import br.com.nhac.backend_nhac.domain.pedido.dto.PedidoCreateDTO;
 import br.com.nhac.backend_nhac.domain.produto.Produto;
 import br.com.nhac.backend_nhac.domain.usuario.Usuario;
+import br.com.nhac.backend_nhac.domain.usuario.UsuarioRepository;
 import br.com.nhac.backend_nhac.exceptions.IdNaoEncontradoException;
 import br.com.nhac.backend_nhac.domain.loja.LojaRepository;
 import br.com.nhac.backend_nhac.domain.pedido.PedidoRepository;
@@ -28,12 +29,14 @@ import java.util.List;
 import java.util.Optional;
 
 import org.springframework.context.ApplicationEventPublisher;
+import org.springframework.core.env.Environment;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import br.com.nhac.backend_nhac.exceptions.RegraDeNegocioException;
 import br.com.nhac.backend_nhac.exceptions.AcessoNegadoException;
+import br.com.nhac.backend_nhac.exceptions.PedidoAtivoException;
 import br.com.nhac.backend_nhac.domain.pedido.StatusPedido;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -50,6 +53,8 @@ class PedidoServiceTest {
     @Mock private LojaAccessService lojaAccessService;
     @Mock private ApplicationEventPublisher eventPublisher;
     @Mock private EntregadorRepository entregadorRepository;
+    @Mock private UsuarioRepository usuarioRepository;
+    @Mock private Environment environment;
 
     @Spy
     private FreteService freteService = new FreteService();
@@ -58,6 +63,12 @@ class PedidoServiceTest {
 
     @BeforeEach
     void configurarAcessoDaLoja() {
+        lenient().when(usuarioRepository.findLockedById(anyString()))
+                .thenAnswer(invocation -> {
+                    Usuario usuario = usuarioPadrao();
+                    usuario.setId(invocation.getArgument(0));
+                    return Optional.of(usuario);
+                });
         lenient().when(lojaAccessService.temAcessoALoja(any(Usuario.class), anyString()))
                 .thenAnswer(invocation -> {
                     Usuario usuario = invocation.getArgument(0);
@@ -72,6 +83,21 @@ class PedidoServiceTest {
         usuario.setEmail("teste@nhac.com");
         usuario.setTelefone("11999999999");
         return usuario;
+    }
+
+    @Test
+    void bloqueiaNovoPedidoEnquantoOAnteriorEstaAtivo() {
+        Pedido ativo = new Pedido();
+        ativo.setId("pedido-em-andamento");
+        ativo.setStatus(StatusPedido.PAGO);
+        when(pedidoRepository.findFirstByUsuarioIdAndStatusInOrderByCriadoEmDesc(
+                eq("user_teste_123"), anyList())).thenReturn(Optional.of(ativo));
+
+        PedidoAtivoException erro = assertThrows(PedidoAtivoException.class,
+                () -> pedidoService.finalizarPedido(null, usuarioPadrao(), null));
+
+        assertEquals("pedido-em-andamento", erro.getDetails().get("pedidoId"));
+        verifyNoInteractions(lojaRepository, produtoRepository, stripePaymentService, asaasPaymentService);
     }
 
     @Test

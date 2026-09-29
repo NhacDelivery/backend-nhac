@@ -104,14 +104,12 @@ public class AsaasPaymentService {
                 JsonObject responseBody = gson.fromJson(response.getBody(), JsonObject.class);
                 
                 String paymentId = responseBody.get("id").getAsString();
-                String pixQrCode = responseBody.has("pixQrCode") ? responseBody.get("pixQrCode").getAsString() : null;
-                String pixCopyAndPaste = responseBody.has("pixCopyAndPaste") ? responseBody.get("pixCopyAndPaste").getAsString() : null;
-
                 pedido.setAsaasPaymentId(paymentId);
                 pedidoRepository.save(pedido); // ✅ SALVA O PEDIDO COM O ID DO ASAAS
 
                 log.info("Cobrança PIX criada no Asaas: {}", paymentId);
-                return new PedidoCriadoDTO(pedido.getId(), null, pixCopyAndPaste, pixQrCode);
+                String codigoPix = obterCodigoPix(pedido);
+                return new PedidoCriadoDTO(pedido.getId(), null, codigoPix, codigoPix);
             } else {
                 throw new RuntimeException("Falha ao criar cobrança no Asaas: " + response.getStatusCode());
             }
@@ -120,5 +118,40 @@ public class AsaasPaymentService {
             log.error("Erro ao criar cobrança PIX no Asaas", e);
             throw new RuntimeException("Erro ao comunicar com Asaas para criar cobrança PIX: " + e.getMessage(), e);
         }
+    }
+
+    public String obterCodigoPix(Pedido pedido) {
+        if (mockMode) return "000201-e2e-mock";
+        JsonObject resposta = buscar("/payments/" + pedido.getAsaasPaymentId() + "/pixQrCode");
+        if (!resposta.has("payload") || resposta.get("payload").isJsonNull()) {
+            throw new IllegalStateException("O Asaas não devolveu o código PIX da cobrança.");
+        }
+        return resposta.get("payload").getAsString();
+    }
+
+    public String consultarStatus(String paymentId) {
+        if (mockMode) return "PENDING";
+        return buscar("/payments/" + paymentId).get("status").getAsString();
+    }
+
+    public void cancelarCobranca(String paymentId) {
+        if (mockMode) return;
+        restTemplate.exchange(asaasApiUrl + "/payments/" + paymentId,
+                HttpMethod.DELETE, new HttpEntity<>(cabecalhos()), String.class);
+    }
+
+    private JsonObject buscar(String path) {
+        ResponseEntity<String> resposta = restTemplate.exchange(asaasApiUrl + path,
+                HttpMethod.GET, new HttpEntity<>(cabecalhos()), String.class);
+        if (!resposta.getStatusCode().is2xxSuccessful() || resposta.getBody() == null) {
+            throw new IllegalStateException("Falha ao consultar cobrança PIX no Asaas.");
+        }
+        return gson.fromJson(resposta.getBody(), JsonObject.class);
+    }
+
+    private HttpHeaders cabecalhos() {
+        HttpHeaders headers = new HttpHeaders();
+        headers.set("access_token", asaasApiKey);
+        return headers;
     }
 }

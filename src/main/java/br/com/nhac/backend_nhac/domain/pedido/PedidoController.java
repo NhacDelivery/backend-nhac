@@ -66,6 +66,19 @@ public class PedidoController {
         return ResponseEntity.status(status).body(resultado.dto());
     }
 
+    @GetMapping("/ativo")
+    public ResponseEntity<PedidoResponseDTO> buscarPedidoAtivo(@AuthenticationPrincipal Usuario usuarioLogado) {
+        return pedidoService.buscarPedidoAtivo(usuarioLogado.getId())
+                .map(ResponseEntity::ok)
+                .orElseGet(() -> ResponseEntity.noContent().build());
+    }
+
+    @GetMapping("/{id}/pagamento")
+    public ResponseEntity<PagamentoPendenteDTO> buscarPagamento(
+            @PathVariable String id, @AuthenticationPrincipal Usuario usuarioLogado) {
+        return ResponseEntity.ok(pedidoService.buscarPagamento(id, usuarioLogado.getId()));
+    }
+
     @Operation(summary = "Consultar um pedido", description = "Retorna os detalhes de um pedido específico caso pertença ao usuário logado.")
     @ApiResponses(value = {
             @ApiResponse(responseCode = "200", description = "Pedido encontrado e retornado com sucesso."),

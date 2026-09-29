@@ -6,7 +6,6 @@ import com.stripe.model.Event;
 import com.stripe.model.PaymentIntent;
 import com.stripe.model.StripeObject;
 import com.stripe.net.Webhook;
-import java.util.Map;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import org.slf4j.Logger;
@@ -74,22 +73,8 @@ public class StripeWebhookController {
                 }
                 break;
             case "payment_intent.payment_failed":
-                PaymentIntent failedIntent = (PaymentIntent) event.getDataObjectDeserializer().getObject().orElse(null);
-                if (failedIntent != null) {
-                    Map<String, String> metadata = failedIntent.getMetadata();
-                    if (metadata != null && metadata.containsKey("pedidoId")) {
-                        String pedidoId = metadata.get("pedidoId");
-                        log.warn("Webhook Stripe informou falha de pagamento do pedido {}", pedidoId);
-                        try {
-                            pedidoService.marcarComoCanceladoPorFalhaDePagamento(pedidoId);
-                        } catch (br.com.nhac.backend_nhac.exceptions.RegraDeNegocioException e) {
-                            log.info("Webhook Stripe idempotente/ignorado: {}", e.getMessage());
-                        } catch (Exception e) {
-                            log.error("Erro ao cancelar pedido por webhook Stripe", e);
-                            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
-                        }
-                    }
-                }
+                // Uma tentativa falha pode ser repetida até o vencimento do pedido.
+                log.info("Tentativa Stripe falhou; pagamento ainda pode ser retomado.");
                 break;
             default:
                 log.debug("Evento Stripe não tratado: {}", event.getType());
