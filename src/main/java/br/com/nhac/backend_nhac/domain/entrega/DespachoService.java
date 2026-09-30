@@ -36,6 +36,8 @@ public class DespachoService {
     private final EntregadorRepository entregadorRepository;
     private final UsuarioRepository usuarioRepository;
     private final SimpMessagingTemplate messagingTemplate;
+    private final CodigoEntregaService codigoEntregaService;
+    private final org.springframework.context.ApplicationEventPublisher eventPublisher;
 
     public DespachoService(
             PedidoRepository pedidoRepository,
@@ -43,7 +45,9 @@ public class DespachoService {
             EntregadorService entregadorService,
             EntregadorRepository entregadorRepository,
             UsuarioRepository usuarioRepository,
-            SimpMessagingTemplate messagingTemplate
+            SimpMessagingTemplate messagingTemplate,
+            CodigoEntregaService codigoEntregaService,
+            org.springframework.context.ApplicationEventPublisher eventPublisher
     ) {
         this.pedidoRepository = pedidoRepository;
         this.ofertaEntregaRepository = ofertaEntregaRepository;
@@ -51,6 +55,8 @@ public class DespachoService {
         this.entregadorRepository = entregadorRepository;
         this.usuarioRepository = usuarioRepository;
         this.messagingTemplate = messagingTemplate;
+        this.codigoEntregaService = codigoEntregaService;
+        this.eventPublisher = eventPublisher;
     }
 
     @Transactional
@@ -263,12 +269,10 @@ public class DespachoService {
     }
 
     /**
-     * Baixa da entrega pelo entregador. Sem isto o pedido morria em
-     * SAIU_ENTREGA e o entregador ficava travado em EM_ENTREGA — ou seja,
-     * nunca mais recebia oferta nenhuma, porque o despacho só procura ONLINE.
+     * Baixa da entrega pelo entregador. Exige código de confirmação.
      */
     @Transactional
-    public void concluirEntrega(String pedidoId, Usuario usuarioLogado) {
+    public void concluirEntrega(String pedidoId, Usuario usuarioLogado, String codigoEntrega) {
         Entregador entregador = entregadorService.buscarPorUsuario(usuarioLogado);
         Pedido pedido = buscarPedidoDoEntregador(pedidoId, entregador);
 
@@ -282,12 +286,18 @@ public class DespachoService {
                     "Só é possível concluir um pedido que já saiu para entrega. Status atual: " + pedido.getStatus());
         }
 
-        pedido.alterarStatus(StatusPedido.ENTREGUE);
-        pedido.setEntregueEm(Instant.now());
-        pedidoRepository.save(pedido);
+        // Lock pessimista para validar e usar o código de entrega
+        Pedido pedidoLocked = pedidoRepository.findLockedById(pedidoId)
+                .orElseThrow(() -> new IdNaoEncontradoException("Pedido não encontrado"));
+
+        codigoEntregaService.validarCodigo(pedidoLocked, codigoEntrega);
+
+        pedidoLocked.alterarStatus(StatusPedido.ENTREGUE);
+        pedidoLocked.setEntregueEm(Instant.now());
+        pedidoRepository.save(pedidoLocked);
 
         liberarEntregador(entregador);
-        notificarStatus(pedido);
+        notificarStatus(pedidoLocked);
     }
 
     /**
@@ -322,11 +332,7 @@ public class DespachoService {
     }
 
     private void notificarStatus(Pedido pedido) {
-        try {
-            messagingTemplate.convertAndSend("/topic/pedidos/" + pedido.getId() + "/status", pedido.getStatus().name());
-        } catch (Exception e) {
-            log.warn("Falha ao emitir WebSocket de atualização do pedido {}: {}", pedido.getId(), e.getMessage());
-        }
+        eventPublisher.publishEvent(new br.com.nhac.backend_nhac.domain.pedido.PedidoStatusAtualizadoEvent(pedido.getId(), pedido.getStatus()));
     }
 
     /**

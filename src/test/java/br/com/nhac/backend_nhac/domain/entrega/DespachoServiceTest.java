@@ -55,6 +55,12 @@ class DespachoServiceTest {
     @Mock
     private SimpMessagingTemplate messagingTemplate;
 
+    @Mock
+    private CodigoEntregaService codigoEntregaService;
+
+    @Mock
+    private org.springframework.context.ApplicationEventPublisher eventPublisher;
+
     @InjectMocks
     private DespachoService despachoService;
 
@@ -295,6 +301,58 @@ class DespachoServiceTest {
         assertTrue(ofertas.isEmpty());
         verify(ofertaEntregaRepository, never()).save(any());
         verify(messagingTemplate, never()).convertAndSend(anyString(), any(Object.class));
+    }
+
+    @Test
+    @DisplayName("Deve concluir a entrega com o código correto")
+    void deveConcluirEntregaComCodigoCorreto() {
+        pedido.setEntregador(entregador);
+        pedido.setStatus(StatusPedido.SAIU_ENTREGA);
+        entregador.setStatusOperacional(StatusOperacional.EM_ENTREGA);
+
+        when(entregadorService.buscarPorUsuario(usuarioEntregador)).thenReturn(entregador);
+        when(pedidoRepository.findById("ped_1")).thenReturn(Optional.of(pedido));
+        when(pedidoRepository.findLockedById("ped_1")).thenReturn(Optional.of(pedido));
+
+        despachoService.concluirEntrega("ped_1", usuarioEntregador, "1234");
+
+        verify(codigoEntregaService).validarCodigo(pedido, "1234");
+        assertEquals(StatusPedido.ENTREGUE, pedido.getStatus());
+        assertEquals(StatusOperacional.ONLINE, entregador.getStatusOperacional());
+        verify(pedidoRepository).save(pedido);
+        verify(entregadorRepository).save(entregador);
+    }
+
+    @Test
+    @DisplayName("concluirEntrega deve ser idempotente se já estiver ENTREGUE")
+    void concluirEntregaIdempotente() {
+        pedido.setEntregador(entregador);
+        pedido.setStatus(StatusPedido.ENTREGUE);
+        entregador.setStatusOperacional(StatusOperacional.EM_ENTREGA);
+
+        when(entregadorService.buscarPorUsuario(usuarioEntregador)).thenReturn(entregador);
+        when(pedidoRepository.findById("ped_1")).thenReturn(Optional.of(pedido));
+
+        despachoService.concluirEntrega("ped_1", usuarioEntregador, "1234");
+
+        verifyNoInteractions(codigoEntregaService);
+        assertEquals(StatusOperacional.ONLINE, entregador.getStatusOperacional());
+        verify(pedidoRepository, never()).save(pedido);
+    }
+
+    @Test
+    @DisplayName("concluirEntrega deve falhar se não estiver em SAIU_ENTREGA")
+    void concluirEntregaFalhaSeStatusIncorreto() {
+        pedido.setEntregador(entregador);
+        pedido.setStatus(StatusPedido.PREPARANDO);
+
+        when(entregadorService.buscarPorUsuario(usuarioEntregador)).thenReturn(entregador);
+        when(pedidoRepository.findById("ped_1")).thenReturn(Optional.of(pedido));
+
+        assertThrows(RegraDeNegocioException.class, () ->
+                despachoService.concluirEntrega("ped_1", usuarioEntregador, "1234"));
+
+        verifyNoInteractions(codigoEntregaService);
     }
 
 }

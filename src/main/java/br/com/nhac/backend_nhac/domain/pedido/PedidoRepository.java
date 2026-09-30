@@ -34,6 +34,14 @@ public interface PedidoRepository extends JpaRepository<Pedido, String> {
             @Param("entregador") Entregador entregador
     );
 
+    @Modifying
+    @Query("UPDATE Pedido p SET p.codigoEntregaTentativas = p.codigoEntregaTentativas + 1, p.codigoEntregaBloqueadoAte = :bloqueadoAte WHERE p.id = :pedidoId")
+    int incrementarTentativasCodigoEntrega(@Param("pedidoId") String pedidoId, @Param("bloqueadoAte") Instant bloqueadoAte);
+
+    @Modifying
+    @Query("UPDATE Pedido p SET p.codigoEntregaTentativas = 0, p.codigoEntregaBloqueadoAte = null WHERE p.id = :pedidoId")
+    int resetarTentativasCodigoEntrega(@Param("pedidoId") String pedidoId);
+
     boolean existsByEntregadorIdAndStatusIn(String entregadorId, java.util.List<StatusPedido> status);
     Page<Pedido> findByUsuarioId(String usuarioId, Pageable pageable);
 

@@ -24,7 +24,10 @@ public record PedidoResponseDTO(
         @Schema(description = "Endereço onde será entregue") EnderecoEntregaResponseDTO enderecoEntrega,
         @Schema(description = "Itens do pedido") List<ItemPedidoResponseDTO> itens,
         BigDecimal desconto,
-        String cupomId
+        String cupomId,
+        String codigoEntrega,
+        br.com.nhac.backend_nhac.domain.entrega.dto.EntregadorPedidoDTO entregador,
+        Boolean entregadorAvaliado
 ) {
     public PedidoResponseDTO(Pedido pedido) {
         this(
@@ -57,7 +60,53 @@ public record PedidoResponseDTO(
                         item.getQuantidade()
                 )).toList() : List.of(),
                 pedido.getDesconto(),
-                pedido.getCupomId()
+                pedido.getCupomId(),
+                null,
+                null,
+                false
+        );
+    }
+
+    public static PedidoResponseDTO comDetalhesEntregador(Pedido pedido, br.com.nhac.backend_nhac.domain.entrega.dto.EntregadorPedidoDTO entregadorDto, boolean entregadorAvaliado) {
+        String codigo = null;
+        if (pedido.getStatus() == StatusPedido.SAIU_ENTREGA) {
+            codigo = pedido.getCodigoEntrega();
+        }
+        
+        return new PedidoResponseDTO(
+                pedido.getId(),
+                pedido.getUsuarioId(),
+                pedido.getLoja().getId(),
+                pedido.getLoja().getNome(),
+                pedido.getValorTotal(),
+                pedido.getTaxaFrete(),
+                pedido.getFormaPagamento(),
+                pedido.getTrocoPara(),
+                pedido.getObservacao(),
+                pedido.getStatus(),
+                pedido.getCriadoEm(),
+                pedido.getEnderecoEntrega() != null ? new EnderecoEntregaResponseDTO(
+                        pedido.getEnderecoEntrega().getRua(),
+                        pedido.getEnderecoEntrega().getNumero(),
+                        pedido.getEnderecoEntrega().getBairro(),
+                        pedido.getEnderecoEntrega().getCidade(),
+                        pedido.getEnderecoEntrega().getEstado(),
+                        pedido.getEnderecoEntrega().getCep(),
+                        pedido.getEnderecoEntrega().getComplemento()
+                ) : null,
+                pedido.getItens() != null ? pedido.getItens().stream().map(item -> new ItemPedidoResponseDTO(
+                        item.getId(),
+                        item.getProduto().getId(),
+                        item.getNome(),
+                        item.getImagemUrl(),
+                        item.getPrecoHistorico(),
+                        item.getQuantidade()
+                )).toList() : List.of(),
+                pedido.getDesconto(),
+                pedido.getCupomId(),
+                codigo,
+                entregadorDto,
+                entregadorAvaliado
         );
     }
 

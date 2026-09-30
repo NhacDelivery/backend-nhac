@@ -73,6 +73,7 @@ public class PedidoService {
     private final ApplicationEventPublisher eventPublisher;
     private final FreteService freteService;
     private final EntregadorRepository entregadorRepository;
+    private final br.com.nhac.backend_nhac.domain.avaliacao_entregador.AvaliacaoEntregadorService avaliacaoEntregadorService;
 
     public PedidoService(PedidoRepository pedidoRepository, LojaRepository lojaRepository, ProdutoRepository produtoRepository,
                           UsuarioRepository usuarioRepository, LojaAccessService lojaAccessService,
@@ -80,7 +81,8 @@ public class PedidoService {
                           ApplicationEventPublisher eventPublisher, FreteService freteService,
                           EntregadorRepository entregadorRepository,
                           br.com.nhac.backend_nhac.domain.cupom.CupomService cupomService,
-                          Environment environment) {
+                          Environment environment,
+                          br.com.nhac.backend_nhac.domain.avaliacao_entregador.AvaliacaoEntregadorService avaliacaoEntregadorService) {
         this.cupomService = cupomService;
         this.pedidoRepository = pedidoRepository;
         this.lojaRepository = lojaRepository;
@@ -93,6 +95,7 @@ public class PedidoService {
         this.freteService = freteService;
         this.entregadorRepository = entregadorRepository;
         this.environment = environment;
+        this.avaliacaoEntregadorService = avaliacaoEntregadorService;
     }
 
     @Transactional
@@ -229,7 +232,16 @@ public class PedidoService {
     @Transactional(readOnly = true)
     public Optional<PedidoResponseDTO> buscarPedidoAtivo(String usuarioId) {
         return pedidoRepository.findFirstByUsuarioIdAndStatusInOrderByCriadoEmDesc(usuarioId, STATUS_ATIVOS)
-                .map(PedidoResponseDTO::new);
+                .map(this::montarResponseComEntregador);
+    }
+
+    private PedidoResponseDTO montarResponseComEntregador(Pedido pedido) {
+        if (pedido.getEntregador() == null || (pedido.getStatus() != StatusPedido.PREPARANDO && pedido.getStatus() != StatusPedido.SAIU_ENTREGA && pedido.getStatus() != StatusPedido.ENTREGUE)) {
+            return new PedidoResponseDTO(pedido);
+        }
+        var entregadorDto = avaliacaoEntregadorService.obterResumoEntregador(pedido.getEntregador());
+        boolean avaliado = avaliacaoEntregadorService.existeAvaliacaoParaPedido(pedido.getId());
+        return PedidoResponseDTO.comDetalhesEntregador(pedido, entregadorDto, avaliado);
     }
 
     public PagamentoPendenteDTO buscarPagamento(String pedidoId, String usuarioId) {
@@ -356,7 +368,7 @@ public class PedidoService {
             throw new AcessoNegadoException("Acesso negado: você não tem permissão para visualizar este pedido.");
         }
 
-        return new PedidoResponseDTO(pedido);
+        return montarResponseComEntregador(pedido);
     }
 
     @Transactional(readOnly = true)
@@ -397,6 +409,11 @@ public class PedidoService {
         boolean isAdmin = usuarioLogado.getPapel().name().equals("ADMIN");
         if (!isAdmin && !lojaAccessService.temAcessoALoja(usuarioLogado, pedido.getLoja().getId())) {
             throw new AcessoNegadoException("Acesso negado: você não tem permissão para alterar o status deste pedido.");
+        }
+        
+        if (novoStatus == StatusPedido.ENTREGUE) {
+            throw new RegraDeNegocioException(
+                    "A entrega só pode ser concluída pelo entregador com o código de confirmação.");
         }
 
         if (novoStatus == StatusPedido.CANCELADO) {
