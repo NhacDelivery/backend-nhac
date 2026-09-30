@@ -95,6 +95,13 @@ jobs:
         working-directory: Nhac
         run: flutter pub get
 
+      - name: Habilitar aceleração KVM do emulador
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+          test -r /dev/kvm && test -w /dev/kvm
+
       - name: Run isolated Android E2E three times
         uses: ReactiveCircus/android-emulator-runner@v2
         env:
@@ -113,6 +120,7 @@ jobs:
           heap-size: 512M
           disk-size: 4096M
           disable-animations: true
+          disable-linux-hw-accel: false
           working-directory: Nhac
           script: ../backend-nhac/.github/scripts/run-client-e2e.sh
 
