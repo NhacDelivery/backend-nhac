@@ -30,12 +30,16 @@ public class EntregadorController {
 
     private final EntregadorService entregadorService;
     private final GanhosEntregadorService ganhosEntregadorService;
+    private final br.com.nhac.backend_nhac.domain.avaliacao_entregador.AvaliacaoEntregadorService avaliacaoEntregadorService;
 
-    public EntregadorController(EntregadorService entregadorService, GanhosEntregadorService ganhosEntregadorService
-
+    public EntregadorController(
+            EntregadorService entregadorService, 
+            GanhosEntregadorService ganhosEntregadorService,
+            br.com.nhac.backend_nhac.domain.avaliacao_entregador.AvaliacaoEntregadorService avaliacaoEntregadorService
     ) {
         this.entregadorService = entregadorService;
         this.ganhosEntregadorService = ganhosEntregadorService;
+        this.avaliacaoEntregadorService = avaliacaoEntregadorService;
     }
 
     @PostMapping("/cadastro")
@@ -121,5 +125,15 @@ public class EntregadorController {
             @RequestParam(required = false, defaultValue = "HOJE") PeriodoGanhos periodo
     ) {
         return ResponseEntity.ok(ganhosEntregadorService.obterGanhos(usuarioLogado, periodo));
+    }
+
+    @GetMapping("/avaliacoes")
+    @Operation(summary = "Resumo e listagem paginada das avaliações do entregador logado")
+    public ResponseEntity<br.com.nhac.backend_nhac.domain.avaliacao_entregador.dto.AvaliacoesEntregadorPageDTO> listarAvaliacoes(
+            @AuthenticationPrincipal Usuario usuarioLogado,
+            @PageableDefault(size = 20) Pageable pageable
+    ) {
+        Entregador entregador = entregadorService.buscarPorUsuario(usuarioLogado);
+        return ResponseEntity.ok(avaliacaoEntregadorService.listarAvaliacoesDoEntregador(entregador.getId(), pageable));
     }
 }

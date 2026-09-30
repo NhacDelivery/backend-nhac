@@ -118,9 +118,11 @@ public class EntregaController {
             description = "Move o pedido de SAIU_ENTREGA para ENTREGUE, grava entregue_em e devolve o entregador para ONLINE (liberando-o para novas ofertas). Idempotente.")
     public ResponseEntity<Void> concluirEntrega(
             @PathVariable String pedidoId,
-            @AuthenticationPrincipal Usuario usuarioLogado
+            @AuthenticationPrincipal Usuario usuarioLogado,
+            @RequestBody(required = false) br.com.nhac.backend_nhac.domain.entrega.dto.ConcluirEntregaDTO dto
     ) {
-        despachoService.concluirEntrega(pedidoId, usuarioLogado);
+        String codigo = dto != null ? dto.codigo() : null;
+        despachoService.concluirEntrega(pedidoId, usuarioLogado, codigo);
         return ResponseEntity.noContent().build();
     }
 

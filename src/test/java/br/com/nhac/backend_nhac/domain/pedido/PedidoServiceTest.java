@@ -660,6 +660,31 @@ class PedidoServiceTest {
     }
 
     @Test
+    @DisplayName("Não deve permitir atualizar status para ENTREGUE via endpoint de lojista/admin")
+    void atualizarStatusParaEntregueDeveSerRecusado() {
+        Loja lojaMock = new Loja();
+        lojaMock.setId("loja_001");
+        
+        Usuario adminMock = new Usuario();
+        adminMock.setId("admin_user");
+        adminMock.setPapel(br.com.nhac.backend_nhac.domain.usuario.Papel.ADMIN);
+        
+        Pedido pedidoMock = new Pedido();
+        pedidoMock.setId("pedido_123");
+        pedidoMock.setStatus(StatusPedido.SAIU_ENTREGA);
+        pedidoMock.setLoja(lojaMock);
+
+        when(pedidoRepository.findById("pedido_123")).thenReturn(Optional.of(pedidoMock));
+
+        RegraDeNegocioException excecao = assertThrows(RegraDeNegocioException.class, () -> {
+            pedidoService.atualizarStatus("pedido_123", StatusPedido.ENTREGUE, adminMock);
+        });
+
+        assertTrue(excecao.getMessage().contains("A entrega só pode ser concluída pelo entregador com o código de confirmação."));
+        verify(pedidoRepository, never()).save(pedidoMock);
+    }
+
+    @Test
     void naoDeveCancelarPedidoPagoSemEstorno() {
         Usuario dono = new Usuario();
         dono.setId("dono_loja");

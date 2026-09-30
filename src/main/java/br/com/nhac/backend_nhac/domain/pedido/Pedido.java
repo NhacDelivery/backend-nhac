@@ -116,8 +116,25 @@ public class Pedido {
         item.setPedido(this);
     }
     
+    @Column(name = "codigo_entrega", length = 8)
+    private String codigoEntrega;
+
+    @Column(name = "codigo_entrega_tentativas", nullable = false)
+    private int codigoEntregaTentativas = 0;
+
+    @Column(name = "codigo_entrega_bloqueado_ate")
+    private Instant codigoEntregaBloqueadoAte;
+
     public void alterarStatus(StatusPedido novoStatus) {
         this.status.podeMudarPara(novoStatus);
         this.status = novoStatus;
+        if (novoStatus == StatusPedido.SAIU_ENTREGA && this.codigoEntrega == null) {
+            this.codigoEntrega = gerarCodigoEntrega();
+        }
+    }
+
+    private String gerarCodigoEntrega() {
+        int code = new java.security.SecureRandom().nextInt(10000);
+        return String.format("%04d", code);
     }
 }
