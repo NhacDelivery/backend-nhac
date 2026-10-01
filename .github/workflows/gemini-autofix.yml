@@ -11,9 +11,10 @@ concurrency:
   cancel-in-progress: false
 
 env:
-  # Modelos em ordem de preferência. Se o "pro" estiver sobrecarregado (503), sem acesso
-  # na sua chave (403/404) ou sem cota, o workflow cai para o flash.
-  GEMINI_MODELS: "gemini-pro-latest gemini-flash-latest"
+  # Só modelos flash: na chave gratuita o "pro" tem cota 0 (erro 429, não adianta repetir).
+  # Para trocar a lista SEM abrir PR, crie a variável de repositório GEMINI_MODELS em
+  # Settings > Secrets and variables > Actions > Variables (ela tem prioridade sobre o padrão).
+  GEMINI_MODELS: ${{ vars.GEMINI_MODELS || 'gemini-3.8-flash gemini-3.7-flash gemini-3.6-flash' }}
 
 jobs:
   autofix:
