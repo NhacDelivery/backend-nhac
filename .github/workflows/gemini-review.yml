@@ -9,8 +9,9 @@ concurrency:
   cancel-in-progress: true
 
 env:
-  # Troque aqui se quiser outro modelo (ex.: um "pro" para revisão mais profunda)
-  GEMINI_MODEL: gemini-flash-latest
+  # Modelos em ordem de preferência. Se o primeiro estiver sobrecarregado (503) ou indisponível,
+  # o workflow tenta o próximo. Para revisão mais profunda, coloque um "pro" na frente.
+  GEMINI_MODELS: "gemini-flash-latest gemini-2.5-flash gemini-flash-lite-latest"
 
 jobs:
   review:
@@ -75,11 +76,29 @@ jobs:
             generationConfig: { temperature: 0.2 }
           }' > req.json
 
-          curl -sS --fail-with-body --retry 3 --retry-delay 10 \
-            "https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent" \
-            -H "x-goog-api-key: ${GEMINI_API_KEY}" \
-            -H "Content-Type: application/json" \
-            -d @req.json -o resp.json
+          ok=false
+          for model in $GEMINI_MODELS; do
+            for attempt in 1 2 3; do
+              code=$(curl -sS -o resp.json -w '%{http_code}' \
+                "https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent" \
+                -H "x-goog-api-key: ${GEMINI_API_KEY}" \
+                -H "Content-Type: application/json" \
+                -d @req.json || true)
+              if [ "$code" = "200" ]; then ok=true; break 2; fi
+              echo "Modelo ${model}, tentativa ${attempt}: HTTP ${code}"
+              jq -r '.error.message // empty' resp.json 2>/dev/null || true
+              case "$code" in
+                # Erro temporário (sobrecarga, limite, instabilidade): espera e tenta de novo
+                429|500|503|504|000) sleep $((attempt * 15)) ;;
+                # 400/403/404 etc.: não adianta repetir, passa para o próximo modelo
+                *) break ;;
+              esac
+            done
+          done
+          if [ "$ok" != "true" ]; then
+            echo "::warning::Gemini indisponível no momento (todos os modelos falharam). Revisão pulada."
+            exit 0
+          fi
 
           jq -r '[.candidates[0].content.parts[]?.text] | join("")' resp.json > review.md
           if [ ! -s review.md ]; then
