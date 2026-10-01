@@ -1,0 +1,109 @@
+name: Gemini Code Review
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+
+concurrency:
+  group: gemini-review-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+env:
+  # Troque aqui se quiser outro modelo (ex.: um "pro" para revisão mais profunda)
+  GEMINI_MODEL: gemini-flash-latest
+
+jobs:
+  review:
+    # Ignora rascunho e PR vindo de fork (fork não recebe o secret)
+    if: >-
+      github.event.pull_request.draft == false &&
+      github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      pull-requests: write
+    env:
+      GH_TOKEN: ${{ github.token }}
+      GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+      PR_NUMBER: ${{ github.event.pull_request.number }}
+      REPO: ${{ github.repository }}
+    steps:
+      - name: Pegar o diff do PR
+        run: |
+          gh pr diff "$PR_NUMBER" --repo "$REPO" | head -c 200000 > pr.diff
+          if [ ! -s pr.diff ]; then
+            echo "Diff vazio, nada para revisar."
+            exit 0
+          fi
+
+      - name: Montar o prompt
+        run: |
+          cat > prompt.txt <<'EOF'
+          Você é um revisor sênior de código Java 25 / Spring Boot 4 / JPA / Flyway / MariaDB.
+          Revise APENAS as mudanças do diff abaixo. Responda em português do Brasil.
+
+          Procure, nesta ordem de prioridade:
+          1. Erros e bugs: NPE, lógica errada, condições de corrida, transações faltando ou
+             mal escopadas, validações ausentes, tratamento de exceção incorreto.
+          2. Segurança: endpoints sem autenticação/autorização, falta de checagem de dono
+             (ownership) por loja/usuário, segredos no código, JWT mal usado, SQL/JPQL injection,
+             dados sensíveis em log ou em DTO de resposta.
+          3. Banco de dados: N+1, queries sem paginação, índices faltando, migrations Flyway
+             perigosas (alterar migration já aplicada, perda de dados, entidade divergente da migration).
+          4. Testes: lógica nova ou alterada sem teste correspondente.
+          5. Melhorias: legibilidade, duplicação, nomes, uso de DTO/records, boas práticas.
+
+          Formato da resposta (Markdown):
+          - Resumo de 2 a 3 linhas.
+          - Seções "Erros", "Segurança" e "Melhorias". Cada item no formato
+            `arquivo:linha — problema — sugestão de correção` (com trecho de código quando ajudar).
+          - Se não achar nada relevante em uma seção, escreva "Nada encontrado".
+
+          Seja direto. Não elogie por elogiar e não invente problemas: só aponte o que você
+          consegue justificar pelo diff. Se o diff não mostrar contexto suficiente para ter
+          certeza, diga isso em vez de afirmar.
+
+          --- DIFF ---
+          EOF
+
+      - name: Chamar o Gemini
+        run: |
+          [ -s pr.diff ] || exit 0
+          jq -n --rawfile prompt prompt.txt --rawfile diff pr.diff '{
+            contents: [{ parts: [{ text: ($prompt + $diff) }] }],
+            generationConfig: { temperature: 0.2 }
+          }' > req.json
+
+          curl -sS --fail-with-body --retry 3 --retry-delay 10 \
+            "https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent" \
+            -H "x-goog-api-key: ${GEMINI_API_KEY}" \
+            -H "Content-Type: application/json" \
+            -d @req.json -o resp.json
+
+          jq -r '[.candidates[0].content.parts[]?.text] | join("")' resp.json > review.md
+          if [ ! -s review.md ]; then
+            echo "Resposta vazia do Gemini:"
+            cat resp.json
+            exit 1
+          fi
+
+      - name: Comentar no PR (atualiza o comentário anterior)
+        run: |
+          [ -s review.md ] || exit 0
+          MARKER='<!-- gemini-review -->'
+          {
+            echo "$MARKER"
+            echo "### 🤖 Revisão automática (Gemini)"
+            echo
+            cat review.md
+          } > comment.md
+
+          ID=$(gh api "repos/$REPO/issues/$PR_NUMBER/comments" --paginate \
+                 --jq ".[] | select(.body | contains(\"$MARKER\")) | .id" | head -n1)
+
+          if [ -n "$ID" ]; then
+            gh api -X PATCH "repos/$REPO/issues/comments/$ID" -F body=@comment.md > /dev/null
+          else
+            gh pr comment "$PR_NUMBER" --repo "$REPO" --body-file comment.md
+          fi
