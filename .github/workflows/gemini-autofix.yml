@@ -1,0 +1,219 @@
+name: Gemini Autofix
+
+# Uso: comente "/corrigir" em um PR que já tenha a revisão do Gemini.
+# Só funciona para quem é OWNER, MEMBER ou COLLABORATOR do repositório.
+on:
+  issue_comment:
+    types: [created]
+
+concurrency:
+  group: gemini-autofix-${{ github.event.issue.number }}
+  cancel-in-progress: false
+
+env:
+  # Modelo mais forte. Se a chave gratuita não tiver acesso/cota, troque por gemini-flash-latest.
+  GEMINI_MODEL: gemini-pro-latest
+
+jobs:
+  autofix:
+    if: >-
+      github.event.issue.pull_request &&
+      startsWith(github.event.comment.body, '/corrigir') &&
+      contains(fromJSON('["OWNER","MEMBER","COLLABORATOR"]'), github.event.comment.author_association)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: write
+      pull-requests: write
+    env:
+      GH_TOKEN: ${{ github.token }}
+      PR_NUMBER: ${{ github.event.issue.number }}
+      REPO: ${{ github.repository }}
+    steps:
+      - name: Ler dados do PR
+        id: pr
+        run: |
+          gh api "repos/$REPO/issues/comments/${{ github.event.comment.id }}/reactions" \
+            -f content=eyes > /dev/null || true
+          gh pr view "$PR_NUMBER" --repo "$REPO" \
+            --json headRefName,isCrossRepository,state \
+            --jq '"head_ref=\(.headRefName)\ncross=\(.isCrossRepository)\nstate=\(.state)"' \
+            >> "$GITHUB_OUTPUT"
+
+      - name: Validar PR
+        env:
+          CROSS: ${{ steps.pr.outputs.cross }}
+          STATE: ${{ steps.pr.outputs.state }}
+        run: |
+          if [ "$CROSS" = "true" ] || [ "$STATE" != "OPEN" ]; then
+            gh pr comment "$PR_NUMBER" --repo "$REPO" \
+              --body "Só consigo corrigir PRs **abertos** que vêm de uma branch do próprio repositório (não de fork)."
+            exit 1
+          fi
+
+      - name: Checkout da branch do PR
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ steps.pr.outputs.head_ref }}
+          persist-credentials: false
+
+      - name: Pegar a revisão do Gemini
+        run: |
+          MARKER='<!-- gemini-review -->'
+          ID=$(gh api "repos/$REPO/issues/$PR_NUMBER/comments" --paginate \
+                 --jq ".[] | select(.body | contains(\"$MARKER\")) | .id" | tail -n1)
+          if [ -z "$ID" ]; then
+            gh pr comment "$PR_NUMBER" --repo "$REPO" \
+              --body "Não achei a revisão automática neste PR. Espere o workflow de revisão terminar e tente de novo."
+            exit 1
+          fi
+          gh api "repos/$REPO/issues/comments/$ID" --jq .body > review.md
+
+      - name: Montar o contexto (revisão + arquivos alterados)
+        run: |
+          {
+            echo "=== COMENTÁRIO DE REVISÃO ==="
+            cat review.md
+            echo
+            echo "=== ARQUIVOS ATUAIS DO PR ==="
+            gh pr diff "$PR_NUMBER" --repo "$REPO" --name-only | while read -r f; do
+              case "$f" in
+                src/*) [ -f "$f" ] && { echo "--- ARQUIVO: $f ---"; cat "$f"; echo; } ;;
+              esac
+            done
+          } | head -c 300000 > context.txt
+
+          cat > prompt.txt <<'EOF'
+          Você é um engenheiro sênior de Java 25 / Spring Boot 4 / JPA / Flyway.
+          Abaixo estão o comentário de revisão de um Pull Request e o conteúdo atual dos arquivos
+          alterados nele. Corrija SOMENTE os erros e problemas de segurança apontados na revisão.
+
+          Regras:
+          - Mudanças mínimas e cirúrgicas. Não refatore, não renomeie, não "melhore" o que não foi apontado.
+          - Ignore itens da revisão que sejam só sugestão de estilo ou que você não tenha certeza de que são erro real.
+          - Nunca edite migrations Flyway que já existam; se precisar de mudança no banco, crie uma migration nova.
+          - Só mexa em arquivos dentro de src/.
+          - Para cada arquivo alterado, devolva o CONTEÚDO COMPLETO do arquivo (não um trecho nem um diff).
+          - Se não houver nada seguro para corrigir, devolva a lista "arquivos" vazia.
+          - No campo "resumo", explique em português, em poucas linhas, o que foi corrigido e o que foi deixado de fora e por quê.
+
+          EOF
+
+      - name: Pedir a correção ao Gemini
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+        run: |
+          jq -n --rawfile prompt prompt.txt --rawfile ctx context.txt '{
+            contents: [{ parts: [{ text: ($prompt + $ctx) }] }],
+            generationConfig: {
+              temperature: 0.1,
+              maxOutputTokens: 32768,
+              responseMimeType: "application/json",
+              responseSchema: {
+                type: "OBJECT",
+                properties: {
+                  resumo: { type: "STRING" },
+                  arquivos: {
+                    type: "ARRAY",
+                    items: {
+                      type: "OBJECT",
+                      properties: {
+                        caminho: { type: "STRING" },
+                        conteudo: { type: "STRING" }
+                      },
+                      required: ["caminho", "conteudo"]
+                    }
+                  }
+                },
+                required: ["resumo", "arquivos"]
+              }
+            }
+          }' > req.json
+
+          curl -sS --fail-with-body --retry 3 --retry-delay 10 \
+            "https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent" \
+            -H "x-goog-api-key: ${GEMINI_API_KEY}" \
+            -H "Content-Type: application/json" \
+            -d @req.json -o resp.json
+
+          jq -r '[.candidates[0].content.parts[]?.text] | join("")' resp.json > fix.json
+          jq -e . fix.json > /dev/null || { echo "Resposta inválida do Gemini:"; cat resp.json; exit 1; }
+
+      - name: Aplicar os arquivos
+        id: apply
+        run: |
+          if ! jq -e '.arquivos | length > 0' fix.json > /dev/null; then
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          while read -r item; do
+            path=$(jq -r '.caminho' <<< "$item")
+            case "$path" in
+              *..*|/*) echo "Caminho não permitido: $path"; exit 1 ;;
+              src/*) ;;
+              *) echo "Caminho fora de src/ não permitido: $path"; exit 1 ;;
+            esac
+            mkdir -p "$(dirname "$path")"
+            jq -r '.conteudo' <<< "$item" > "$path"
+          done < <(jq -c '.arquivos[]' fix.json)
+
+          if git diff --quiet; then
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Sem correção a aplicar
+        if: steps.apply.outputs.changed == 'false'
+        run: |
+          {
+            echo "### 🤖 Autofix (Gemini)"
+            echo
+            echo "Não apliquei nenhuma mudança."
+            echo
+            jq -r '.resumo' fix.json
+          } > comment.md
+          gh pr comment "$PR_NUMBER" --repo "$REPO" --body-file comment.md
+
+      - name: Configurar Java
+        if: steps.apply.outputs.changed == 'true'
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '25'
+          cache: maven
+
+      # Trava de segurança: só commita se o projeto compilar e os testes passarem
+      - name: Rodar os testes
+        if: steps.apply.outputs.changed == 'true'
+        run: ./mvnw -B -ntp test
+
+      - name: Commit e push
+        if: steps.apply.outputs.changed == 'true'
+        env:
+          HEAD_REF: ${{ steps.pr.outputs.head_ref }}
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A src
+          git commit -m "fix: correções sugeridas na revisão automática (Gemini)"
+          git push "https://x-access-token:${GH_TOKEN}@github.com/${REPO}.git" "HEAD:refs/heads/${HEAD_REF}"
+
+      - name: Comentar o resultado
+        if: steps.apply.outputs.changed == 'true'
+        run: |
+          {
+            echo "### 🤖 Autofix (Gemini)"
+            echo
+            echo "Commitei as correções na branch do PR (testes passaram). **Revise o diff antes de aprovar.**"
+            echo
+            jq -r '.resumo' fix.json
+          } > comment.md
+          gh pr comment "$PR_NUMBER" --repo "$REPO" --body-file comment.md
+
+      - name: Avisar falha
+        if: failure()
+        run: |
+          gh pr comment "$PR_NUMBER" --repo "$REPO" \
+            --body "🤖 O autofix falhou e **nada foi commitado**. Veja o log: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
