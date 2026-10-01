@@ -11,8 +11,9 @@ concurrency:
   cancel-in-progress: false
 
 env:
-  # Modelo mais forte. Se a chave gratuita não tiver acesso/cota, troque por gemini-flash-latest.
-  GEMINI_MODEL: gemini-pro-latest
+  # Modelos em ordem de preferência. Se o "pro" estiver sobrecarregado (503), sem acesso
+  # na sua chave (403/404) ou sem cota, o workflow cai para o flash.
+  GEMINI_MODELS: "gemini-pro-latest gemini-flash-latest"
 
 jobs:
   autofix:
@@ -130,11 +131,29 @@ jobs:
             }
           }' > req.json
 
-          curl -sS --fail-with-body --retry 3 --retry-delay 10 \
-            "https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent" \
-            -H "x-goog-api-key: ${GEMINI_API_KEY}" \
-            -H "Content-Type: application/json" \
-            -d @req.json -o resp.json
+          ok=false
+          for model in $GEMINI_MODELS; do
+            for attempt in 1 2 3; do
+              code=$(curl -sS -o resp.json -w '%{http_code}' \
+                "https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent" \
+                -H "x-goog-api-key: ${GEMINI_API_KEY}" \
+                -H "Content-Type: application/json" \
+                -d @req.json || true)
+              if [ "$code" = "200" ]; then ok=true; break 2; fi
+              echo "Modelo ${model}, tentativa ${attempt}: HTTP ${code}"
+              jq -r '.error.message // empty' resp.json 2>/dev/null || true
+              case "$code" in
+                # Erro temporário (sobrecarga, limite, instabilidade): espera e tenta de novo
+                429|500|503|504|000) sleep $((attempt * 15)) ;;
+                # 400/403/404 etc.: não adianta repetir, passa para o próximo modelo
+                *) break ;;
+              esac
+            done
+          done
+          if [ "$ok" != "true" ]; then
+            echo "Gemini indisponível: todos os modelos falharam."
+            exit 1
+          fi
 
           jq -r '[.candidates[0].content.parts[]?.text] | join("")' resp.json > fix.json
           jq -e . fix.json > /dev/null || { echo "Resposta inválida do Gemini:"; cat resp.json; exit 1; }
