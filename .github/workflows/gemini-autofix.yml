@@ -22,7 +22,7 @@ jobs:
       startsWith(github.event.comment.body, '/corrigir') &&
       contains(fromJSON('["OWNER","MEMBER","COLLABORATOR"]'), github.event.comment.author_association)
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 45
     permissions:
       contents: write
       pull-requests: write
@@ -132,23 +132,20 @@ jobs:
           }' > req.json
 
           ok=false
-          for model in $GEMINI_MODELS; do
-            for attempt in 1 2 3; do
-              code=$(curl -sS -o resp.json -w '%{http_code}' \
+          for attempt in 1 2 3; do
+            # Rodízio: se um modelo está sobrecarregado, tenta o próximo na hora
+            for model in $GEMINI_MODELS; do
+              code=$(curl -sS --connect-timeout 10 --max-time 240 -o resp.json -w '%{http_code}' \
                 "https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent" \
                 -H "x-goog-api-key: ${GEMINI_API_KEY}" \
                 -H "Content-Type: application/json" \
                 -d @req.json || true)
               if [ "$code" = "200" ]; then ok=true; break 2; fi
-              echo "Modelo ${model}, tentativa ${attempt}: HTTP ${code}"
+              echo "Rodada ${attempt}, modelo ${model}: HTTP ${code}"
               jq -r '.error.message // empty' resp.json 2>/dev/null || true
-              case "$code" in
-                # Erro temporário (sobrecarga, limite, instabilidade): espera e tenta de novo
-                429|500|503|504|000) sleep $((attempt * 15)) ;;
-                # 400/403/404 etc.: não adianta repetir, passa para o próximo modelo
-                *) break ;;
-              esac
             done
+            # Só espera depois de ter tentado todos os modelos
+            if [ "$attempt" -lt 3 ]; then sleep 20; fi
           done
           if [ "$ok" != "true" ]; then
             echo "Gemini indisponível: todos os modelos falharam."
