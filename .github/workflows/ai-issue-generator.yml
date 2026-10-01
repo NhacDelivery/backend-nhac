@@ -37,7 +37,7 @@ jobs:
             const owner = context.repo.owner;
             const repo = context.repo.repo;
             const isPR = context.eventName === "pull_request";
-            const prNumberInput = core.getInput("pr_number");
+            const prNumberInput = context.payload.inputs?.pr_number;
             const prNumber = isPR
               ? context.payload.pull_request.number
               : (prNumberInput ? Number(prNumberInput) : NaN);
@@ -70,26 +70,28 @@ jobs:
             }
 
             const diffText = changedFiles.join("\n\n---\n\n").slice(0, 120000);
-            const prompt = `Você é um revisor técnico de código.
-Analise o diff de um PR e retorne APENAS JSON válido no formato:
-{"findings":[{"title":"string","body":"string","labels":["bug|security|performance|maintainability"],"confidence":"high|medium"}]}
-
-Regras:
-- Reporte apenas problemas concretos e acionáveis.
-- Ignore estilo superficial.
-- Se não houver problemas relevantes, retorne {"findings":[]}.
-- Use português brasileiro.
-
-PR: #${prNumber}
-Título: ${pr.data.title}
-
-DIFF:
-${diffText}`;
+            const prompt = [
+              "Você é um revisor técnico de código.",
+              "Analise o diff de um PR e retorne APENAS JSON válido no formato:",
+              "{\"findings\":[{\"title\":\"string\",\"body\":\"string\",\"labels\":[\"bug|security|performance|maintainability\"],\"confidence\":\"high|medium\"}]}",
+              "",
+              "Regras:",
+              "- Reporte apenas problemas concretos e acionáveis.",
+              "- Ignore estilo superficial.",
+              "- Se não houver problemas relevantes, retorne {\"findings\":[]}.",
+              "- Use português brasileiro.",
+              "",
+              `PR: #${prNumber}`,
+              `Título: ${pr.data.title}`,
+              "",
+              "DIFF:",
+              diffText
+            ].join("\\n");
 
             const response = await fetch("https://api.openai.com/v1/chat/completions", {
               method: "POST",
               headers: {
-                "Authorization": `******
+                "Authorization": "Bearer " + process.env["OPENAI_API_KEY"],
                 "Content-Type": "application/json"
               },
               body: JSON.stringify({
@@ -173,19 +175,20 @@ ${diffText}`;
                 .map((label) => String(label).toLowerCase().trim())
                 .filter((label) => allowedLabels.includes(label));
 
-              const issueBody = `## Detecção automática por IA
-
-Este item foi identificado automaticamente durante a análise do PR #${prNumber}.
-
-### Problema
-${rawBody}
-
-### Contexto
-- PR: ${pr.data.html_url}
-- Confiança da IA: ${confidence}
-
-> Revise e confirme antes de implementar correções.
-`;
+              const issueBody = [
+                "## Detecção automática por IA",
+                "",
+                `Este item foi identificado automaticamente durante a análise do PR #${prNumber}.`,
+                "",
+                "### Problema",
+                rawBody,
+                "",
+                "### Contexto",
+                `- PR: ${pr.data.html_url}`,
+                `- Confiança da IA: ${confidence}`,
+                "",
+                "> Revise e confirme antes de implementar correções."
+              ].join("\\n");
 
               await github.rest.issues.create({
                 owner,
