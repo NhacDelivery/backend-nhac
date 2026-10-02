@@ -66,6 +66,11 @@ public class PedidoController {
         return ResponseEntity.status(status).body(resultado.dto());
     }
 
+    @GetMapping("/ativos")
+    public ResponseEntity<java.util.List<PedidoResponseDTO>> buscarPedidosAtivos(@AuthenticationPrincipal Usuario usuarioLogado) {
+        return ResponseEntity.ok(pedidoService.buscarPedidosAtivos(usuarioLogado.getId()));
+    }
+
     @GetMapping("/ativo")
     public ResponseEntity<PedidoResponseDTO> buscarPedidoAtivo(@AuthenticationPrincipal Usuario usuarioLogado) {
         return pedidoService.buscarPedidoAtivo(usuarioLogado.getId())

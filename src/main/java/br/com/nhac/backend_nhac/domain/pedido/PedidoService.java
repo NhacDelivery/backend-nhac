@@ -124,8 +124,6 @@ public class PedidoService {
             }
         }
 
-        pedidoRepository.findFirstByUsuarioIdAndStatusInOrderByCriadoEmDesc(usuarioLogado.getId(), STATUS_ATIVOS)
-                .ifPresent(ativo -> { throw new PedidoAtivoException(ativo.getId(), ativo.getStatus().name()); });
 
         Loja loja = lojaRepository.findByIdAndIsAbertoTrue(dto.lojaId())
                 .orElseThrow(() -> new LojaFechadaException(dto.lojaId()));
@@ -233,6 +231,12 @@ public class PedidoService {
     public Optional<PedidoResponseDTO> buscarPedidoAtivo(String usuarioId) {
         return pedidoRepository.findFirstByUsuarioIdAndStatusInOrderByCriadoEmDesc(usuarioId, STATUS_ATIVOS)
                 .map(this::montarResponseComEntregador);
+    }
+
+    @Transactional(readOnly = true)
+    public List<PedidoResponseDTO> buscarPedidosAtivos(String usuarioId) {
+        return pedidoRepository.findByUsuarioIdAndStatusInOrderByCriadoEmDesc(usuarioId, STATUS_ATIVOS)
+                .stream().map(this::montarResponseComEntregador).toList();
     }
 
     private PedidoResponseDTO montarResponseComEntregador(Pedido pedido) {

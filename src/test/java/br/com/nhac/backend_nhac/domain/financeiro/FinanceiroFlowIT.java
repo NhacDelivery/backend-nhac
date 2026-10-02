@@ -35,8 +35,8 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 /**
  * Cobre o fluxo de financeiro (GET /lojista/financeiro): cria um pedido de verdade via API,
  * confere que ele aparece no resumo/ranking/vendas-por-categoria/vendas-por-pagamento,
- * que um FUNCIONARIO enxerga os mesmos números que o dono (via LojaAccessService), e que
- * pedido CANCELADO não entra no faturamento nem no ranking.
+ * que um FUNCIONARIO enxerga os mesmos nÃºmeros que o dono (via LojaAccessService), e que
+ * pedido CANCELADO nÃ£o entra no faturamento nem no ranking.
  */
 public class FinanceiroFlowIT extends AbstractIntegrationTest {
 
@@ -129,7 +129,7 @@ public class FinanceiroFlowIT extends AbstractIntegrationTest {
                 null,
                 null,
                 null,
-                new PedidoCreateDTO.EnderecoEntregaDTO("Rua Teste", "123", "Bairro", "Cidade", "SP", "00000-000", null),
+                new PedidoCreateDTO.EnderecoEntregaDTO("Rua Teste", "123", "Bairro", "Cidade", "SP", "00000-000", null, -23.5, -46.7),
                 null,
                 List.of(itemDto)
         );
@@ -188,10 +188,10 @@ public class FinanceiroFlowIT extends AbstractIntegrationTest {
 
     @Test
     void pedidoCanceladoNaoDeveEntrarNoFaturamentoMasDeveContarNaTaxaDeCancelamento() throws Exception {
-        criarPedidoPago(1); // pedido válido: 40.00
+        criarPedidoPago(1); // pedido vÃ¡lido: 40.00
 
-        // Um cliente só pode manter um pedido ativo. Use outro cliente para
-        // preservar o cenário de dois pedidos no mesmo financeiro da loja.
+        // Um cliente sÃ³ pode manter um pedido ativo. Use outro cliente para
+        // preservar o cenÃ¡rio de dois pedidos no mesmo financeiro da loja.
         Usuario outroCliente = new Usuario();
         outroCliente.setId(UUID.randomUUID().toString());
         outroCliente.setNome("Cliente Cancelamento");
@@ -206,7 +206,7 @@ public class FinanceiroFlowIT extends AbstractIntegrationTest {
         PedidoCreateDTO.ItemPedidoDTO itemDto = new PedidoCreateDTO.ItemPedidoDTO(produto.getId(), produto.getNome(), null, 1);
         PedidoCreateDTO pedidoDto = new PedidoCreateDTO(
                 loja.getId(), "DINHEIRO", null, null, null,
-                new PedidoCreateDTO.EnderecoEntregaDTO("Rua Teste", "123", "Bairro", "Cidade", "SP", "00000-000", null),
+                new PedidoCreateDTO.EnderecoEntregaDTO("Rua Teste", "123", "Bairro", "Cidade", "SP", "00000-000", null, -23.5, -46.7),
                 null, List.of(itemDto)
         );
         String respostaPedido = mockMvc.perform(post("/api/v1/pedidos")
@@ -227,10 +227,10 @@ public class FinanceiroFlowIT extends AbstractIntegrationTest {
                         .header("Authorization", "Bearer " + tokenDono)
                         .param("periodo", "HOJE"))
                 .andExpect(status().isOk())
-                // só o pedido válido conta como faturamento (o cancelado fica de fora)
+                // sÃ³ o pedido vÃ¡lido conta como faturamento (o cancelado fica de fora)
                 .andExpect(jsonPath("$.resumo.faturamentoPeriodo").value(40.00))
                 .andExpect(jsonPath("$.resumo.numeroPedidos").value(1))
-                // mas os 2 pedidos (1 válido + 1 cancelado) entram no denominador da taxa de cancelamento
+                // mas os 2 pedidos (1 vÃ¡lido + 1 cancelado) entram no denominador da taxa de cancelamento
                 .andExpect(jsonPath("$.resumo.taxaCancelamentoPercentual").value(50.0));
     }
 

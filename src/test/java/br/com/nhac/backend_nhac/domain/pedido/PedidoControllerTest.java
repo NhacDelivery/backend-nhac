@@ -78,7 +78,7 @@ class PedidoControllerTest {
                   "formaPagamento": "PIX",
                   "enderecoEntrega": {
                     "rua": "Rua A", "numero": "123", "bairro": "Centro",
-                    "cidade": "SP", "estado": "SP", "cep": "01000-000"
+                    "cidade": "SP", "estado": "SP", "cep": "01000-000", "latitude": -23.5, "longitude": -46.7
                   },
                   "itens": []
                 }
@@ -93,7 +93,7 @@ class PedidoControllerTest {
     }
 
     @Test
-    @DisplayName("Deve devolver Erro 400 quando o CEP estiver fora do padrão")
+    @DisplayName("Deve devolver Erro 400 quando o CEP estiver fora do padrÃ£o")
     void deveDevolverErro400QuandoCepInvalido() throws Exception {
 
         String jsonEstragado = """
@@ -103,7 +103,7 @@ class PedidoControllerTest {
                   "enderecoEntrega": {
                     "rua": "Rua A", "numero": "123", "bairro": "Centro",
                     "cidade": "SP", "estado": "SP",
-                    "cep": "123"
+                    "cep": "123", "latitude": -23.5, "longitude": -46.7
                   },
                   "itens": [
                     { "produtoId": "p1", "nome": "Sushi", "quantidade": 1 }
@@ -129,7 +129,7 @@ class PedidoControllerTest {
                   "formaPagamento": "PIX",
                   "enderecoEntrega": {
                     "rua": "Rua A", "numero": "123", "bairro": "Centro",
-                    "cidade": "SP", "estado": "SP", "cep": "01000-000"
+                    "cidade": "SP", "estado": "SP", "cep": "01000-000", "latitude": -23.5, "longitude": -46.7
                   },
                   "itens": [
                     { "produtoId": "p1", "nome": "Sushi", "quantidade": 0 }
@@ -146,7 +146,7 @@ class PedidoControllerTest {
     }
 
     @Test
-    @DisplayName("Deve devolver 201 e o ID do pedido quando os dados forem válidos")
+    @DisplayName("Deve devolver 201 e o ID do pedido quando os dados forem vÃ¡lidos")
     void deveCriarPedidoComSucesso() throws Exception {
         String jsonValido = """
                 {
@@ -154,7 +154,7 @@ class PedidoControllerTest {
                   "formaPagamento": "PIX",
                   "enderecoEntrega": {
                     "rua": "Rua A", "numero": "123", "bairro": "Centro",
-                    "cidade": "SP", "estado": "SP", "cep": "01000-000"
+                    "cidade": "SP", "estado": "SP", "cep": "01000-000", "latitude": -23.5, "longitude": -46.7
                   },
                   "itens": [
                     { "produtoId": "p1", "nome": "Sushi", "quantidade": 1 }
@@ -174,7 +174,7 @@ class PedidoControllerTest {
     }
 
     @Test
-    @DisplayName("Deve devolver 200 quando idempotency-key já existir (replay de pedido)")
+    @DisplayName("Deve devolver 200 quando idempotency-key jÃ¡ existir (replay de pedido)")
     void deveRetornar200QuandoIdempotencyKeyForReplay() throws Exception {
         String jsonValido = """
                 {
@@ -182,7 +182,7 @@ class PedidoControllerTest {
                   "formaPagamento": "PIX",
                   "enderecoEntrega": {
                     "rua": "Rua A", "numero": "123", "bairro": "Centro",
-                    "cidade": "SP", "estado": "SP", "cep": "01000-000"
+                    "cidade": "SP", "estado": "SP", "cep": "01000-000", "latitude": -23.5, "longitude": -46.7
                   },
                   "itens": [
                     { "produtoId": "p1", "nome": "Sushi", "quantidade": 1 }
@@ -203,7 +203,7 @@ class PedidoControllerTest {
     }
 
     @Test
-    @DisplayName("Deve devolver 200 e o PedidoResponseDTO quando o usuário logado for dono do pedido")
+    @DisplayName("Deve devolver 200 e o PedidoResponseDTO quando o usuÃ¡rio logado for dono do pedido")
     void deveRetornarPedidoComStatus200QuandoExistirEDonoEstiverLogado() throws Exception {
         PedidoResponseDTO mockResponse = new PedidoResponseDTO(
                 "pedido_123", "user_123", "loja_001", "Loja Teste", new BigDecimal("100.00"), new BigDecimal("5.00"),
@@ -220,7 +220,7 @@ class PedidoControllerTest {
     }
 
     @Test
-    @DisplayName("Deve devolver 403 quando o usuário logado não for o dono do pedido")
+    @DisplayName("Deve devolver 403 quando o usuÃ¡rio logado nÃ£o for o dono do pedido")
     void deveRetornar403QuandoUsuarioLogadoNaoForDonoDoPedido() throws Exception {
         when(pedidoService.buscarPedido("pedido_123", "user_123"))
                 .thenThrow(new br.com.nhac.backend_nhac.exceptions.AcessoNegadoException("Acesso negado"));
@@ -230,17 +230,17 @@ class PedidoControllerTest {
     }
 
     @Test
-    @DisplayName("Deve devolver 404 quando o pedido não for encontrado")
+    @DisplayName("Deve devolver 404 quando o pedido nÃ£o for encontrado")
     void deveRetornar404QuandoPedidoNaoForEncontrado() throws Exception {
         when(pedidoService.buscarPedido("pedido_inexistente", "user_123"))
-                .thenThrow(new br.com.nhac.backend_nhac.exceptions.IdNaoEncontradoException("Pedido não encontrado"));
+                .thenThrow(new br.com.nhac.backend_nhac.exceptions.IdNaoEncontradoException("Pedido nÃ£o encontrado"));
 
         mockMvc.perform(get("/api/v1/pedidos/pedido_inexistente"))
                 .andExpect(status().isNotFound());
     }
 
     @Test
-    @DisplayName("Deve devolver 200 e a página de pedidos do usuário logado")
+    @DisplayName("Deve devolver 200 e a pÃ¡gina de pedidos do usuÃ¡rio logado")
     void deveRetornarStatus200EListaPaginadaDePedidosDoUsuarioLogado() throws Exception {
         PedidoResumoDTO pedidoMock = new PedidoResumoDTO(
                 "pedido_123", "loja_001", "Loja Teste", new BigDecimal("100.00"), StatusPedido.PENDENTE, Instant.now()

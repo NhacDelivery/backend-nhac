@@ -40,9 +40,13 @@ public class RotaService {
                 .build();
     }
 
+    public RotaService(RestClient restClient) {
+        this.restClient = restClient;
+    }
+
     public RotaEntregaResponseDTO calcularRota(Pedido pedido) {
         if (pedido.getLoja() == null || pedido.getLoja().getGeoLocalizacao() == null) {
-            throw new IllegalArgumentException("A loja do pedido não possui coordenadas geográficas cadastradas.");
+            throw new br.com.nhac.backend_nhac.exceptions.RegraDeNegocioException("Rota indisponível: a loja não possui coordenadas geográficas cadastradas. Entre em contato com a loja para corrigir o cadastro.");
         }
 
         double origemLat = pedido.getLoja().getGeoLocalizacao().getGeoLat();
@@ -51,11 +55,19 @@ public class RotaService {
         if (!mockMode &&
                 (pedido.getEntregaLatitude() == null || pedido.getEntregaLongitude() == null)) {
             throw new br.com.nhac.backend_nhac.exceptions.RegraDeNegocioException(
-                    "Rota indisponível: endereço do cliente sem coordenadas. Consulte o endereço da entrega.");
+                    "Rota indisponível: este pedido não possui coordenadas de entrega. Entre em contato com a loja para confirmar o endereço; em uma nova compra, confirme o endereço no checkout.");
         }
         double destinoLat = mockMode ? -23.551000 : pedido.getEntregaLatitude();
         double destinoLng = mockMode ? -46.634000 : pedido.getEntregaLongitude();
 
+        if (!coordenadasValidas(origemLat, origemLng)) {
+            throw new br.com.nhac.backend_nhac.exceptions.RegraDeNegocioException(
+                    "Rota indisponível: coordenadas da loja inválidas. Solicite à loja a correção do cadastro.");
+        }
+        if (!coordenadasValidas(destinoLat, destinoLng)) {
+            throw new br.com.nhac.backend_nhac.exceptions.RegraDeNegocioException(
+                    "Rota indisponível: coordenadas de entrega inválidas. Entre em contato com a loja para confirmar o endereço.");
+        }
         PontoCoordenadaDTO origem = new PontoCoordenadaDTO(origemLat, origemLng);
         PontoCoordenadaDTO destino = new PontoCoordenadaDTO(destinoLat, destinoLng);
         String lojaNome = pedido.getLoja().getNome();
@@ -79,6 +91,11 @@ public class RotaService {
                         double duracaoSegundos = route.get("duration").getAsDouble();
                         String polyline = route.get("geometry").getAsString();
                         List<PontoCoordenadaDTO> waypoints = decodificarPolyline(polyline);
+                        if (!Double.isFinite(distanciaMetros) || distanciaMetros < 0 ||
+                                !Double.isFinite(duracaoSegundos) || duracaoSegundos < 0 || waypoints.size() < 2 ||
+                                waypoints.stream().anyMatch(p -> !coordenadasValidas(p.latitude(), p.longitude()))) {
+                            throw new IllegalStateException("Resposta inválida do serviço de rotas.");
+                        }
 
                         double distanciaKm = Math.round((distanciaMetros / 1000.0) * 100.0) / 100.0;
                         int duracaoMinutos = (int) Math.ceil(duracaoSegundos / 60.0);
@@ -98,10 +115,14 @@ public class RotaService {
                 }
             }
         } catch (Exception e) {
-            log.warn("Falha ao consultar API externa de rotas (OSRM). Utilizando fallback por Haversine: {}", e.getMessage());
+            log.warn("Falha ao consultar API externa de rotas (OSRM): {}", e.getMessage());
         }
 
-        // Fallback local se a API de mapas estiver indisponível ou offline
+        if (!mockMode) {
+            throw new br.com.nhac.backend_nhac.exceptions.RegraDeNegocioException(
+                    "O serviço de rotas não retornou um trajeto válido. Tente carregar a rota novamente mais tarde.");
+        }
+        // Geometria sintética exclusiva dos testes E2E explicitamente configurados.
         double distanciaKm = EntregadorService.calcularDistanciaKm(origemLat, origemLng, destinoLat, destinoLng);
         double distanciaMetros = distanciaKm * 1000.0;
         int duracaoMinutos = (int) Math.ceil((distanciaKm / 30.0) * 60.0); // estimativa a 30 km/h de moto
@@ -120,6 +141,10 @@ public class RotaService {
                 fallbackPolyline,
                 fallbackPoints
         );
+    }
+
+    private static boolean coordenadasValidas(double lat, double lng) {
+        return Double.isFinite(lat) && Double.isFinite(lng) && Math.abs(lat) <= 90 && Math.abs(lng) <= 180 && (lat != 0 || lng != 0);
     }
 
     public static List<PontoCoordenadaDTO> decodificarPolyline(String encoded) {

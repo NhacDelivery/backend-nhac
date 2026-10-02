@@ -21,6 +21,8 @@ public interface PedidoRepository extends JpaRepository<Pedido, String> {
 
     Optional<Pedido> findFirstByUsuarioIdAndStatusInOrderByCriadoEmDesc(String usuarioId, List<StatusPedido> status);
 
+    List<Pedido> findByUsuarioIdAndStatusInOrderByCriadoEmDesc(String usuarioId, List<StatusPedido> status);
+
     List<Pedido> findByStatusAndPagamentoExpiraEmLessThanEqual(StatusPedido status, Instant agora);
 
     @Lock(LockModeType.PESSIMISTIC_WRITE)
