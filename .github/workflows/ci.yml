@@ -92,7 +92,7 @@ jobs:
           exit-code: 0
 
       - name: 📤 Upload resultado do Trivy (SARIF)
-        uses: github/codeql-action/upload-sarif@v4.37.3
+        uses: github/codeql-action/upload-sarif@v4.38.2
         if: ${{ always() && hashFiles('trivy-fs-results.sarif') != '' }}
         with:
           sarif_file: trivy-fs-results.sarif
@@ -183,7 +183,7 @@ jobs:
           exit-code: 0
 
       - name: 📤 Upload resultado do Trivy (SARIF)
-        uses: github/codeql-action/upload-sarif@v4.37.3
+        uses: github/codeql-action/upload-sarif@v4.38.2
         if: ${{ always() && hashFiles('trivy-image-results.sarif') != '' }}
         with:
           sarif_file: trivy-image-results.sarif
