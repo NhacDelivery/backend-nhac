@@ -1,0 +1,150 @@
+name: Validação de Issues
+
+on:
+  issues:
+    types: [opened, edited, reopened]
+
+permissions:
+  issues: write
+  contents: read
+
+jobs:
+  validate-issue:
+    name: Identificar erros na issue
+    runs-on: ubuntu-latest
+    steps:
+      - name: Validar título e descrição
+        uses: actions/github-script@v8
+        with:
+          script: |
+            const issue = context.payload.issue;
+            const owner = context.repo.owner;
+            const repo = context.repo.repo;
+            const issue_number = issue.number;
+            const title = (issue.title || "").trim();
+            const body = (issue.body || "").trim();
+            const lowerBody = body.toLowerCase();
+            const lowerTitle = title.toLowerCase();
+
+            const errors = [];
+            if (title.length < 10) {
+              errors.push("O título deve ter pelo menos 10 caracteres.");
+            }
+
+            if (body.length < 30) {
+              errors.push("A descrição deve ter pelo menos 30 caracteres.");
+            }
+
+            const placeholders = [
+              "descreva",
+              "preencha",
+              "insira",
+              "todo",
+              "lorem ipsum",
+              "..."
+            ];
+
+            const hasPlaceholder = placeholders.some((value) =>
+              lowerBody.includes(value) || lowerTitle.includes(value)
+            );
+            if (hasPlaceholder) {
+              errors.push("A issue parece conter texto de exemplo/placeholders não preenchidos.");
+            }
+
+            const requiredSections = ["problema", "comportamento esperado"];
+            const missingSections = requiredSections.filter((section) => !lowerBody.includes(section));
+            if (missingSections.length > 0) {
+              errors.push(`Seções ausentes na descrição: ${missingSections.join(", ")}.`);
+            }
+
+            const labelName = "issue-com-erro";
+            const botMarker = "<!-- issue-validation-bot -->";
+
+            async function ensureLabel() {
+              try {
+                await github.rest.issues.getLabel({ owner, repo, name: labelName });
+              } catch (error) {
+                if (error.status === 404) {
+                  await github.rest.issues.createLabel({
+                    owner,
+                    repo,
+                    name: labelName,
+                    color: "d73a4a",
+                    description: "Issue com erros de preenchimento"
+                  });
+                } else {
+                  throw error;
+                }
+              }
+            }
+
+            await ensureLabel();
+
+            const comments = await github.paginate(github.rest.issues.listComments, {
+              owner,
+              repo,
+              issue_number,
+              per_page: 100
+            });
+            const previousComment = comments.find((comment) =>
+              comment.user?.type === "Bot" && comment.body?.includes(botMarker)
+            );
+
+            if (errors.length > 0) {
+              const bodyComment = [
+                botMarker,
+                "⚠️ Encontramos possíveis erros na issue:",
+                "",
+                ...errors.map((err) => `- ${err}`),
+                "",
+                "Por favor, edite a issue para corrigir os itens acima."
+              ].join("\n");
+
+              if (previousComment) {
+                await github.rest.issues.updateComment({
+                  owner,
+                  repo,
+                  comment_id: previousComment.id,
+                  body: bodyComment
+                });
+              } else {
+                await github.rest.issues.createComment({
+                  owner,
+                  repo,
+                  issue_number,
+                  body: bodyComment
+                });
+              }
+
+              const labels = issue.labels.map((label) => typeof label === "string" ? label : label.name);
+              if (!labels.includes(labelName)) {
+                await github.rest.issues.addLabels({
+                  owner,
+                  repo,
+                  issue_number,
+                  labels: [labelName]
+                });
+              }
+
+              core.setFailed("Issue com erros detectados.");
+              return;
+            }
+
+            if (previousComment) {
+              await github.rest.issues.updateComment({
+                owner,
+                repo,
+                comment_id: previousComment.id,
+                body: `${botMarker}\n✅ Obrigado! A issue foi corrigida e não há erros de preenchimento detectados.`
+              });
+            }
+
+            const labels = issue.labels.map((label) => typeof label === "string" ? label : label.name);
+            if (labels.includes(labelName)) {
+              await github.rest.issues.removeLabel({
+                owner,
+                repo,
+                issue_number,
+                name: labelName
+              });
+            }
