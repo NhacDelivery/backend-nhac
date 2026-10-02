@@ -87,18 +87,19 @@ class PedidoServiceTest {
     }
 
     @Test
-    void bloqueiaNovoPedidoEnquantoOAnteriorEstaAtivo() {
+    void pedidoAtivoNaoImpedeValidacaoDaNovaCompra() {
         Pedido ativo = new Pedido();
         ativo.setId("pedido-em-andamento");
         ativo.setStatus(StatusPedido.PAGO);
-        when(pedidoRepository.findFirstByUsuarioIdAndStatusInOrderByCriadoEmDesc(
+        lenient().when(pedidoRepository.findFirstByUsuarioIdAndStatusInOrderByCriadoEmDesc(
                 eq("user_teste_123"), anyList())).thenReturn(Optional.of(ativo));
 
-        PedidoAtivoException erro = assertThrows(PedidoAtivoException.class,
-                () -> pedidoService.finalizarPedido(null, usuarioPadrao(), null));
-
-        assertEquals("pedido-em-andamento", erro.getDetails().get("pedidoId"));
-        verifyNoInteractions(lojaRepository, produtoRepository, stripePaymentService, asaasPaymentService);
+        var endereco = new PedidoCreateDTO.EnderecoEntregaDTO("Rua", "1", "Bairro", "Cidade", "SP", "01000-000", null, -23.5, -46.7);
+        var dto = new PedidoCreateDTO("loja-fechada", "DINHEIRO", null, null, null, endereco, null,
+                List.of(new PedidoCreateDTO.ItemPedidoDTO("produto", "Produto", null, 1)));
+        assertThrows(br.com.nhac.backend_nhac.exceptions.LojaFechadaException.class,
+                () -> pedidoService.finalizarPedido(dto, usuarioPadrao(), "nova-compra"));
+        verify(pedidoRepository, never()).findFirstByUsuarioIdAndStatusInOrderByCriadoEmDesc(anyString(), anyList());
     }
 
     @Test

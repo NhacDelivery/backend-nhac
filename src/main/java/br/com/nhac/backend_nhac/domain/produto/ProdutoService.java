@@ -37,6 +37,12 @@ public class ProdutoService {
         this.lojaAccessService = lojaAccessService;
     }
 
+    @Transactional(readOnly = true)
+    @Cacheable(cacheNames = PRODUTOS, key = "'promocoes:' + #p0", condition = "#p0.isPaged() && #p0.pageNumber < 20 && #p0.pageSize <= 100")
+    public Page<ProdutoResumoDTO> listarPromocoes(Pageable pageable) {
+        return produtoRepository.findPromocoes(pageable).map(ProdutoResumoDTO::new);
+    }
+
     @Transactional
     @CacheEvict(cacheNames = {PRODUTOS, PRODUTO}, allEntries = true)
     public Produto cadastrarProduto(ProdutoCreateDTO dto, Usuario usuarioLogado) {

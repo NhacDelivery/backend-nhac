@@ -14,7 +14,9 @@ import static org.junit.jupiter.api.Assertions.*;
 
 class RotaServiceTest {
 
-    private final RotaService rotaService = new RotaService();
+    private final org.springframework.web.client.RestClient.Builder builder = org.springframework.web.client.RestClient.builder();
+    private final org.springframework.test.web.client.MockRestServiceServer server = org.springframework.test.web.client.MockRestServiceServer.bindTo(builder).build();
+    private final RotaService rotaService = new RotaService(builder.build());
 
     @Test
     @DisplayName("Deve codificar e decodificar Polyline corretamente")
@@ -37,7 +39,7 @@ class RotaServiceTest {
     }
 
     @Test
-    @DisplayName("Deve calcular rota de pedido com fallback resiliente")
+    @DisplayName("Deve devolver a distância e geometria recebidas do serviço de rotas")
     void deveCalcularRotaComFallback() {
         Loja loja = new Loja();
         loja.setNome("Hamburgueria Nhac");
@@ -49,7 +51,16 @@ class RotaServiceTest {
         pedido.setEntregaLatitude(-23.56000);
         pedido.setEntregaLongitude(-46.64000);
 
+        String geometry = RotaService.codificarPolyline(List.of(
+                new PontoCoordenadaDTO(-23.55052, -46.63330), new PontoCoordenadaDTO(-23.56000, -46.64000)));
+        String response = new com.google.gson.Gson().toJson(java.util.Map.of("code", "Ok", "routes", List.of(
+                java.util.Map.of("distance", 1234, "duration", 420, "geometry", geometry))));
+        server.expect(org.springframework.test.web.client.match.MockRestRequestMatchers.requestTo(
+                "https://router.project-osrm.org/route/v1/driving/-46.633300,-23.550520;-46.640000,-23.560000?overview=full&geometries=polyline"))
+                .andRespond(org.springframework.test.web.client.response.MockRestResponseCreators.withSuccess(response, org.springframework.http.MediaType.APPLICATION_JSON));
         RotaEntregaResponseDTO rota = rotaService.calcularRota(pedido);
+        server.verify();
+        assertEquals(1234, rota.distanciaMetros());
 
         assertNotNull(rota);
         assertEquals("ped_rota_1", rota.pedidoId());
@@ -62,5 +73,44 @@ class RotaServiceTest {
         assertTrue(rota.duracaoEstimadaMinutos() >= 1);
         assertNotNull(rota.polyline());
         assertFalse(rota.polyline().isBlank());
+    }
+
+    @Test
+    void semCoordenadasNaoConsultaServicoNemInventaDestino() {
+        Pedido pedido = pedidoValido();
+        pedido.setEntregaLatitude(null);
+        var erro = assertThrows(br.com.nhac.backend_nhac.exceptions.RegraDeNegocioException.class,
+                () -> rotaService.calcularRota(pedido));
+        assertTrue(erro.getMessage().contains("não possui coordenadas de entrega"));
+        server.verify();
+    }
+
+    @Test
+    void lojaComZeroZeroRecebeCausaEspecifica() {
+        Pedido pedido = pedidoValido();
+        pedido.getLoja().setGeoLocalizacao(new GeoLocalizacao(0, 0, null));
+        var erro = assertThrows(br.com.nhac.backend_nhac.exceptions.RegraDeNegocioException.class,
+                () -> rotaService.calcularRota(pedido));
+        assertTrue(erro.getMessage().contains("coordenadas da loja inválidas"));
+        server.verify();
+    }
+
+    @Test
+    void falhaExternaNaoViraLinhaRetaNemDistanciaFicticia() {
+        server.expect(org.springframework.test.web.client.match.MockRestRequestMatchers.anything())
+                .andRespond(org.springframework.test.web.client.response.MockRestResponseCreators.withServerError());
+        assertThrows(br.com.nhac.backend_nhac.exceptions.RegraDeNegocioException.class,
+                () -> rotaService.calcularRota(pedidoValido()));
+        server.verify();
+    }
+
+    private Pedido pedidoValido() {
+        var loja = new Loja();
+        loja.setGeoLocalizacao(new GeoLocalizacao(-23.5, -46.6, null));
+        var pedido = new Pedido();
+        pedido.setLoja(loja);
+        pedido.setEntregaLatitude(-23.6);
+        pedido.setEntregaLongitude(-46.7);
+        return pedido;
     }
 }

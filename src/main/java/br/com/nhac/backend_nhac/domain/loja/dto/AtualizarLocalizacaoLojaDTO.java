@@ -10,6 +10,11 @@ public record AtualizarLocalizacaoLojaDTO(
         @NotNull @DecimalMin("-180.0") @DecimalMax("180.0") Double longitude,
         @Valid LojaCreateDTO.EnderecoDTO endereco
 ) {
+    @jakarta.validation.constraints.AssertTrue(message = "Confirme a posição real da loja no mapa. Coordenadas 0,0 são inválidas.")
+    public boolean isPosicaoValida() {
+        return latitude != null && longitude != null && Double.isFinite(latitude) && Double.isFinite(longitude)
+                && (latitude != 0 || longitude != 0);
+    }
     // Clientes existentes podem continuar atualizando somente as coordenadas.
     public AtualizarLocalizacaoLojaDTO(Double latitude, Double longitude) {
         this(latitude, longitude, null);

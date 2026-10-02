@@ -67,7 +67,7 @@ public class PedidoFlowIT extends AbstractIntegrationTest {
         var cupom = cupomService.ganharBoasVindas(usuario.getId());
         String body = """
             {"lojaId":"loja-123","formaPagamento":"DINHEIRO","cupomId":"%s",
-             "enderecoEntrega":{"rua":"Rua Teste","numero":"123","bairro":"Centro","cidade":"Cidade","estado":"SP","cep":"00000-000"},
+             "enderecoEntrega":{"rua":"Rua Teste","numero":"123","bairro":"Centro","cidade":"Cidade","estado":"SP","cep":"00000-000", "latitude": -23.5, "longitude": -46.7},
              "itens":[{"produtoId":"%s","nome":"Pizza","quantidade":1}]}
             """.formatted(cupom.id(), produto.getId());
         var result = mockMvc.perform(post("/api/v1/pedidos").header("Authorization", "Bearer " + token)
@@ -90,9 +90,9 @@ public class PedidoFlowIT extends AbstractIntegrationTest {
     void falhaNoPagamentoNaoConsomeCupom() throws Exception {
         var cupom = cupomService.ganharBoasVindas(usuario.getId());
         Mockito.when(stripePaymentService.criarPaymentIntentCartao(Mockito.any()))
-                .thenThrow(new RuntimeException("Gateway indisponível"));
+                .thenThrow(new RuntimeException("Gateway indisponÃ­vel"));
         PedidoCreateDTO dto = new PedidoCreateDTO("loja-123", "CARTAO", null, null, null,
-                new PedidoCreateDTO.EnderecoEntregaDTO("Rua Teste", "123", "Centro", "Cidade", "SP", "00000-000", null),
+                new PedidoCreateDTO.EnderecoEntregaDTO("Rua Teste", "123", "Centro", "Cidade", "SP", "00000-000", null, -23.5, -46.7),
                 cupom.id(), List.of(new PedidoCreateDTO.ItemPedidoDTO(produto.getId(), "Pizza", null, 1)));
         mockMvc.perform(post("/api/v1/pedidos").header("Authorization", "Bearer " + token)
                 .header("Idempotency-Key", "falha-cupom").contentType(MediaType.APPLICATION_JSON)
@@ -141,7 +141,7 @@ public class PedidoFlowIT extends AbstractIntegrationTest {
         produto.setLoja(loja);
         produtoRepository.save(produto);
 
-        // Mock StripePaymentService - agora usa método para cartão/Google Pay
+        // Mock StripePaymentService - agora usa mÃ©todo para cartÃ£o/Google Pay
         Mockito.when(stripePaymentService.criarPaymentIntentCartao(Mockito.any(Pedido.class))).thenAnswer(invocation -> {
             Pedido pedidoSalvo = invocation.getArgument(0);
             return new PedidoCriadoDTO(pedidoSalvo.getId(), "mock-secret", null, null);
@@ -149,10 +149,35 @@ public class PedidoFlowIT extends AbstractIntegrationTest {
     }
 
     @Test
+    void promocoesFiltramPrecoFinalELojaAbertaComPaginacao() {
+        produto.setPreco(new BigDecimal("19.99"));
+        produto.setPercentualDesconto(10);
+        produtoRepository.saveAndFlush(produto);
+        var pagina = org.springframework.data.domain.PageRequest.of(0, 1);
+        var encontrados = produtoRepository.findPromocoes(pagina);
+        assertEquals(1, encontrados.getTotalElements());
+        assertEquals(new BigDecimal("19.99"), encontrados.getContent().getFirst().getPreco());
+        assertTrue(produtoRepository.findPromocoes(pagina.next()).isEmpty());
+        produto.setPreco(new BigDecimal("20.00"));
+        produtoRepository.saveAndFlush(produto);
+        assertTrue(produtoRepository.findPromocoes(pagina).isEmpty());
+        produto.setPreco(new BigDecimal("10.00"));
+        produtoRepository.saveAndFlush(produto);
+        loja.setAberto(false);
+        lojaRepository.saveAndFlush(loja);
+        assertTrue(produtoRepository.findPromocoes(pagina).isEmpty());
+        loja.setAberto(true);
+        lojaRepository.saveAndFlush(loja);
+        produto.setAtivo(false);
+        produtoRepository.saveAndFlush(produto);
+        assertTrue(produtoRepository.findPromocoes(pagina).isEmpty());
+    }
+
+    @Test
     public void deveCriarEFinalizarPedidoComSucesso() throws Exception {
         PedidoCreateDTO.EnderecoEntregaDTO endereco = new PedidoCreateDTO.EnderecoEntregaDTO(
                 "Rua Teste", "123", "Bairro", "Cidade", "SP", "12345-678", "Apto 1"
-        );
+        , -23.5, -46.7);
 
         PedidoCreateDTO.ItemPedidoDTO itemDto = new PedidoCreateDTO.ItemPedidoDTO(
                 produto.getId(), produto.getNome(), null, 2
@@ -164,7 +189,7 @@ public class PedidoFlowIT extends AbstractIntegrationTest {
                 "Sem cebola",
                 null,
                 null,
-                new PedidoCreateDTO.EnderecoEntregaDTO("Rua Teste", "123", "Bairro", "Cidade", "SP", "00000-000", null),
+                new PedidoCreateDTO.EnderecoEntregaDTO("Rua Teste", "123", "Bairro", "Cidade", "SP", "00000-000", null, -23.5, -46.7),
                 null,
                 List.of(itemDto)
         );
@@ -185,11 +210,38 @@ public class PedidoFlowIT extends AbstractIntegrationTest {
                 null,
                 null,
                 new PedidoCreateDTO.EnderecoEntregaDTO(
-                        "Rua Teste", "123", "Bairro", "Cidade", "SP", "00000-000", null),
+                        "Rua Teste", "123", "Bairro", "Cidade", "SP", "00000-000", null, -23.5, -46.7),
                 null,
                 List.of(new PedidoCreateDTO.ItemPedidoDTO(
                         produto.getId(), "NOME ENVIADO PELO CLIENTE", "imagem-falsa", quantidade))
         );
+    }
+
+    @Test
+    void duasComprasDistintasPermanecemAtivasEStatusSaoIsolados() throws Exception {
+        produto.setEstoque(100);
+        produtoRepository.save(produto);
+        var primeira = mockMvc.perform(post("/api/v1/pedidos").header("Authorization", "Bearer " + token)
+                .header("Idempotency-Key", "compra-um").contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(criarPedidoDTO(1))))
+                .andExpect(status().isCreated()).andReturn();
+        var segunda = mockMvc.perform(post("/api/v1/pedidos").header("Authorization", "Bearer " + token)
+                .header("Idempotency-Key", "compra-dois").contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(criarPedidoDTO(2))))
+                .andExpect(status().isCreated()).andReturn();
+        String id1 = objectMapper.readTree(primeira.getResponse().getContentAsString()).get("pedidoId").asText();
+        String id2 = objectMapper.readTree(segunda.getResponse().getContentAsString()).get("pedidoId").asText();
+        assertNotEquals(id1, id2);
+        assertEquals(2, pedidoRepository.countByUsuarioId(usuario.getId()));
+        assertEquals(97, produtoRepository.findById(produto.getId()).orElseThrow().getEstoque());
+        mockMvc.perform(get("/api/v1/pedidos/ativos").header("Authorization", "Bearer " + token))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.length()").value(2));
+        mockMvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch("/api/v1/pedidos/" + id1 + "/cancelar")
+                .header("Authorization", "Bearer " + token)).andExpect(status().isNoContent());
+        mockMvc.perform(get("/api/v1/pedidos/" + id2).header("Authorization", "Bearer " + token))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.status").value("PENDENTE"));
+        mockMvc.perform(get("/api/v1/pedidos/ativos").header("Authorization", "Bearer " + token))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.length()").value(1));
     }
 
     @Test

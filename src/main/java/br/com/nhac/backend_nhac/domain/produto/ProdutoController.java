@@ -74,6 +74,12 @@ public class ProdutoController {
             @ApiResponse(responseCode = "500", description = "Erro interno no servidor.",
                     content = @Content(mediaType = "application/json", schema = @Schema(implementation = ErroPadraoDTO.class)))
     })
+    @GetMapping("/promocoes")
+    public ResponseEntity<Page<ProdutoResumoDTO>> listarPromocoes(
+            @PageableDefault(size = 10, sort = "id") Pageable pageable) {
+        return ResponseEntity.ok(produtoService.listarPromocoes(pageable));
+    }
+
     @GetMapping("/{produtoId}")
     public ResponseEntity<ProdutoResumoDTO> buscarProdutoPorId(@PathVariable String produtoId) {
         ProdutoResumoDTO produto = produtoService.buscarProdutoPorId(produtoId);

@@ -123,10 +123,10 @@ public record PedidoCreateDTO(
                 @DecimalMin(value = "-90.0") @DecimalMax(value = "90.0") Double latitude,
                 @DecimalMin(value = "-180.0") @DecimalMax(value = "180.0") Double longitude
         ) {
-                @AssertTrue(message = "Informe latitude e longitude juntas para calcular a rota.")
+                @AssertTrue(message = "Confirme as coordenadas do endereço antes de finalizar o pedido.")
                 public boolean isCoordenadasConsistentes() {
-                        return (latitude == null && longitude == null) ||
-                                (latitude != null && longitude != null &&
+                        return (latitude != null && longitude != null &&
+                                 Double.isFinite(latitude) && Double.isFinite(longitude) &&
                                  (latitude != 0 || longitude != 0));
                 }
 

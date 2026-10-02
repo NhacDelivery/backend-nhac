@@ -17,6 +17,17 @@ public interface ProdutoRepository extends JpaRepository<Produto, String> {
     @Query("SELECT p FROM Produto p JOIN FETCH p.loja WHERE p.id = :id AND p.isAtivo = true")
     Optional<Produto> findByIdAndIsAtivoTrue(@Param("id") String id);
 
+    @Query(value = """
+        SELECT p FROM Produto p JOIN FETCH p.loja
+        WHERE p.isAtivo = true AND p.loja.isAberto = true
+          AND p.percentualDesconto > 0 AND p.preco < 20
+        """, countQuery = """
+        SELECT COUNT(p) FROM Produto p JOIN p.loja
+        WHERE p.isAtivo = true AND p.loja.isAberto = true
+          AND p.percentualDesconto > 0 AND p.preco < 20
+        """)
+    Page<Produto> findPromocoes(Pageable pageable);
+
     long countByLojaId(String lojaId);
 
     @Modifying(clearAutomatically = true, flushAutomatically = true)
