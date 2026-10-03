@@ -27,6 +27,7 @@ import static org.mockito.Mockito.*;
 @ExtendWith(MockitoExtension.class)
 class UsuarioServiceTest {
 
+    @Mock private br.com.nhac.backend_nhac.domain.cupom.CupomRepository cupomRepository;
     @Mock private UsuarioRepository usuarioRepository;
     @Mock private EnderecoUsuarioRepository enderecoRepository;
     @Mock private PasswordEncoder passwordEncoder;
@@ -34,6 +35,42 @@ class UsuarioServiceTest {
     @Mock private br.com.nhac.backend_nhac.domain.favorito.FavoritoRepository favoritoRepository;
 
     @InjectMocks private UsuarioService usuarioService;
+
+    @Test
+    void estatisticasContamCuponsRecebidosMesmoSemPedido() {
+        when(usuarioRepository.existsById("cliente")).thenReturn(true);
+        when(cupomRepository.countByUsuarioId("cliente")).thenReturn(2L);
+        var stats = usuarioService.obterEstatisticas("cliente");
+        assertEquals(2L, stats.cuponsResgatados());
+        assertEquals(0L, stats.totalPedidos());
+        verify(pedidoRepository, never()).countByUsuarioIdAndCupomIdIsNotNull(any());
+    }
+
+    @Test
+    void removerPadraoPromoveOutroEnderecoDaMesmaConta() {
+        Usuario usuario = usuarioPadrao("cliente");
+        EnderecoUsuario removido = new EnderecoUsuario();
+        removido.setId("a"); removido.setUsuario(usuario); removido.setPadrao(true);
+        EnderecoUsuario proximo = new EnderecoUsuario();
+        proximo.setId("b"); proximo.setUsuario(usuario);
+        when(enderecoRepository.findById("a")).thenReturn(Optional.of(removido));
+        when(enderecoRepository.findByUsuarioId("cliente")).thenReturn(List.of(proximo));
+        usuarioService.removerEndereco("cliente", "a");
+        assertTrue(proximo.isPadrao());
+        verify(usuarioRepository).findLockedById("cliente");
+        verify(enderecoRepository).delete(removido);
+        verify(enderecoRepository).save(proximo);
+    }
+
+    @Test
+    void removerUltimoPadraoNaoInventaEndereco() {
+        EnderecoUsuario removido = new EnderecoUsuario();
+        removido.setId("a"); removido.setUsuario(usuarioPadrao("cliente")); removido.setPadrao(true);
+        when(enderecoRepository.findById("a")).thenReturn(Optional.of(removido));
+        when(enderecoRepository.findByUsuarioId("cliente")).thenReturn(List.of());
+        usuarioService.removerEndereco("cliente", "a");
+        verify(enderecoRepository, never()).save(any());
+    }
 
     private Usuario usuarioPadrao(String id) {
         Usuario usuario = new Usuario();
@@ -360,7 +397,7 @@ class UsuarioServiceTest {
         when(usuarioRepository.existsById("usu_1")).thenReturn(true);
         when(pedidoRepository.countByUsuarioId("usu_1")).thenReturn(15L);
         when(favoritoRepository.countByUsuarioId("usu_1")).thenReturn(3L);
-        when(pedidoRepository.countByUsuarioIdAndCupomIdIsNotNull("usu_1")).thenReturn(5L);
+        when(cupomRepository.countByUsuarioId("usu_1")).thenReturn(5L);
 
         br.com.nhac.backend_nhac.domain.usuario.dto.UsuarioEstatisticasDTO stats =
                 usuarioService.obterEstatisticas("usu_1");

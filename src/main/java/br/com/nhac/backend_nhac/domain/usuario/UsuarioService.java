@@ -17,12 +17,15 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
+import java.util.Comparator;
+import br.com.nhac.backend_nhac.domain.cupom.CupomRepository;
 import java.util.Map;
 import java.util.stream.Collectors;
 
 @Service
 public class UsuarioService {
 
+    private final CupomRepository cupomRepository;
     private final UsuarioRepository usuarioRepository;
     private final EnderecoUsuarioRepository enderecoRepository;
     private final PasswordEncoder passwordEncoder;
@@ -33,7 +36,9 @@ public class UsuarioService {
                           EnderecoUsuarioRepository enderecoRepository,
                           PasswordEncoder passwordEncoder,
                           br.com.nhac.backend_nhac.domain.pedido.PedidoRepository pedidoRepository,
-                          br.com.nhac.backend_nhac.domain.favorito.FavoritoRepository favoritoRepository) {
+                          br.com.nhac.backend_nhac.domain.favorito.FavoritoRepository favoritoRepository,
+                          CupomRepository cupomRepository) {
+        this.cupomRepository = cupomRepository;
         this.usuarioRepository = usuarioRepository;
         this.enderecoRepository = enderecoRepository;
         this.passwordEncoder = passwordEncoder;
@@ -108,6 +113,8 @@ public class UsuarioService {
 
     @Transactional
     public void adicionarEndereco(String usuarioId, EnderecoUsuarioDTO dto) {
+        // Serializa mudanças de padrão e exclusões da mesma conta.
+        usuarioRepository.findLockedById(usuarioId);
         Usuario usuario = usuarioRepository.findById(usuarioId)
                 .orElseThrow(() -> new IdNaoEncontradoException("Usuário não encontrado."));
         EnderecoUsuario endereco = dto.toEntity(usuario);
@@ -121,6 +128,8 @@ public class UsuarioService {
 
     @Transactional
     public void atualizarEndereco(String usuarioId, String enderecoId, EnderecoUsuarioDTO dto) {
+        // Serializa mudanças de padrão e exclusões da mesma conta.
+        usuarioRepository.findLockedById(usuarioId);
         EnderecoUsuario endereco = enderecoRepository.findById(enderecoId)
                 .orElseThrow(() -> new IdNaoEncontradoException("Endereço não encontrado."));
 
@@ -146,6 +155,8 @@ public class UsuarioService {
 
     @Transactional
     public void removerEndereco(String usuarioId, String enderecoId) {
+        // Serializa mudanças de padrão e exclusões da mesma conta.
+        usuarioRepository.findLockedById(usuarioId);
         EnderecoUsuario endereco = enderecoRepository.findById(enderecoId)
                 .orElseThrow(() -> new IdNaoEncontradoException("Endereço não encontrado."));
 
@@ -154,6 +165,17 @@ public class UsuarioService {
         }
 
         enderecoRepository.delete(endereco);
+        if (endereco.isPadrao()) {
+            List<EnderecoUsuario> restantes = enderecoRepository.findByUsuarioId(usuarioId).stream()
+                    .filter(e -> !e.getId().equals(enderecoId))
+                    .sorted(Comparator.comparing(EnderecoUsuario::getId))
+                    .toList();
+            if (restantes.stream().noneMatch(EnderecoUsuario::isPadrao) && !restantes.isEmpty()) {
+                EnderecoUsuario novoPadrao = restantes.getFirst();
+                novoPadrao.setPadrao(true);
+                enderecoRepository.save(novoPadrao);
+            }
+        }
     }
 
 
@@ -209,7 +231,7 @@ public class UsuarioService {
         }
         long totalPedidos = pedidoRepository.countByUsuarioId(id);
         long lojasFavoritadas = favoritoRepository.countByUsuarioId(id);
-        long cuponsResgatados = pedidoRepository.countByUsuarioIdAndCupomIdIsNotNull(id);
+        long cuponsResgatados = cupomRepository.countByUsuarioId(id);
         
         return new br.com.nhac.backend_nhac.domain.usuario.dto.UsuarioEstatisticasDTO(totalPedidos, lojasFavoritadas, cuponsResgatados);
     }
