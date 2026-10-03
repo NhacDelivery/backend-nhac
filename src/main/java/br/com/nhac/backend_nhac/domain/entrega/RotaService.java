@@ -24,6 +24,11 @@ public class RotaService {
     private static final Logger log = LoggerFactory.getLogger(RotaService.class);
 
     private final RestClient restClient;
+    private record RouteKey(String pedidoId, String nomeLoja, Object geo, Double lat, Double lng,
+            String servidor, boolean mock) {}
+    private final com.github.benmanes.caffeine.cache.Cache<RouteKey, RotaEntregaResponseDTO> rotas =
+            com.github.benmanes.caffeine.cache.Caffeine.newBuilder().maximumSize(256)
+                    .expireAfterWrite(java.time.Duration.ofMinutes(15)).recordStats().build();
 
     @Value("${nhac.routing.osrm-url:https://router.project-osrm.org}")
     private String osrmBaseUrl = "https://router.project-osrm.org";
@@ -45,6 +50,16 @@ public class RotaService {
     }
 
     public RotaEntregaResponseDTO calcularRota(Pedido pedido) {
+        if (pedido.getLoja() == null || pedido.getLoja().getGeoLocalizacao() == null)
+            return calcularSemCache(pedido);
+        var geo = pedido.getLoja().getGeoLocalizacao();
+        var key = new RouteKey(pedido.getId(), pedido.getLoja().getNome(),
+                java.util.List.of(geo.getGeoLat(), geo.getGeoLng()), pedido.getEntregaLatitude(),
+                pedido.getEntregaLongitude(), osrmBaseUrl, mockMode);
+        return rotas.get(key, ignored -> calcularSemCache(pedido));
+    }
+
+    private RotaEntregaResponseDTO calcularSemCache(Pedido pedido) {
         if (pedido.getLoja() == null || pedido.getLoja().getGeoLocalizacao() == null) {
             throw new br.com.nhac.backend_nhac.exceptions.RegraDeNegocioException("Rota indisponível: a loja não possui coordenadas geográficas cadastradas. Entre em contato com a loja para corrigir o cadastro.");
         }

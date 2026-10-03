@@ -11,6 +11,9 @@ import org.springframework.stereotype.Service;
 @Service
 public class PagamentoExpiracaoService {
     private static final Logger log = LoggerFactory.getLogger(PagamentoExpiracaoService.class);
+    private final com.github.benmanes.caffeine.cache.Cache<String, Boolean> falhasRecentes =
+            com.github.benmanes.caffeine.cache.Caffeine.newBuilder().maximumSize(500)
+                    .expireAfterWrite(java.time.Duration.ofSeconds(60)).build();
     private final PedidoRepository repository;
     private final PedidoService pedidoService;
     private final AsaasPaymentService asaas;
@@ -27,10 +30,13 @@ public class PagamentoExpiracaoService {
     @Scheduled(fixedDelay = 5000)
     public void expirarPendentes() {
         for (Pedido pedido : repository.findByStatusAndPagamentoExpiraEmLessThanEqual(StatusPedido.PENDENTE, Instant.now())) {
+            if (falhasRecentes.getIfPresent(pedido.getId()) != null) continue;
             try {
                 reconciliar(pedido);
+                falhasRecentes.invalidate(pedido.getId());
             } catch (Exception e) {
                 // Sem confirmação do provedor, o pedido permanece ativo para outra tentativa.
+                falhasRecentes.put(pedido.getId(), true);
                 log.warn("Não foi possível conciliar o pagamento vencido do pedido {}", pedido.getId(), e);
             }
         }
@@ -38,6 +44,15 @@ public class PagamentoExpiracaoService {
 
     private void reconciliar(Pedido pedido) {
         String forma = pedido.getFormaPagamento().toUpperCase(Locale.ROOT);
+        if ("PIX".equals(forma) && pedido.isPagamentoCriacaoIncerta()
+                && pedido.getAsaasPaymentId() == null && !asaas.recuperarCobranca(pedido))
+            throw new IllegalStateException("Resultado PIX inconclusivo: preservar reserva para conciliação.");
+        if (java.util.List.of("CARTAO", "STRIPE", "GOOGLE_PAY").contains(forma)
+                && pedido.getStripePaymentIntentId() == null && pedido.isPagamentoCriacaoIncerta()) {
+            stripe.criarPaymentIntentCartao(pedido);
+            if (pedido.getStripePaymentIntentId() == null)
+                throw new IllegalStateException("Pagamento com cartão inconclusivo: preservar reserva.");
+        }
         if ("PIX".equals(forma) && pedido.getAsaasPaymentId() != null) {
             String status = asaas.consultarStatus(pedido.getAsaasPaymentId());
             if ("RECEIVED".equals(status) || "CONFIRMED".equals(status)) {

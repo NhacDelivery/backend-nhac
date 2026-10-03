@@ -110,6 +110,8 @@ public class Pedido {
 
     @OneToMany(mappedBy = "pedido", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<ItemPedido> itens = new ArrayList<>();
+    @Column(name = "pagamento_criacao_incerta", nullable = false)
+    private boolean pagamentoCriacaoIncerta;
 
     public void adicionarItem(ItemPedido item) {
         itens.add(item);

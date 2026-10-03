@@ -34,14 +34,23 @@ public class StripePaymentService {
 
     @PostConstruct
     public void init() {
-        if (!mockMode) Stripe.apiKey = stripeApiKey;
+        if (!mockMode) {
+            Stripe.apiKey = stripeApiKey;
+            Stripe.setConnectTimeout(4000); Stripe.setReadTimeout(10000); Stripe.setMaxNetworkRetries(0);
+        }
     }
 
     public PedidoCriadoDTO criarPaymentIntentCartao(Pedido pedido) {
         if (mockMode) {
+            pedido.setStripePaymentIntentId("e2e_mock_cartao_" + pedido.getId());
+            if (pedidoRepository.vincularStripe(pedido.getId(), pedido.getStripePaymentIntentId()) != 1)
+                throw new IllegalStateException("Não foi possível vincular o pagamento ao pedido.");
+            pedido.setPagamentoCriacaoIncerta(false);
             return new PedidoCriadoDTO(
                     pedido.getId(), "e2e_mock_client_secret", null, null);
         }
+        if (pedido.getCriadoEm() != null && pedido.getCriadoEm().isBefore(java.time.Instant.now().minus(java.time.Duration.ofHours(23))))
+            throw new IllegalStateException("Pagamento sem identificador requer conciliação manual após 23 horas.");
         try {
             // Stripe espera o valor em centavos (ex: R$ 50.00 -> 5000)
             long valorEmCentavos = pedido.getValorTotal().multiply(new BigDecimal("100")).longValue();
@@ -60,11 +69,14 @@ public class StripePaymentService {
                             .putMetadata("usuarioId", pedido.getUsuarioId())
                             .build();
 
-            PaymentIntent paymentIntent = PaymentIntent.create(params);
+            PaymentIntent paymentIntent = PaymentIntent.create(params, com.stripe.net.RequestOptions.builder()
+                    .setIdempotencyKey("nhac-pedido-" + pedido.getId()).build());
 
             // Vincula o ID gerado pelo Stripe ao Pedido
+            if (pedidoRepository.vincularStripe(pedido.getId(), paymentIntent.getId()) != 1)
+                throw new IllegalStateException("Não foi possível vincular o pagamento ao pedido.");
             pedido.setStripePaymentIntentId(paymentIntent.getId());
-            pedidoRepository.save(pedido); // ✅ SALVA O PEDIDO COM O ID DO STRIPE
+            pedido.setPagamentoCriacaoIncerta(false);
 
             // Para cartão/Google Pay, não há QR Code PIX
             // Os campos pixCopiaECola e qrCodeUrl serão null
@@ -74,6 +86,11 @@ public class StripePaymentService {
             return new PedidoCriadoDTO(pedido.getId(), clientSecret, null, null);
 
         } catch (StripeException e) {
+            if (pedido.getStripePaymentIntentId() == null && e.getStatusCode() != null
+                    && java.util.Set.of(400, 401, 402, 403, 404, 422).contains(e.getStatusCode())) {
+                pedidoRepository.marcarCriacaoPagamento(pedido.getId(), false);
+                pedido.setPagamentoCriacaoIncerta(false);
+            }
             log.error("Erro ao criar PaymentIntent no Stripe", e);
             throw new RuntimeException("Falha ao comunicar com Stripe para criar PaymentIntent: " + e.getMessage(), e);
         }

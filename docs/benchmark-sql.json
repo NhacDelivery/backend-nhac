@@ -1,0 +1,10 @@
+{
+  "baseline": {
+    "catalogue_selects": 104,
+    "products_returned": 50
+  },
+  "optimized": {
+    "catalogue_selects": 2,
+    "products_returned": 50
+  }
+}

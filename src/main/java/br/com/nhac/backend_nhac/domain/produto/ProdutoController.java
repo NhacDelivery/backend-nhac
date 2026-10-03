@@ -80,6 +80,22 @@ public class ProdutoController {
         return ResponseEntity.ok(produtoService.listarPromocoes(pageable));
     }
 
+    @Operation(summary = "Listar cards sem carregar grupos de adicionais")
+    @GetMapping("/cards")
+    public ResponseEntity<Page<ProdutoResumoDTO>> listarCards(
+            @RequestParam(required = false) String lojaId,
+            @RequestParam(required = false) BigDecimal precoMaximo,
+            @RequestParam(required = false) String categoriaMenu,
+            @RequestParam(required = false) String nome, Pageable pageable) {
+        return ResponseEntity.ok(produtoService.listarCards(lojaId, precoMaximo, categoriaMenu, nome, pageable));
+    }
+
+    @GetMapping("/cards/promocoes")
+    public ResponseEntity<Page<ProdutoResumoDTO>> listarCardsPromocoes(
+            @PageableDefault(size = 10, sort = "id") Pageable pageable) {
+        return ResponseEntity.ok(produtoService.listarCardsPromocoes(pageable));
+    }
+
     @GetMapping("/{produtoId}")
     public ResponseEntity<ProdutoResumoDTO> buscarProdutoPorId(@PathVariable String produtoId) {
         ProdutoResumoDTO produto = produtoService.buscarProdutoPorId(produtoId);

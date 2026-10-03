@@ -1,0 +1,61 @@
+{
+  "baseline": {
+    "cold_distinct_cache_keys": {
+      "requests": 30,
+      "concurrency": 1,
+      "p50_ms": 91.76,
+      "p95_ms": 217.2,
+      "p99_ms": 319.26,
+      "bytes": 33871,
+      "errors": 0
+    },
+    "warm_sequential": {
+      "requests": 100,
+      "concurrency": 1,
+      "p50_ms": 11.04,
+      "p95_ms": 23.08,
+      "p99_ms": 44.27,
+      "bytes": 33486,
+      "errors": 0
+    },
+    "warm_concurrent": {
+      "requests": 200,
+      "concurrency": 8,
+      "p50_ms": 13.64,
+      "p95_ms": 25.78,
+      "p99_ms": 30.82,
+      "bytes": 33486,
+      "errors": 0
+    }
+  },
+  "optimized": {
+    "cold_distinct_cache_keys": {
+      "requests": 30,
+      "concurrency": 1,
+      "p50_ms": 32.93,
+      "p95_ms": 61.34,
+      "p99_ms": 62.62,
+      "bytes": 15321,
+      "errors": 0
+    },
+    "warm_sequential": {
+      "requests": 100,
+      "concurrency": 1,
+      "p50_ms": 5.91,
+      "p95_ms": 13.06,
+      "p99_ms": 25.98,
+      "bytes": 15307,
+      "errors": 0
+    },
+    "warm_concurrent": {
+      "requests": 200,
+      "concurrency": 8,
+      "p50_ms": 14.56,
+      "p95_ms": 38.13,
+      "p99_ms": 52.36,
+      "bytes": 15307,
+      "errors": 0
+    }
+  },
+  "note": "Synthetic catalogue, 300 products, 2 groups x 3 extras each. Same host, local MariaDB. Not production latency."
+}

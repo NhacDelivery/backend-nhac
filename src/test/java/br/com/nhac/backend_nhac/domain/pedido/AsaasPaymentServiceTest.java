@@ -30,6 +30,7 @@ public class AsaasPaymentServiceTest {
     @InjectMocks
     private AsaasPaymentService asaasPaymentService;
 
+    @Mock private PagamentoClienteRepository clienteRepository;
     @Mock
     private RestTemplate restTemplate;
 
@@ -45,6 +46,7 @@ public class AsaasPaymentServiceTest {
 
     @BeforeEach
     public void setUp() {
+        lenient().when(pedidoRepository.vincularAsaas(anyString(), anyString())).thenReturn(1);
         ReflectionTestUtils.setField(asaasPaymentService, "asaasApiKey", testApiKey);
         ReflectionTestUtils.setField(asaasPaymentService, "asaasApiUrl", testApiUrl);
         ReflectionTestUtils.setField(asaasPaymentService, "gson", new Gson());
@@ -283,6 +285,61 @@ public class AsaasPaymentServiceTest {
         
         String externalReference = requestBody.get("externalReference").getAsString();
         assertEquals(pedido.getId(), externalReference);
+    }
+
+    @Test
+    void reutilizaClientePersistidoSemOutraChamadaCustomer() {
+        when(clienteRepository.findById(anyString())).thenReturn(java.util.Optional.of(
+                new PagamentoCliente("hash", "cus_existente")));
+        when(restTemplate.postForEntity(eq(testApiUrl + "/payments"), any(HttpEntity.class), eq(String.class)))
+                .thenReturn(ResponseEntity.ok("{\"id\":\"pay_cached\"}"));
+        asaasPaymentService.criarCobrancaPix(criarPedidoTeste(), nomePagador, emailPagador, cpfPagador);
+        verify(restTemplate, never()).postForEntity(eq(testApiUrl + "/customers"), any(HttpEntity.class), eq(String.class));
+        verify(pedidoRepository).vincularAsaas(anyString(), eq("pay_cached"));
+    }
+
+    @Test
+    void timeoutDepoisDeEnviarPagamentoPreservaEstadoInconclusivo() {
+        Pedido pedido = criarPedidoTeste();
+        pedido.setPagamentoCriacaoIncerta(true);
+        when(clienteRepository.findById(anyString())).thenReturn(java.util.Optional.of(
+                new PagamentoCliente("hash", "cus_existente")));
+        when(restTemplate.postForEntity(eq(testApiUrl + "/payments"), any(HttpEntity.class), eq(String.class)))
+                .thenThrow(new org.springframework.web.client.ResourceAccessException("timeout"));
+        assertThrows(RuntimeException.class, () -> asaasPaymentService.criarCobrancaPix(
+                pedido, nomePagador, emailPagador, cpfPagador));
+        assertTrue(pedido.isPagamentoCriacaoIncerta());
+        verify(pedidoRepository, never()).marcarCriacaoPagamento(pedido.getId(), false);
+        verify(pedidoRepository, never()).vincularAsaas(anyString(), anyString());
+    }
+
+    @Test
+    void recuperaReferenciaSemRecriarCobranca() {
+        Pedido pedido = criarPedidoTeste();
+        pedido.setPagamentoCriacaoIncerta(true);
+        when(restTemplate.exchange(contains("/payments?externalReference="), eq(HttpMethod.GET),
+                any(HttpEntity.class), eq(String.class))).thenReturn(ResponseEntity.ok(
+                "{\"data\":[{\"id\":\"pay_recuperado\",\"externalReference\":\"" + pedido.getId() + "\"}]}"));
+        assertTrue(asaasPaymentService.recuperarCobranca(pedido));
+        assertFalse(pedido.isPagamentoCriacaoIncerta());
+        verify(pedidoRepository).vincularAsaas(pedido.getId(), "pay_recuperado");
+        verify(restTemplate, never()).postForEntity(anyString(), any(HttpEntity.class), eq(String.class));
+    }
+
+    @Test
+    void naoEntregaQrDeUmaCobrancaQueNaoFoiVinculada() {
+        Pedido pedido = criarPedidoTeste();
+        when(clienteRepository.findById(anyString())).thenReturn(java.util.Optional.of(
+                new PagamentoCliente("hash", "cus_existente")));
+        when(restTemplate.postForEntity(eq(testApiUrl + "/payments"), any(HttpEntity.class), eq(String.class)))
+                .thenReturn(ResponseEntity.ok("{\"id\":\"pay_sem_vinculo\"}"));
+        when(pedidoRepository.vincularAsaas(pedido.getId(), "pay_sem_vinculo")).thenReturn(0);
+        assertThrows(RuntimeException.class, () -> asaasPaymentService.criarCobrancaPix(
+                pedido, nomePagador, emailPagador, cpfPagador));
+        assertTrue(pedido.isPagamentoCriacaoIncerta());
+        assertNull(pedido.getAsaasPaymentId());
+        verify(restTemplate, never()).exchange(contains("/pixQrCode"), eq(HttpMethod.GET),
+                any(HttpEntity.class), eq(String.class));
     }
 
     private Pedido criarPedidoTeste() {
