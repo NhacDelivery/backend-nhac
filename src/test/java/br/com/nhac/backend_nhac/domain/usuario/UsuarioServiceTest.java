@@ -54,12 +54,14 @@ class UsuarioServiceTest {
         EnderecoUsuario proximo = new EnderecoUsuario();
         proximo.setId("b"); proximo.setUsuario(usuario);
         when(enderecoRepository.findById("a")).thenReturn(Optional.of(removido));
-        when(enderecoRepository.findByUsuarioId("cliente")).thenReturn(List.of(proximo));
+        when(enderecoRepository.findFirstByUsuarioIdAndIdNotOrderByIsPadraoDescIdAsc("cliente", "a"))
+                .thenReturn(Optional.of(proximo));
         usuarioService.removerEndereco("cliente", "a");
         assertTrue(proximo.isPadrao());
         verify(usuarioRepository).findLockedById("cliente");
         verify(enderecoRepository).delete(removido);
         verify(enderecoRepository).save(proximo);
+        verify(enderecoRepository, never()).findByUsuarioId(any());
     }
 
     @Test
@@ -67,9 +69,29 @@ class UsuarioServiceTest {
         EnderecoUsuario removido = new EnderecoUsuario();
         removido.setId("a"); removido.setUsuario(usuarioPadrao("cliente")); removido.setPadrao(true);
         when(enderecoRepository.findById("a")).thenReturn(Optional.of(removido));
-        when(enderecoRepository.findByUsuarioId("cliente")).thenReturn(List.of());
+        when(enderecoRepository.findFirstByUsuarioIdAndIdNotOrderByIsPadraoDescIdAsc("cliente", "a"))
+                .thenReturn(Optional.empty());
         usuarioService.removerEndereco("cliente", "a");
         verify(enderecoRepository, never()).save(any());
+    }
+
+    @Test
+    void removerPadraoPreservaOutroPadraoExistente() {
+        Usuario usuario = usuarioPadrao("cliente");
+        EnderecoUsuario removido = new EnderecoUsuario();
+        removido.setId("a"); removido.setUsuario(usuario); removido.setPadrao(true);
+        EnderecoUsuario existente = new EnderecoUsuario();
+        existente.setId("z"); existente.setUsuario(usuario); existente.setPadrao(true);
+        when(enderecoRepository.findById("a")).thenReturn(Optional.of(removido));
+        when(enderecoRepository.findFirstByUsuarioIdAndIdNotOrderByIsPadraoDescIdAsc("cliente", "a"))
+                .thenReturn(Optional.of(existente));
+
+        usuarioService.removerEndereco("cliente", "a");
+
+        assertTrue(existente.isPadrao());
+        verify(enderecoRepository).delete(removido);
+        verify(enderecoRepository, never()).save(any());
+        verify(enderecoRepository, never()).findByUsuarioId(any());
     }
 
     private Usuario usuarioPadrao(String id) {
@@ -261,7 +283,7 @@ class UsuarioServiceTest {
     @DisplayName("Deve adicionar um novo endereço ao usuário existente")
     void deveAdicionarEnderecoComSucesso() {
         Usuario usuario = usuarioPadrao("user_1");
-        when(usuarioRepository.findById("user_1")).thenReturn(Optional.of(usuario));
+        when(usuarioRepository.findLockedById("user_1")).thenReturn(Optional.of(usuario));
 
         EnderecoUsuarioDTO dto = new EnderecoUsuarioDTO(
                 null, "Rua A", "123", "Centro",
@@ -270,13 +292,17 @@ class UsuarioServiceTest {
 
         usuarioService.adicionarEndereco("user_1", dto);
 
-        verify(enderecoRepository, times(1)).save(any(EnderecoUsuario.class));
+        ArgumentCaptor<EnderecoUsuario> captor = ArgumentCaptor.forClass(EnderecoUsuario.class);
+        verify(enderecoRepository).save(captor.capture());
+        assertSame(usuario, captor.getValue().getUsuario());
+        verify(usuarioRepository).findLockedById("user_1");
+        verify(usuarioRepository, never()).findById(any());
     }
 
     @Test
     @DisplayName("Deve lançar IdNaoEncontradoException ao adicionar endereço para usuário inexistente")
     void deveLancarExcecaoAoAdicionarEnderecoParaUsuarioInexistente() {
-        when(usuarioRepository.findById("fantasma")).thenReturn(Optional.empty());
+        when(usuarioRepository.findLockedById("fantasma")).thenReturn(Optional.empty());
 
         EnderecoUsuarioDTO dto = new EnderecoUsuarioDTO(
                 null, "Rua A", "123", "Centro",
@@ -287,6 +313,7 @@ class UsuarioServiceTest {
                 () -> usuarioService.adicionarEndereco("fantasma", dto));
 
         verify(enderecoRepository, never()).save(any());
+        verify(usuarioRepository, never()).findById(any());
     }
 
     @Test
@@ -363,6 +390,8 @@ class UsuarioServiceTest {
         usuarioService.removerEndereco("user_1", "end_1");
 
         verify(enderecoRepository, times(1)).delete(endereco);
+        verify(enderecoRepository, never())
+                .findFirstByUsuarioIdAndIdNotOrderByIsPadraoDescIdAsc(any(), any());
     }
 
     @Test

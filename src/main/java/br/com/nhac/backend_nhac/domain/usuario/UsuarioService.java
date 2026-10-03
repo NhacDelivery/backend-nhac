@@ -17,7 +17,6 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
-import java.util.Comparator;
 import br.com.nhac.backend_nhac.domain.cupom.CupomRepository;
 import java.util.Map;
 import java.util.stream.Collectors;
@@ -114,8 +113,7 @@ public class UsuarioService {
     @Transactional
     public void adicionarEndereco(String usuarioId, EnderecoUsuarioDTO dto) {
         // Serializa mudanças de padrão e exclusões da mesma conta.
-        usuarioRepository.findLockedById(usuarioId);
-        Usuario usuario = usuarioRepository.findById(usuarioId)
+        Usuario usuario = usuarioRepository.findLockedById(usuarioId)
                 .orElseThrow(() -> new IdNaoEncontradoException("Usuário não encontrado."));
         EnderecoUsuario endereco = dto.toEntity(usuario);
 
@@ -166,15 +164,12 @@ public class UsuarioService {
 
         enderecoRepository.delete(endereco);
         if (endereco.isPadrao()) {
-            List<EnderecoUsuario> restantes = enderecoRepository.findByUsuarioId(usuarioId).stream()
-                    .filter(e -> !e.getId().equals(enderecoId))
-                    .sorted(Comparator.comparing(EnderecoUsuario::getId))
-                    .toList();
-            if (restantes.stream().noneMatch(EnderecoUsuario::isPadrao) && !restantes.isEmpty()) {
-                EnderecoUsuario novoPadrao = restantes.getFirst();
-                novoPadrao.setPadrao(true);
-                enderecoRepository.save(novoPadrao);
-            }
+            enderecoRepository.findFirstByUsuarioIdAndIdNotOrderByIsPadraoDescIdAsc(usuarioId, enderecoId)
+                    .filter(proximo -> !proximo.isPadrao())
+                    .ifPresent(proximo -> {
+                        proximo.setPadrao(true);
+                        enderecoRepository.save(proximo);
+                    });
         }
     }
 
