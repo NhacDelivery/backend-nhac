@@ -34,13 +34,31 @@ public class AsaasPaymentService {
     private RestTemplate restTemplate;
     private Gson gson = new Gson();
     private final PedidoRepository pedidoRepository;
+    private final PagamentoClienteRepository clienteRepository;
+    private final Object[] customerLocks = java.util.stream.IntStream.range(0, 64).mapToObj(i -> new Object()).toArray();
 
-    public AsaasPaymentService(RestTemplate restTemplate, PedidoRepository pedidoRepository) {
+    public AsaasPaymentService(RestTemplate restTemplate, PedidoRepository pedidoRepository, PagamentoClienteRepository clienteRepository) {
+        this.clienteRepository = clienteRepository;
         this.restTemplate = restTemplate;
         this.pedidoRepository = pedidoRepository;
     }
 
-    private String obterOuCriarCustomer(String nome, String email, String cpfCnpj) {
+    private String obterOuCriarCustomer(String usuarioId, String nome, String email, String cpfCnpj) {
+        String raw = asaasApiUrl + ":" + usuarioId + ":" + cpfCnpj.replaceAll("\\D", "");
+        String chave;
+        try {
+            chave = java.util.HexFormat.of().formatHex(java.security.MessageDigest.getInstance("SHA-256")
+                    .digest(raw.getBytes(java.nio.charset.StandardCharsets.UTF_8)));
+        } catch (java.security.NoSuchAlgorithmException e) { throw new IllegalStateException(e); }
+        synchronized (customerLocks[Math.floorMod(chave.hashCode(), customerLocks.length)]) {
+            var salvo = clienteRepository.findById(chave);
+            if (salvo.isPresent()) return salvo.get().getCustomerId();
+            String customerId = criarCustomer(nome, email, cpfCnpj);
+            clienteRepository.save(new PagamentoCliente(chave, customerId));
+            return customerId;
+        }
+    }
+    private String criarCustomer(String nome, String email, String cpfCnpj) {
         HttpHeaders headers = new HttpHeaders();
         headers.setContentType(MediaType.APPLICATION_JSON);
         headers.set("access_token", asaasApiKey);
@@ -73,12 +91,14 @@ public class AsaasPaymentService {
     public PedidoCriadoDTO criarCobrancaPix(Pedido pedido, String nomePagador, String emailPagador, String cpfPagador) {
         if (mockMode) {
             pedido.setAsaasPaymentId("e2e_mock_pix_" + pedido.getId());
-            pedidoRepository.save(pedido);
+            if (pedidoRepository.vincularAsaas(pedido.getId(), pedido.getAsaasPaymentId()) != 1)
+                throw new IllegalStateException("Não foi possível vincular a cobrança ao pedido.");
             return new PedidoCriadoDTO(
                     pedido.getId(), null, "000201-e2e-mock", "e2e-mock-qr");
         }
+        boolean pagamentoEnviado = false;
         try {
-            String customerId = obterOuCriarCustomer(nomePagador, emailPagador, cpfPagador);
+            String customerId = obterOuCriarCustomer(pedido.getUsuarioId(), nomePagador, emailPagador, cpfPagador);
 
             HttpHeaders headers = new HttpHeaders();
             headers.setContentType(MediaType.APPLICATION_JSON);
@@ -98,14 +118,19 @@ public class AsaasPaymentService {
             HttpEntity<String> entity = new HttpEntity<>(requestBody.toString(), headers);
 
             String url = asaasApiUrl + "/payments";
+            pedidoRepository.marcarCriacaoPagamento(pedido.getId(), true);
+            pedido.setPagamentoCriacaoIncerta(true);
+            pagamentoEnviado = true;
             ResponseEntity<String> response = restTemplate.postForEntity(url, entity, String.class);
 
             if (response.getStatusCode() == HttpStatus.OK || response.getStatusCode() == HttpStatus.CREATED) {
                 JsonObject responseBody = gson.fromJson(response.getBody(), JsonObject.class);
                 
                 String paymentId = responseBody.get("id").getAsString();
+                if (pedidoRepository.vincularAsaas(pedido.getId(), paymentId) != 1)
+                    throw new IllegalStateException("Não foi possível vincular a cobrança ao pedido.");
                 pedido.setAsaasPaymentId(paymentId);
-                pedidoRepository.save(pedido); // ✅ SALVA O PEDIDO COM O ID DO ASAAS
+                pedido.setPagamentoCriacaoIncerta(false);
 
                 log.info("Cobrança PIX criada no Asaas: {}", paymentId);
                 String codigoPix = obterCodigoPix(pedido);
@@ -115,11 +140,34 @@ public class AsaasPaymentService {
             }
 
         } catch (Exception e) {
+            boolean rejeicaoDefinitiva = e instanceof org.springframework.web.client.HttpClientErrorException erro
+                    && erro.getStatusCode().value() != 408;
+            if (pedido.getAsaasPaymentId() == null && (!pagamentoEnviado || rejeicaoDefinitiva)) {
+                pedidoRepository.marcarCriacaoPagamento(pedido.getId(), false);
+                pedido.setPagamentoCriacaoIncerta(false);
+            }
             log.error("Erro ao criar cobrança PIX no Asaas", e);
             throw new RuntimeException("Erro ao comunicar com Asaas para criar cobrança PIX: " + e.getMessage(), e);
         }
     }
 
+    public boolean recuperarCobranca(Pedido pedido) {
+        if (pedido.getAsaasPaymentId() != null) return true;
+        if (mockMode) return false;
+        JsonObject resposta = buscar("/payments?externalReference=" +
+                java.net.URLEncoder.encode(pedido.getId(), java.nio.charset.StandardCharsets.UTF_8));
+        var data = resposta.getAsJsonArray("data");
+        if (data == null || data.isEmpty()) return false;
+        if (data.size() != 1) throw new IllegalStateException("Cobranças múltiplas exigem conciliação manual.");
+        JsonObject payment = data.get(0).getAsJsonObject();
+        if (!pedido.getId().equals(payment.get("externalReference").getAsString()))
+            throw new IllegalStateException("Referência de pagamento divergente.");
+        String id = payment.get("id").getAsString();
+        if (pedidoRepository.vincularAsaas(pedido.getId(), id) != 1)
+            throw new IllegalStateException("Não foi possível vincular a cobrança recuperada ao pedido.");
+        pedido.setAsaasPaymentId(id); pedido.setPagamentoCriacaoIncerta(false);
+        return true;
+    }
     public String obterCodigoPix(Pedido pedido) {
         if (mockMode) return "000201-e2e-mock";
         JsonObject resposta = buscar("/payments/" + pedido.getAsaasPaymentId() + "/pixQrCode");

@@ -49,6 +49,10 @@ public record ProdutoResumoDTO(
         List<GrupoAdicionalDTO> adicionais
 ) {
     public ProdutoResumoDTO(Produto produto) {
+        this(produto, true);
+    }
+
+    public ProdutoResumoDTO(Produto produto, boolean incluirAdicionais) {
         this(
                 produto.getId(),
                 produto.getLoja() != null ? produto.getLoja().getId() : null,
@@ -61,7 +65,7 @@ public record ProdutoResumoDTO(
                 produto.getPeso(),
                 produto.getPercentualDesconto(),
                 produto.getLoja() != null && produto.getLoja().isAberto(),
-                produto.getAdicionais() != null ? produto.getAdicionais().stream()
+                incluirAdicionais && produto.getAdicionais() != null ? produto.getAdicionais().stream()
                     .map(grupo -> new GrupoAdicionalDTO(
                             grupo.getNome(),
                             grupo.isObrigatorio(),

@@ -61,6 +61,7 @@ public class PedidoService {
     private boolean mockMode;
 
     private final Environment environment;
+    private final PedidoReservaService reservaService;
 
     private final br.com.nhac.backend_nhac.domain.cupom.CupomService cupomService;
     private final PedidoRepository pedidoRepository;
@@ -82,7 +83,9 @@ public class PedidoService {
                           EntregadorRepository entregadorRepository,
                           br.com.nhac.backend_nhac.domain.cupom.CupomService cupomService,
                           Environment environment,
-                          br.com.nhac.backend_nhac.domain.avaliacao_entregador.AvaliacaoEntregadorService avaliacaoEntregadorService) {
+                          br.com.nhac.backend_nhac.domain.avaliacao_entregador.AvaliacaoEntregadorService avaliacaoEntregadorService,
+                          PedidoReservaService reservaService) {
+        this.reservaService = reservaService;
         this.cupomService = cupomService;
         this.pedidoRepository = pedidoRepository;
         this.lojaRepository = lojaRepository;
@@ -98,132 +101,24 @@ public class PedidoService {
         this.avaliacaoEntregadorService = avaliacaoEntregadorService;
     }
 
-    @Transactional
+    // A reserva já está commitada quando o provedor externo é consultado.
+    @Transactional(propagation = org.springframework.transaction.annotation.Propagation.NOT_SUPPORTED)
     public ResultadoCriacaoPedido finalizarPedido(PedidoCreateDTO dto, Usuario usuarioLogado, String idempotencyKey) {
-
-        // A mesma trava protege chaves diferentes e chamadas sem chave.
-        usuarioRepository.findLockedById(usuarioLogado.getId())
-                .orElseThrow(() -> new IdNaoEncontradoException("Usuário autenticado não encontrado."));
-
-        String idempotencyFingerprint = null;
-        if (idempotencyKey != null && !idempotencyKey.isBlank()) {
-            idempotencyFingerprint = calcularFingerprint(usuarioLogado.getId(), dto);
-
-            var existente = pedidoRepository.findByUsuarioIdAndIdempotencyKey(
-                    usuarioLogado.getId(), idempotencyKey);
-            if (existente.isPresent()) {
-                Pedido pedidoExistente = existente.get();
-                if (pedidoExistente.getIdempotencyFingerprint() != null
-                        && !pedidoExistente.getIdempotencyFingerprint().equals(idempotencyFingerprint)) {
-                    throw new IdempotenciaConflitoException(
-                            "A Idempotency-Key já foi usada com um pedido diferente.");
-                }
-                return new ResultadoCriacaoPedido(
-                        new PedidoCriadoDTO(pedidoExistente.getId(), null, null, null),
-                        true);
-            }
-        }
-
-
-        Loja loja = lojaRepository.findByIdAndIsAbertoTrue(dto.lojaId())
-                .orElseThrow(() -> new LojaFechadaException(dto.lojaId()));
-
-        if (!loja.isAberto()) {
-            throw new LojaFechadaException(dto.lojaId());
-        }
-
-        Pedido pedido = dto.toEntity(loja);
-        pedido.setIdempotencyKey(idempotencyKey);
-        pedido.setIdempotencyFingerprint(idempotencyFingerprint);
-        pedido.setUsuarioId(usuarioLogado.getId());
-        if ("PIX".equalsIgnoreCase(pedido.getFormaPagamento())
-                || "CARTAO".equalsIgnoreCase(pedido.getFormaPagamento())
-                || "STRIPE".equalsIgnoreCase(pedido.getFormaPagamento())
-                || "GOOGLE_PAY".equalsIgnoreCase(pedido.getFormaPagamento())) {
-            pedido.setPagamentoExpiraEm(pedido.getCriadoEm().plus(7, ChronoUnit.MINUTES));
-        }
-
-        BigDecimal valorTotalItens = BigDecimal.ZERO;
-
-        for (PedidoCreateDTO.ItemPedidoDTO itemDto : dto.itens()) {
-            if (itemDto.quantidade() <= 0) {
-                throw new QuantidadeInvalidaException("A quantidade deve ser maior que zero", Map.of("produtoId", itemDto.produtoId(), "quantidade", itemDto.quantidade()));
-            }
-
-            Produto produtoReal = produtoRepository.findById(itemDto.produtoId())
-                    .orElseThrow(() -> new ProdutoNaoEncontradoException(itemDto.produtoId(), loja.getId()));
-
-            if (!produtoReal.getLoja().getId().equals(loja.getId())) {
-                throw new RegraDeNegocioException("O produto '" + produtoReal.getNome() + "' não pertence à loja selecionada.");
-            }
-
-            if (!produtoReal.isAtivo()) {
-                throw new ProdutoInativoException("O produto '" + produtoReal.getNome() + "' está inativo.", Map.of("produtoId", produtoReal.getId()));
-            }
-
-            if (produtoReal.getEstoque() == null || produtoReal.getEstoque() < itemDto.quantidade()) {
-                throw new EstoqueInsuficienteException(produtoReal.getId(), itemDto.quantidade(), produtoReal.getEstoque() == null ? 0 : produtoReal.getEstoque());
-            }
-
-            int atualizados = produtoRepository.decrementarEstoqueSeDisponivel(produtoReal.getId(), itemDto.quantidade());
-            if (atualizados == 0) {
-                throw new EstoqueInsuficienteException(produtoReal.getId(), itemDto.quantidade(), produtoReal.getEstoque());
-            }
-
-            ItemPedido novoItem = itemDto.toEntity(produtoReal);
-            // Snapshot histórico sempre vem da fonte canônica do servidor.
-            // Nome/imagem enviados pelo app são mantidos no DTO por
-            // compatibilidade, mas não são confiados.
-            novoItem.setNome(produtoReal.getNome());
-            novoItem.setImagemUrl(produtoReal.getImagemUrl());
-            BigDecimal precoReal = produtoReal.getPreco();
-            novoItem.setPrecoHistorico(precoReal);
-
-            BigDecimal subtotal = precoReal.multiply(BigDecimal.valueOf(novoItem.getQuantidade()));
-            valorTotalItens = valorTotalItens.add(subtotal);
-
-            pedido.adicionarItem(novoItem);
-        }
-
-        if (pedido.getEnderecoEntrega() == null) {
-            throw new CampoObrigatorioFaltandoException("enderecoEntrega");
-        }
-
-        BigDecimal taxaFrete = loja.getDadosOperacionais() != null
-                && loja.getDadosOperacionais().getTaxaEntregaBase() != null
-                ? loja.getDadosOperacionais().getTaxaEntregaBase()
-                : new BigDecimal("5.00");
-        pedido.setTaxaFrete(taxaFrete);
-        BigDecimal desconto = BigDecimal.ZERO;
-        if (dto.cupomId() != null && !dto.cupomId().isBlank()) {
-            desconto = cupomService.consumir(usuarioLogado.getId(), dto.cupomId(), valorTotalItens);
-        } else {
-            pedido.setCupomId(null);
-        }
-        pedido.setDesconto(desconto);
-        pedido.setValorTotal(valorTotalItens.subtract(desconto).add(taxaFrete));
-
-        Pedido pedidoSalvo = pedidoRepository.save(pedido);
-
+        var reserva = reservaService.reservar(dto, usuarioLogado, idempotencyKey);
+        Pedido pedido = reserva.pedido();
+        if (reserva.replay())
+            return new ResultadoCriacaoPedido(new PedidoCriadoDTO(pedido.getId(), null, null, null), true);
         try {
-            if ("PIX".equalsIgnoreCase(pedido.getFormaPagamento())) {
-                if (dto.cpfPagador() == null || dto.cpfPagador().isBlank()) {
-                    throw new RegraDeNegocioException("O CPF do pagador é obrigatório para pagamento via PIX.");
-                }
-                return new ResultadoCriacaoPedido(
-                        asaasPaymentService.criarCobrancaPix(
-                                pedidoSalvo, usuarioLogado.getNome(), usuarioLogado.getEmail(), dto.cpfPagador()),
-                        false);
-            } else if ("CARTAO".equalsIgnoreCase(pedido.getFormaPagamento()) || 
-                       "GOOGLE_PAY".equalsIgnoreCase(pedido.getFormaPagamento()) ||
-                       "STRIPE".equalsIgnoreCase(pedido.getFormaPagamento())) {
-                
-                return new ResultadoCriacaoPedido(stripePaymentService.criarPaymentIntentCartao(pedidoSalvo), false);
-            }
-            
-            return new ResultadoCriacaoPedido(new PedidoCriadoDTO(pedidoSalvo.getId(), null, null, null), false);
+            if ("PIX".equalsIgnoreCase(pedido.getFormaPagamento()))
+                return new ResultadoCriacaoPedido(asaasPaymentService.criarCobrancaPix(
+                        pedido, usuarioLogado.getNome(), usuarioLogado.getEmail(), dto.cpfPagador()), false);
+            if (List.of("CARTAO", "GOOGLE_PAY", "STRIPE").contains(
+                    pedido.getFormaPagamento().toUpperCase(java.util.Locale.ROOT)))
+                return new ResultadoCriacaoPedido(stripePaymentService.criarPaymentIntentCartao(pedido), false);
+            return new ResultadoCriacaoPedido(new PedidoCriadoDTO(pedido.getId(), null, null, null), false);
         } catch (Exception e) {
-            throw new PagamentoRecusadoException("Não foi possível processar seu pagamento", e);
+            throw new PagamentoIndisponivelException(
+                    "O pedido foi reservado. Consulte o pagamento antes de tentar novamente.", pedido.getId());
         }
     }
 
@@ -249,8 +144,8 @@ public class PedidoService {
     }
 
     public PagamentoPendenteDTO buscarPagamento(String pedidoId, String usuarioId) {
-        Pedido pedido = pedidoRepository.findById(pedidoId)
-                .orElseThrow(() -> new IdNaoEncontradoException("Pedido não encontrado."));
+        Pedido pedido = PedidoReservaService.snapshotParaPagamento(pedidoRepository.findById(pedidoId)
+                .orElseThrow(() -> new IdNaoEncontradoException("Pedido não encontrado.")));
         if (!pedido.getUsuarioId().equals(usuarioId)) {
             throw new AcessoNegadoException("Acesso negado: este pedido pertence a outro usuário.");
         }
@@ -260,9 +155,13 @@ public class PedidoService {
         String pix = null;
         String clientSecret = null;
         if ("PIX".equals(forma)) {
+            if (pedido.getAsaasPaymentId() == null && !asaasPaymentService.recuperarCobranca(pedido))
+                throw new PagamentoIndisponivelException("O pagamento ainda está sendo confirmado. Tente novamente em instantes.");
             pix = asaasPaymentService.obterCodigoPix(pedido);
         } else if (List.of("CARTAO", "STRIPE", "GOOGLE_PAY").contains(forma)) {
-            clientSecret = stripePaymentService.obterClientSecret(pedido);
+            clientSecret = pedido.getStripePaymentIntentId() == null
+                    ? stripePaymentService.criarPaymentIntentCartao(pedido).clientSecret()
+                    : stripePaymentService.obterClientSecret(pedido);
         } else {
             throw new PagamentoIndisponivelException("Este pedido não usa pagamento eletrônico.");
         }
@@ -478,6 +377,8 @@ public class PedidoService {
     }
 
     private void cancelarCobrancaSePendente(Pedido pedido) {
+        if (pedido.isPagamentoCriacaoIncerta())
+            throw new PagamentoIndisponivelException("A cobrança está em conciliação. Aguarde a confirmação antes de cancelar.");
         if (pedido.getAsaasPaymentId() != null) {
             String status = asaasPaymentService.consultarStatus(pedido.getAsaasPaymentId());
             if ("RECEIVED".equals(status) || "CONFIRMED".equals(status)) {
@@ -501,7 +402,7 @@ public class PedidoService {
         cancelarPorFalhaDePagamentoSePendente(pedido);
     }
 
-    private String calcularFingerprint(String usuarioId, PedidoCreateDTO dto) {
+    static String calcularFingerprint(String usuarioId, PedidoCreateDTO dto) {
         String endereco = dto.enderecoEntrega() == null ? "" : String.join("|",
                 n(dto.enderecoEntrega().rua()),
                 n(dto.enderecoEntrega().numero()),
@@ -533,7 +434,7 @@ public class PedidoService {
         }
     }
 
-    private String n(String valor) {
+    private static String n(String valor) {
         return valor == null ? "" : valor.trim();
     }
 

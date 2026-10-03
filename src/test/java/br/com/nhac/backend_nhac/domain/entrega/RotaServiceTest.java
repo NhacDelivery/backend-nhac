@@ -59,6 +59,7 @@ class RotaServiceTest {
                 "https://router.project-osrm.org/route/v1/driving/-46.633300,-23.550520;-46.640000,-23.560000?overview=full&geometries=polyline"))
                 .andRespond(org.springframework.test.web.client.response.MockRestResponseCreators.withSuccess(response, org.springframework.http.MediaType.APPLICATION_JSON));
         RotaEntregaResponseDTO rota = rotaService.calcularRota(pedido);
+        assertSame(rota, rotaService.calcularRota(pedido), "Rota repetida não deve consultar OSRM novamente");
         server.verify();
         assertEquals(1234, rota.distanciaMetros());
 

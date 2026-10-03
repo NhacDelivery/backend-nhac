@@ -28,6 +28,20 @@ class PagamentoExpiracaoServiceTest {
     }
 
     @Test
+    void resultadoPixInconclusivoNaoLiberaEstoqueENaoRepeteConsultaACadaCincoSegundos() {
+        Pedido pedido = pixVencido();
+        pedido.setAsaasPaymentId(null);
+        pedido.setPagamentoCriacaoIncerta(true);
+        when(repository.findByStatusAndPagamentoExpiraEmLessThanEqual(eq(StatusPedido.PENDENTE), any()))
+                .thenReturn(List.of(pedido));
+        when(asaas.recuperarCobranca(pedido)).thenReturn(false);
+        service.expirarPendentes();
+        service.expirarPendentes();
+        verify(asaas, times(1)).recuperarCobranca(pedido);
+        verify(pedidoService, never()).cancelarPorExpiracao(anyString());
+    }
+
+    @Test
     void cancelaSomenteAposEncerrarCobranca() {
         when(repository.findByStatusAndPagamentoExpiraEmLessThanEqual(eq(StatusPedido.PENDENTE), any()))
                 .thenReturn(List.of(pixVencido()));

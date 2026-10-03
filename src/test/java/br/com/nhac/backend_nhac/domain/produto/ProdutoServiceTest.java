@@ -59,6 +59,21 @@ class ProdutoServiceTest {
     @InjectMocks
     private ProdutoService produtoService;
 
+    @Test
+    void cardsNaoCarregamAdicionaisMasDetalhePreservaContrato() {
+        Produto produto = org.mockito.Mockito.spy(produtoDeTeste());
+        Pageable pagina = PageRequest.of(0, 50);
+        when(produtoRepository.findAllWithFilters(null, null, null, null, pagina))
+                .thenReturn(new PageImpl<>(List.of(produto)));
+        var cards = produtoService.listarCards(null, null, null, null, pagina);
+        assertEquals(produto.getId(), cards.getContent().getFirst().id());
+        assertTrue(cards.getContent().getFirst().adicionais().isEmpty());
+        verify(produto, never()).getAdicionais();
+        org.mockito.Mockito.clearInvocations(produto);
+        new ProdutoResumoDTO(produto);
+        verify(produto, org.mockito.Mockito.atLeastOnce()).getAdicionais();
+    }
+
     @BeforeEach
     void configurarAcessoDaLoja() {
         lenient().when(lojaAccessService.obterLojaAcessivel(any(Usuario.class)))

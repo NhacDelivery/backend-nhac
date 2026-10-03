@@ -15,12 +15,27 @@ import jakarta.persistence.LockModeType;
 import org.springframework.data.jpa.repository.Lock;
 
 public interface PedidoRepository extends JpaRepository<Pedido, String> {
+    @Modifying
+    @org.springframework.transaction.annotation.Transactional(propagation = org.springframework.transaction.annotation.Propagation.REQUIRES_NEW)
+    @Query("UPDATE Pedido p SET p.pagamentoCriacaoIncerta = :incerta, p.version = p.version + 1 WHERE p.id = :id")
+    int marcarCriacaoPagamento(@Param("id") String id, @Param("incerta") boolean incerta);
+    @Modifying
+    @org.springframework.transaction.annotation.Transactional(propagation = org.springframework.transaction.annotation.Propagation.REQUIRES_NEW)
+    @Query("UPDATE Pedido p SET p.asaasPaymentId = :paymentId, p.pagamentoCriacaoIncerta = false, p.version = p.version + 1 WHERE p.id = :id AND (p.asaasPaymentId IS NULL OR p.asaasPaymentId = :paymentId)")
+    int vincularAsaas(@Param("id") String id, @Param("paymentId") String paymentId);
+    @Modifying
+    @org.springframework.transaction.annotation.Transactional(propagation = org.springframework.transaction.annotation.Propagation.REQUIRES_NEW)
+    @Query("UPDATE Pedido p SET p.stripePaymentIntentId = :paymentId, p.pagamentoCriacaoIncerta = false, p.version = p.version + 1 WHERE p.id = :id AND (p.stripePaymentIntentId IS NULL OR p.stripePaymentIntentId = :paymentId)")
+    int vincularStripe(@Param("id") String id, @Param("paymentId") String paymentId);
+
     Optional<Pedido> findByStripePaymentIntentId(String stripePaymentIntentId);
     Optional<Pedido> findByAsaasPaymentId(String asaasPaymentId);
     Optional<Pedido> findByUsuarioIdAndIdempotencyKey(String usuarioId, String idempotencyKey);
 
+    @org.springframework.data.jpa.repository.EntityGraph(attributePaths = {"loja", "entregador"})
     Optional<Pedido> findFirstByUsuarioIdAndStatusInOrderByCriadoEmDesc(String usuarioId, List<StatusPedido> status);
 
+    @org.springframework.data.jpa.repository.EntityGraph(attributePaths = {"loja", "entregador"})
     List<Pedido> findByUsuarioIdAndStatusInOrderByCriadoEmDesc(String usuarioId, List<StatusPedido> status);
 
     List<Pedido> findByStatusAndPagamentoExpiraEmLessThanEqual(StatusPedido status, Instant agora);
@@ -45,6 +60,7 @@ public interface PedidoRepository extends JpaRepository<Pedido, String> {
     int resetarTentativasCodigoEntrega(@Param("pedidoId") String pedidoId);
 
     boolean existsByEntregadorIdAndStatusIn(String entregadorId, java.util.List<StatusPedido> status);
+    @org.springframework.data.jpa.repository.EntityGraph(attributePaths = {"loja", "entregador"})
     Page<Pedido> findByUsuarioId(String usuarioId, Pageable pageable);
 
     @Query(value = """

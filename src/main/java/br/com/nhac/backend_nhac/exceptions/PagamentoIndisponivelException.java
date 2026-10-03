@@ -7,6 +7,10 @@ public class PagamentoIndisponivelException extends NhacException {
         super(mensagem, ErrorCode.PAGAMENTO_INDISPONIVEL);
     }
 
+    public PagamentoIndisponivelException(String mensagem, String pedidoId) {
+        super(mensagem, ErrorCode.PAGAMENTO_INDISPONIVEL, java.util.Map.of("pedidoId", pedidoId));
+    }
+
     @Override
     public HttpStatus getHttpStatus() {
         return HttpStatus.CONFLICT;

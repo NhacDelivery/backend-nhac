@@ -16,7 +16,9 @@ public class BackendNhacApplication {
 
 	@org.springframework.context.annotation.Bean
 	public org.springframework.web.client.RestTemplate restTemplate() {
-		return new org.springframework.web.client.RestTemplate();
+		var factory = new org.springframework.http.client.SimpleClientHttpRequestFactory();
+        factory.setConnectTimeout(4000); factory.setReadTimeout(10000);
+        return new org.springframework.web.client.RestTemplate(factory);
 	}
 
 	@jakarta.annotation.PostConstruct

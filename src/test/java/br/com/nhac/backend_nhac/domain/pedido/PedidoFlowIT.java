@@ -51,6 +51,8 @@ public class PedidoFlowIT extends AbstractIntegrationTest {
     @Autowired
     private TokenService tokenService;
 
+    @Autowired private jakarta.persistence.EntityManager entityManager;
+
     private Loja loja;
     private Produto produto;
     private Usuario usuario;
@@ -87,17 +89,54 @@ public class PedidoFlowIT extends AbstractIntegrationTest {
     }
 
     @Test
-    void falhaNoPagamentoNaoConsomeCupom() throws Exception {
+    void gatewayInconclusivoPreservaReservaECupomSemRepetirCheckout() throws Exception {
         var cupom = cupomService.ganharBoasVindas(usuario.getId());
         Mockito.when(stripePaymentService.criarPaymentIntentCartao(Mockito.any()))
-                .thenThrow(new RuntimeException("Gateway indisponÃ­vel"));
+                .thenAnswer(invocation -> {
+                    assertFalse(org.springframework.transaction.support.TransactionSynchronizationManager.isActualTransactionActive());
+                    Pedido pedido = invocation.getArgument(0);
+                    assertFalse(entityManager.contains(pedido), "Gateway não deve receber entidade gerenciada pelo OSIV");
+                    assertTrue(pedidoRepository.existsById(pedido.getId()), "Reserva precisa estar commitada antes do gateway");
+                    throw new RuntimeException("Gateway indisponível");
+                });
         PedidoCreateDTO dto = new PedidoCreateDTO("loja-123", "CARTAO", null, null, null,
                 new PedidoCreateDTO.EnderecoEntregaDTO("Rua Teste", "123", "Centro", "Cidade", "SP", "00000-000", null, -23.5, -46.7),
                 cupom.id(), List.of(new PedidoCreateDTO.ItemPedidoDTO(produto.getId(), "Pizza", null, 1)));
         mockMvc.perform(post("/api/v1/pedidos").header("Authorization", "Bearer " + token)
                 .header("Idempotency-Key", "falha-cupom").contentType(MediaType.APPLICATION_JSON)
-                .content(objectMapper.writeValueAsString(dto))).andExpect(status().isPaymentRequired());
-        assertEquals("DISPONIVEL", cupomService.listar(usuario.getId()).getFirst().status());
+                .content(objectMapper.writeValueAsString(dto))).andExpect(status().isConflict())
+                .andExpect(jsonPath("$.error").value("PAGAMENTO_INDISPONIVEL"))
+                .andExpect(jsonPath("$.details.pedidoId").isNotEmpty());
+        var reservado = pedidoRepository.findByUsuarioIdAndIdempotencyKey(usuario.getId(), "falha-cupom").orElseThrow();
+        assertEquals(StatusPedido.PENDENTE, reservado.getStatus());
+        assertTrue(reservado.isPagamentoCriacaoIncerta());
+        assertEquals("USADO", cupomService.listar(usuario.getId()).getFirst().status());
+        int estoqueReservado = produtoRepository.findById(produto.getId()).orElseThrow().getEstoque();
+        mockMvc.perform(post("/api/v1/pedidos").header("Authorization", "Bearer " + token)
+                .header("Idempotency-Key", "falha-cupom").contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(dto))).andExpect(status().isOk())
+                .andExpect(jsonPath("$.pedidoId").value(reservado.getId()));
+        assertEquals(estoqueReservado, produtoRepository.findById(produto.getId()).orElseThrow().getEstoque());
+        Mockito.verify(stripePaymentService, Mockito.times(1)).criarPaymentIntentCartao(Mockito.any());
+        mockMvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch(
+                "/api/v1/pedidos/" + reservado.getId() + "/cancelar").header("Authorization", "Bearer " + token))
+                .andExpect(status().isConflict());
+    }
+
+    @Test
+    void preflightDeCheckoutPermiteIdempotenciaSomenteNaOrigemAutorizada() throws Exception {
+        mockMvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.options("/api/v1/pedidos")
+                .header("Origin", "http://localhost:3000")
+                .header("Access-Control-Request-Method", "POST")
+                .header("Access-Control-Request-Headers", "authorization,content-type,idempotency-key"))
+                .andExpect(status().isOk())
+                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.header()
+                        .string("Access-Control-Allow-Origin", "http://localhost:3000"));
+        mockMvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.options("/api/v1/pedidos")
+                .header("Origin", "https://origem-nao-autorizada.invalid")
+                .header("Access-Control-Request-Method", "POST")
+                .header("Access-Control-Request-Headers", "idempotency-key"))
+                .andExpect(status().isForbidden());
     }
 
     @BeforeEach

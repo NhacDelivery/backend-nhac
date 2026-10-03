@@ -43,6 +43,22 @@ public class ProdutoService {
         return produtoRepository.findPromocoes(pageable).map(ProdutoResumoDTO::new);
     }
 
+    @Transactional(readOnly = true)
+    @Cacheable(cacheNames = PRODUTOS, key = "'cards:' + #p0 + ':' + #p1 + ':' + #p2 + ':' + #p3 + ':' + #p4",
+            condition = "#p4.isPaged() && #p4.pageNumber < 20 && #p4.pageSize <= 100")
+    public Page<ProdutoResumoDTO> listarCards(String lojaId, BigDecimal precoMaximo, String categoriaMenu,
+            String nome, Pageable pageable) {
+        return produtoRepository.findAllWithFilters(lojaId, categoriaMenu, nome, precoMaximo, pageable)
+                .map(produto -> new ProdutoResumoDTO(produto, false));
+    }
+
+    @Transactional(readOnly = true)
+    @Cacheable(cacheNames = PRODUTOS, key = "'cards-promocoes:' + #p0",
+            condition = "#p0.isPaged() && #p0.pageNumber < 20 && #p0.pageSize <= 100")
+    public Page<ProdutoResumoDTO> listarCardsPromocoes(Pageable pageable) {
+        return produtoRepository.findPromocoes(pageable).map(produto -> new ProdutoResumoDTO(produto, false));
+    }
+
     @Transactional
     @CacheEvict(cacheNames = {PRODUTOS, PRODUTO}, allEntries = true)
     public Produto cadastrarProduto(ProdutoCreateDTO dto, Usuario usuarioLogado) {
