@@ -2,7 +2,7 @@ package br.com.nhac.backend_nhac.domain.entregador;
 
 import br.com.nhac.backend_nhac.domain.entregador.dto.EntregaHistoricoDTO;
 import br.com.nhac.backend_nhac.domain.entregador.dto.GanhosEntregadorDTO;
-import br.com.nhac.backend_nhac.domain.pedido.Pedido;
+import br.com.nhac.backend_nhac.domain.entregador.dto.FreteHoraDTO;
 import br.com.nhac.backend_nhac.domain.pedido.PedidoRepository;
 import br.com.nhac.backend_nhac.domain.pedido.StatusPedido;
 import br.com.nhac.backend_nhac.domain.usuario.Usuario;
@@ -69,14 +69,14 @@ public class GanhosEntregadorService {
         Instant inicio = primeiroDia.atStartOfDay(FUSO_BR).toInstant();
         Instant fim = hoje.plusDays(1).atStartOfDay(FUSO_BR).toInstant();
 
-        List<Pedido> entregues = pedidoRepository.findDoEntregadorNoPeriodo(
+        List<FreteHoraDTO> entregues = pedidoRepository.somarFretesPorHora(
                 entregador.getId(), StatusPedido.ENTREGUE, inicio, fim);
 
         BigDecimal total = entregues.stream()
-                .map(p -> p.getTaxaFrete() != null ? p.getTaxaFrete() : BigDecimal.ZERO)
+                .map(FreteHoraDTO::valor)
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
 
-        long quantidade = entregues.size();
+        long quantidade = entregues.stream().mapToLong(FreteHoraDTO::entregas).sum();
         BigDecimal ticketMedio = quantidade == 0
                 ? BigDecimal.ZERO
                 : total.divide(BigDecimal.valueOf(quantidade), 2, RoundingMode.HALF_UP);
@@ -96,7 +96,7 @@ public class GanhosEntregadorService {
      * buraco de data no cliente.
      */
     private List<GanhosEntregadorDTO.GanhoDiaDTO> agruparPorDia(
-            List<Pedido> pedidos, LocalDate primeiroDia, LocalDate ultimoDia) {
+            List<FreteHoraDTO> pedidos, LocalDate primeiroDia, LocalDate ultimoDia) {
 
         Map<LocalDate, BigDecimal> valorPorDia = new LinkedHashMap<>();
         Map<LocalDate, Long> qtdPorDia = new LinkedHashMap<>();
@@ -106,16 +106,16 @@ public class GanhosEntregadorService {
             qtdPorDia.put(d, 0L);
         }
 
-        for (Pedido p : pedidos) {
-            Instant referencia = p.getEntregueEm() != null ? p.getEntregueEm() : p.getCriadoEm();
+        for (FreteHoraDTO p : pedidos) {
+            Instant referencia = p.referencia();
             if (referencia == null) continue;
 
             LocalDate dia = referencia.atZone(FUSO_BR).toLocalDate();
             if (!valorPorDia.containsKey(dia)) continue;
 
-            BigDecimal frete = p.getTaxaFrete() != null ? p.getTaxaFrete() : BigDecimal.ZERO;
+            BigDecimal frete = p.valor();
             valorPorDia.merge(dia, frete, BigDecimal::add);
-            qtdPorDia.merge(dia, 1L, Long::sum);
+            qtdPorDia.merge(dia, p.entregas(), Long::sum);
         }
 
         List<GanhosEntregadorDTO.GanhoDiaDTO> serie = new ArrayList<>();

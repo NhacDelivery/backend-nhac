@@ -311,7 +311,6 @@ class DespachoServiceTest {
         entregador.setStatusOperacional(StatusOperacional.EM_ENTREGA);
 
         when(entregadorService.buscarPorUsuario(usuarioEntregador)).thenReturn(entregador);
-        when(pedidoRepository.findById("ped_1")).thenReturn(Optional.of(pedido));
         when(pedidoRepository.findLockedById("ped_1")).thenReturn(Optional.of(pedido));
 
         despachoService.concluirEntrega("ped_1", usuarioEntregador, "1234");
@@ -331,7 +330,7 @@ class DespachoServiceTest {
         entregador.setStatusOperacional(StatusOperacional.EM_ENTREGA);
 
         when(entregadorService.buscarPorUsuario(usuarioEntregador)).thenReturn(entregador);
-        when(pedidoRepository.findById("ped_1")).thenReturn(Optional.of(pedido));
+        when(pedidoRepository.findLockedById("ped_1")).thenReturn(Optional.of(pedido));
 
         despachoService.concluirEntrega("ped_1", usuarioEntregador, "1234");
 
@@ -347,7 +346,7 @@ class DespachoServiceTest {
         pedido.setStatus(StatusPedido.PREPARANDO);
 
         when(entregadorService.buscarPorUsuario(usuarioEntregador)).thenReturn(entregador);
-        when(pedidoRepository.findById("ped_1")).thenReturn(Optional.of(pedido));
+        when(pedidoRepository.findLockedById("ped_1")).thenReturn(Optional.of(pedido));
 
         assertThrows(RegraDeNegocioException.class, () ->
                 despachoService.concluirEntrega("ped_1", usuarioEntregador, "1234"));
