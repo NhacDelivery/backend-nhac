@@ -10,6 +10,14 @@ import br.com.nhac.backend_nhac.domain.entregador.dto.EntregaHistoricoDTO;
 import br.com.nhac.backend_nhac.domain.entregador.dto.EntregadorResponseDTO;
 import br.com.nhac.backend_nhac.domain.entregador.dto.GanhosEntregadorDTO;
 import br.com.nhac.backend_nhac.domain.pedido.StatusPedido;
+import br.com.nhac.backend_nhac.domain.entrega.DespachoService;
+import br.com.nhac.backend_nhac.domain.entrega.dto.EntregaAtivaResponseDTO;
+import br.com.nhac.backend_nhac.domain.entrega.dto.OfertaEntregaDTO;
+import br.com.nhac.backend_nhac.domain.entregador.dto.EstadoEntregadorDTO;
+import br.com.nhac.backend_nhac.exceptions.IdNaoEncontradoException;
+import org.springframework.http.CacheControl;
+import java.util.List;
+import java.time.Instant;
 import br.com.nhac.backend_nhac.domain.usuario.Usuario;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -29,15 +37,18 @@ import org.springframework.web.bind.annotation.*;
 public class EntregadorController {
 
     private final EntregadorService entregadorService;
+    private final DespachoService despachoService;
     private final GanhosEntregadorService ganhosEntregadorService;
     private final br.com.nhac.backend_nhac.domain.avaliacao_entregador.AvaliacaoEntregadorService avaliacaoEntregadorService;
 
     public EntregadorController(
-            EntregadorService entregadorService, 
+            EntregadorService entregadorService,
+            DespachoService despachoService,
             GanhosEntregadorService ganhosEntregadorService,
             br.com.nhac.backend_nhac.domain.avaliacao_entregador.AvaliacaoEntregadorService avaliacaoEntregadorService
     ) {
         this.entregadorService = entregadorService;
+        this.despachoService = despachoService;
         this.ganhosEntregadorService = ganhosEntregadorService;
         this.avaliacaoEntregadorService = avaliacaoEntregadorService;
     }
@@ -58,6 +69,25 @@ public class EntregadorController {
             @AuthenticationPrincipal Usuario usuarioLogado
     ) {
         return ResponseEntity.ok(entregadorService.obterPerfil(usuarioLogado));
+    }
+
+    @GetMapping("/estado")
+    @Operation(summary = "Perfil, corrida e ofertas atuais em uma única consulta HTTP")
+    public ResponseEntity<EstadoEntregadorDTO> obterEstado(@AuthenticationPrincipal Usuario usuarioLogado) {
+        var perfil = entregadorService.obterPerfil(usuarioLogado);
+        EntregaAtivaResponseDTO entrega = null;
+        if (perfil.ativo()) {
+            try {
+                entrega = despachoService.obterEntregaAtiva(usuarioLogado);
+            } catch (IdNaoEncontradoException semEntrega) {
+                // O perfil já foi validado acima; ausência de corrida é um estado normal.
+            }
+        }
+        var ofertas = perfil.ativo() && entrega == null && perfil.statusOperacional() == StatusOperacional.ONLINE
+                ? despachoService.listarOfertasPendentes(usuarioLogado)
+                : List.<OfertaEntregaDTO>of();
+        return ResponseEntity.ok().cacheControl(CacheControl.noStore())
+                .body(new EstadoEntregadorDTO(perfil, entrega, ofertas, Instant.now()));
     }
 
     @PatchMapping("/veiculo")

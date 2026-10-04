@@ -83,11 +83,10 @@ public class AvaliacaoEntregadorService {
         Page<AvaliacaoEntregadorResumoDTO> page = repository.findByEntregadorIdOrderByCriadoEmDesc(entregadorId, pageable)
                 .map(AvaliacaoEntregadorResumoDTO::new);
 
-        Double media = repository.calcularMediaPorEntregadorId(entregadorId);
-        long total = repository.countByEntregadorId(entregadorId);
+        var resumo = repository.resumir(entregadorId);
 
         return new AvaliacoesEntregadorPageDTO(
-                new AvaliacoesEntregadorPageDTO.ResumoDTO(media != null ? media : 0.0, total),
+                new AvaliacoesEntregadorPageDTO.ResumoDTO(resumo.media() != null ? resumo.media() : 0.0, resumo.total()),
                 page
         );
     }
@@ -95,9 +94,8 @@ public class AvaliacaoEntregadorService {
     @Transactional(readOnly = true)
     public EntregadorPedidoDTO obterResumoEntregador(Entregador entregador) {
         if (entregador == null) return null;
-        Double media = repository.calcularMediaPorEntregadorId(entregador.getId());
-        long total = repository.countByEntregadorId(entregador.getId());
-        return EntregadorPedidoDTO.from(entregador, media, total);
+        var resumo = repository.resumir(entregador.getId());
+        return EntregadorPedidoDTO.from(entregador, resumo.media(), resumo.total());
     }
 
     @Transactional(readOnly = true)

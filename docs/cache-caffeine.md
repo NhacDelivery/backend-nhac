@@ -84,3 +84,7 @@ Executar com Java 25:
 
 Em ambientes sem suporte a attach dinâmico, fornecer o JAR `mockito-core` como
 `-javaagent` ao JVM dos testes, preservando o agente JaCoCo quando habilitado.
+
+## Avaliações do entregador
+
+`entregadorAvaliacoes` armazena somente o resumo imutável AVG/COUNT por entregador, com o TTL de avaliações e tamanho máximo de detalhes. Salvar uma avaliação invalida a chave do entregador usando o CacheManager consciente de transações, após commit. A página de comentários consulta o banco com EntityGraph de usuário. Estado operacional, localização, ofertas e código de conclusão não usam cache.

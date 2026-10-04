@@ -122,25 +122,17 @@ public interface PedidoRepository extends JpaRepository<Pedido, String> {
             Pageable pageable
     );
 
-    /**
-     * Pedidos do entregador dentro de uma janela, pra agregação de ganhos.
-     * Segue o mesmo padrão de findByLojaIdAndPeriodo (usado pelo financeiro do
-     * lojista): devolve a lista e a soma é feita em Java.
-     */
     @Query("""
-        SELECT p FROM Pedido p
-        JOIN FETCH p.loja
-        WHERE p.entregador.id = :entregadorId
-          AND p.status = :status
-          AND COALESCE(p.entregueEm, p.criadoEm) >= :inicio
-          AND COALESCE(p.entregueEm, p.criadoEm) <= :fim
+        SELECT new br.com.nhac.backend_nhac.domain.entregador.dto.FreteHoraDTO(
+          YEAR(COALESCE(p.entregueEm, p.criadoEm)), MONTH(COALESCE(p.entregueEm, p.criadoEm)), DAY(COALESCE(p.entregueEm, p.criadoEm)), HOUR(COALESCE(p.entregueEm, p.criadoEm)), SUM(COALESCE(p.taxaFrete, 0)), COUNT(p))
+        FROM Pedido p
+        WHERE p.entregador.id = :entregadorId AND p.status = :status
+          AND COALESCE(p.entregueEm, p.criadoEm) >= :inicio AND COALESCE(p.entregueEm, p.criadoEm) < :fim
+        GROUP BY YEAR(COALESCE(p.entregueEm, p.criadoEm)), MONTH(COALESCE(p.entregueEm, p.criadoEm)), DAY(COALESCE(p.entregueEm, p.criadoEm)), HOUR(COALESCE(p.entregueEm, p.criadoEm))
         """)
-    java.util.List<Pedido> findDoEntregadorNoPeriodo(
-            @Param("entregadorId") String entregadorId,
-            @Param("status") StatusPedido status,
-            @Param("inicio") java.time.Instant inicio,
-            @Param("fim") java.time.Instant fim
-    );
+    List<br.com.nhac.backend_nhac.domain.entregador.dto.FreteHoraDTO> somarFretesPorHora(
+            @Param("entregadorId") String entregadorId, @Param("status") StatusPedido status,
+            @Param("inicio") Instant inicio, @Param("fim") Instant fim);
 
     long countByEntregadorIdAndStatus(String entregadorId, StatusPedido status);
 }

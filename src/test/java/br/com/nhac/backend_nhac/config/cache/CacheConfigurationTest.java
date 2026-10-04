@@ -13,14 +13,14 @@ class CacheConfigurationTest {
     @Test
     void allCachesHaveBoundsExpiryAndStatistics() {
         var manager = new CacheConfiguration().cacheManager(true, Duration.ofSeconds(30), Duration.ofMinutes(2), 2, 3);
-        assertEquals(Set.of(LOJAS, LOJA, PRODUTOS, PRODUTO, PRODUTO_AVALIACOES), Set.copyOf(manager.getCacheNames()));
+        assertEquals(Set.of(LOJAS, LOJA, PRODUTOS, PRODUTO, PRODUTO_AVALIACOES, ENTREGADOR_AVALIACOES), Set.copyOf(manager.getCacheNames()));
         assertNull(manager.getCache("typo"));
         for (String name : manager.getCacheNames()) {
             var springCache = manager.getCache(name);
             var nativeCache = (Cache<Object, Object>) springCache.getNativeCache();
             boolean list = name.equals(LOJAS) || name.equals(PRODUTOS);
             assertEquals(list ? 2 : 3, nativeCache.policy().eviction().orElseThrow().getMaximum());
-            assertEquals(name.equals(PRODUTO_AVALIACOES) ? Duration.ofMinutes(2) : Duration.ofSeconds(30),
+            assertEquals((name.equals(PRODUTO_AVALIACOES) || name.equals(ENTREGADOR_AVALIACOES)) ? Duration.ofMinutes(2) : Duration.ofSeconds(30),
                     nativeCache.policy().expireAfterWrite().orElseThrow().getExpiresAfter());
             for (int i = 0; i < 10; i++) springCache.put(i, "value");
             nativeCache.cleanUp();

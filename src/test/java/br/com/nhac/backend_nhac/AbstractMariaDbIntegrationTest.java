@@ -6,7 +6,7 @@ import org.springframework.test.context.DynamicPropertySource;
 public abstract class AbstractMariaDbIntegrationTest extends AbstractIntegrationTest {
 
     @DynamicPropertySource
-    static void mariaDbProperties(DynamicPropertyRegistry registry) {
+    public static void mariaDbProperties(DynamicPropertyRegistry registry) {
         var mariadb = MariaDbTestContainer.instance();
 
         registry.add("spring.datasource.url", mariadb::getJdbcUrl);

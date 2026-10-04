@@ -26,6 +26,10 @@ class CodigoEntregaFlowIT extends AbstractIntegrationTest {
     @Autowired EntregadorRepository entregadores;
     @Autowired PedidoRepository pedidos;
     @Autowired TokenService tokens;
+    @Autowired br.com.nhac.backend_nhac.domain.avaliacao_entregador.AvaliacaoEntregadorRepository avaliacoes;
+    @Autowired br.com.nhac.backend_nhac.domain.avaliacao_entregador.AvaliacaoEntregadorService avaliacaoService;
+    @Autowired org.springframework.cache.CacheManager caches;
+    @Autowired org.springframework.transaction.PlatformTransactionManager transactions;
     private String authorization;
 
     @BeforeEach
@@ -120,6 +124,112 @@ class CodigoEntregaFlowIT extends AbstractIntegrationTest {
         Pedido atual = pedidos.findById("pedido-codigo").orElseThrow();
         assertEquals(0, atual.getCodigoEntregaTentativas());
         assertEquals(StatusPedido.SAIU_ENTREGA, atual.getStatus());
+    }
+
+    @Test
+    void cincoFalhasSimultaneasBloqueiamSemPerderTentativas() throws Exception {
+        try (var executor = java.util.concurrent.Executors.newFixedThreadPool(5)) {
+            var inicio = new java.util.concurrent.CyclicBarrier(5);
+            var respostas = new java.util.ArrayList<java.util.concurrent.Future<Integer>>();
+            for (int i = 0; i < 5; i++) {
+                respostas.add(executor.submit(() -> {
+                    inicio.await(10, java.util.concurrent.TimeUnit.SECONDS);
+                    return mockMvc.perform(post("/api/v1/entregas/pedido-codigo/concluir")
+                            .header("Authorization", authorization).contentType(MediaType.APPLICATION_JSON)
+                            .content("{\"codigo\":\"9999\"}"))
+                            .andReturn().getResponse().getStatus();
+                }));
+            }
+            var status = new java.util.ArrayList<Integer>();
+            for (var resposta : respostas) status.add(resposta.get(30, java.util.concurrent.TimeUnit.SECONDS));
+            assertEquals(4, status.stream().filter(s -> s == 400).count());
+            assertEquals(1, status.stream().filter(s -> s == 429).count());
+        }
+        Pedido atual = pedidos.findById("pedido-codigo").orElseThrow();
+        assertEquals(5, atual.getCodigoEntregaTentativas());
+        assertNotNull(atual.getCodigoEntregaBloqueadoAte());
+        mockMvc.perform(post("/api/v1/entregas/pedido-codigo/concluir")
+                .header("Authorization", authorization).contentType(MediaType.APPLICATION_JSON)
+                .content("{\"codigo\":\"0123\"}"))
+                .andExpect(status().isTooManyRequests());
+        assertEquals(StatusPedido.SAIU_ENTREGA, pedidos.findById("pedido-codigo").orElseThrow().getStatus());
+    }
+
+    @Test
+    void agregacaoExcluiFimDoPeriodoEPreservaFretesSemCarregarPedidos() {
+        Pedido p = pedidos.findById("pedido-codigo").orElseThrow();
+        p.setStatus(StatusPedido.ENTREGUE);
+        p.setEntregueEm(Instant.parse("2026-10-04T03:00:00Z"));
+        p = pedidos.saveAndFlush(p);
+        Instant inicio = Instant.parse("2026-10-04T03:00:00Z");
+        Instant fim = Instant.parse("2026-10-05T03:00:00Z");
+        var linhas = pedidos.somarFretesPorHora("entregador-codigo", StatusPedido.ENTREGUE, inicio, fim);
+        assertEquals(1, linhas.size());
+        assertEquals(0, new BigDecimal("5.00").compareTo(linhas.getFirst().valor()));
+        assertEquals(1, linhas.getFirst().entregas());
+        assertEquals(inicio, linhas.getFirst().referencia());
+        p.setEntregueEm(fim);
+        p = pedidos.saveAndFlush(p);
+        assertTrue(pedidos.somarFretesPorHora("entregador-codigo", StatusPedido.ENTREGUE, inicio, fim).isEmpty());
+        p.setEntregueEm(null);
+        p.setCriadoEm(inicio);
+        p = pedidos.saveAndFlush(p);
+        assertEquals(1, pedidos.somarFretesPorHora("entregador-codigo", StatusPedido.ENTREGUE, inicio, fim).size());
+    }
+
+    @Test
+    void resumoEmCacheEInvalidadoAposAvaliacaoConfirmada() {
+        var cache = caches.getCache("entregadorAvaliacoes");
+        cache.clear();
+        assertEquals(0, avaliacoes.resumir("entregador-codigo").total());
+        assertNotNull(cache.get("entregador-codigo"));
+        Pedido p = pedidos.findById("pedido-codigo").orElseThrow();
+        p.setStatus(StatusPedido.ENTREGUE);
+        pedidos.saveAndFlush(p);
+        avaliacaoService.criar(p.getId(),
+                new br.com.nhac.backend_nhac.domain.avaliacao_entregador.dto.AvaliacaoEntregadorCreateDTO(5, "Pontual"),
+                usuarios.findById("cliente-codigo").orElseThrow());
+        assertNull(cache.get("entregador-codigo"));
+        var resumo = avaliacoes.resumir("entregador-codigo");
+        assertEquals(1, resumo.total());
+        assertEquals(5.0, resumo.media());
+    }
+
+    @Test
+    void estadoConsolidadoEAutenticadoEHistoricoNaoExpoeEnderecoCompleto() throws Exception {
+        mockMvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get("/api/v1/entregador/estado")
+                .header("Authorization", authorization))
+                .andExpect(status().isOk())
+                .andExpect(header().string("Cache-Control", "no-store"))
+                .andExpect(jsonPath("$.perfil.id").value("entregador-codigo"))
+                .andExpect(jsonPath("$.entrega.pedidoId").value("pedido-codigo"))
+                .andExpect(jsonPath("$.ofertas").isEmpty());
+        mockMvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get("/api/v1/entregador/estado"))
+                .andExpect(status().isForbidden());
+        mockMvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get("/api/v1/entregador/entregas")
+                .header("Authorization", authorization))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.content[0].enderecoEntrega").doesNotExist());
+    }
+
+    @Test
+    void rollbackDaAvaliacaoPreservaResumoEmCache() {
+        var cache = caches.getCache("entregadorAvaliacoes");
+        cache.clear();
+        avaliacoes.resumir("entregador-codigo");
+        var anterior = cache.get("entregador-codigo").get();
+        Pedido p = pedidos.findById("pedido-codigo").orElseThrow();
+        p.setStatus(StatusPedido.ENTREGUE);
+        pedidos.saveAndFlush(p);
+        var transaction = new org.springframework.transaction.support.TransactionTemplate(transactions);
+        assertThrows(IllegalStateException.class, () -> transaction.executeWithoutResult(status -> {
+            avaliacaoService.criar("pedido-codigo",
+                    new br.com.nhac.backend_nhac.domain.avaliacao_entregador.dto.AvaliacaoEntregadorCreateDTO(5, null),
+                    usuarios.findById("cliente-codigo").orElseThrow());
+            throw new IllegalStateException("Rollback simulado");
+        }));
+        assertEquals(anterior, cache.get("entregador-codigo").get());
+        assertEquals(0, avaliacoes.countByEntregadorId("entregador-codigo"));
     }
 
     private void concluirCorretamente() throws Exception {

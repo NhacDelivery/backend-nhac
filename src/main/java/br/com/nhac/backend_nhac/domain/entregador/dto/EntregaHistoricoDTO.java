@@ -1,7 +1,6 @@
 package br.com.nhac.backend_nhac.domain.entregador.dto;
 
 import br.com.nhac.backend_nhac.domain.pedido.Pedido;
-import br.com.nhac.backend_nhac.domain.pedido.EnderecoEntrega;
 import br.com.nhac.backend_nhac.domain.pedido.StatusPedido;
 
 import java.math.BigDecimal;
@@ -17,7 +16,6 @@ public record EntregaHistoricoDTO(
         String lojaNome,
         String bairroEntrega,
         String cidadeEntrega,
-        EnderecoEntrega enderecoEntrega,
         BigDecimal taxaFrete,
         StatusPedido status,
         Instant coletadoEm,
@@ -30,7 +28,6 @@ public record EntregaHistoricoDTO(
                 pedido.getLoja() != null ? pedido.getLoja().getNome() : null,
                 pedido.getEnderecoEntrega() != null ? pedido.getEnderecoEntrega().getBairro() : null,
                 pedido.getEnderecoEntrega() != null ? pedido.getEnderecoEntrega().getCidade() : null,
-                pedido.getEnderecoEntrega(),
                 pedido.getTaxaFrete(),
                 pedido.getStatus(),
                 pedido.getColetadoEm(),

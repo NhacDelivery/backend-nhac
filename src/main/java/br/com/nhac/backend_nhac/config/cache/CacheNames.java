@@ -7,5 +7,7 @@ public final class CacheNames {
     public static final String PRODUTO = "produto";
     public static final String PRODUTO_AVALIACOES = "produtoAvaliacoes";
 
+    public static final String ENTREGADOR_AVALIACOES = "entregadorAvaliacoes";
+
     private CacheNames() { }
 }

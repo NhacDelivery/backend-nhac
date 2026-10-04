@@ -278,7 +278,13 @@ public class DespachoService {
     @Transactional(noRollbackFor = {CodigoEntregaInvalidoException.class, CodigoEntregaBloqueadoException.class})
     public void concluirEntrega(String pedidoId, Usuario usuarioLogado, String codigoEntrega) {
         Entregador entregador = entregadorService.buscarPorUsuario(usuarioLogado);
-        Pedido pedido = buscarPedidoDoEntregador(pedidoId, entregador);
+        // A primeira leitura deve adquirir o lock. Uma leitura anterior sem lock
+        // mantém contadores antigos no contexto JPA mesmo depois de esperar pelo lock.
+        Pedido pedido = pedidoRepository.findLockedById(pedidoId)
+                .orElseThrow(() -> new IdNaoEncontradoException("Pedido não encontrado"));
+        if (pedido.getEntregador() == null || !pedido.getEntregador().getId().equals(entregador.getId())) {
+            throw new AcessoNegadoException("Este pedido não está atribuído a você.");
+        }
 
         if (pedido.getStatus() == StatusPedido.ENTREGUE) {
             liberarEntregador(entregador);
@@ -290,18 +296,14 @@ public class DespachoService {
                     "Só é possível concluir um pedido que já saiu para entrega. Status atual: " + pedido.getStatus());
         }
 
-        // Lock pessimista para validar e usar o código de entrega
-        Pedido pedidoLocked = pedidoRepository.findLockedById(pedidoId)
-                .orElseThrow(() -> new IdNaoEncontradoException("Pedido não encontrado"));
+        codigoEntregaService.validarCodigo(pedido, codigoEntrega);
 
-        codigoEntregaService.validarCodigo(pedidoLocked, codigoEntrega);
-
-        pedidoLocked.alterarStatus(StatusPedido.ENTREGUE);
-        pedidoLocked.setEntregueEm(Instant.now());
-        pedidoRepository.save(pedidoLocked);
+        pedido.alterarStatus(StatusPedido.ENTREGUE);
+        pedido.setEntregueEm(Instant.now());
+        pedidoRepository.save(pedido);
 
         liberarEntregador(entregador);
-        notificarStatus(pedidoLocked);
+        notificarStatus(pedido);
     }
 
     /**

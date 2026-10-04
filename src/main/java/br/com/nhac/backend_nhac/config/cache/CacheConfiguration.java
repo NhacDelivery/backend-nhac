@@ -36,7 +36,8 @@ public class CacheConfiguration {
                 cache(LOJA, catalogTtl, detailMaximumSize),
                 cache(PRODUTOS, catalogTtl, listMaximumSize),
                 cache(PRODUTO, catalogTtl, detailMaximumSize),
-                cache(PRODUTO_AVALIACOES, ratingsTtl, detailMaximumSize)));
+                cache(PRODUTO_AVALIACOES, ratingsTtl, detailMaximumSize),
+                cache(ENTREGADOR_AVALIACOES, ratingsTtl, detailMaximumSize)));
         manager.initializeCaches();
         // Puts and invalidation run only after a successful transaction commit.
         // Do not use sync=true or beforeInvocation=true: those bypass deferred operations.
