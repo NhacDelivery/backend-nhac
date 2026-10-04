@@ -54,6 +54,8 @@ import br.com.nhac.backend_nhac.exceptions.PagamentoIndisponivelException;
 @Service
 public class PedidoService {
 
+    private static final org.slf4j.Logger log = org.slf4j.LoggerFactory.getLogger(PedidoService.class);
+
     private static final List<StatusPedido> STATUS_ATIVOS = List.of(
             StatusPedido.PENDENTE, StatusPedido.PAGO, StatusPedido.PREPARANDO, StatusPedido.SAIU_ENTREGA);
 
@@ -155,9 +157,22 @@ public class PedidoService {
         String pix = null;
         String clientSecret = null;
         if ("PIX".equals(forma)) {
-            if (pedido.getAsaasPaymentId() == null && !asaasPaymentService.recuperarCobranca(pedido))
-                throw new PagamentoIndisponivelException("O pagamento ainda está sendo confirmado. Tente novamente em instantes.");
-            pix = asaasPaymentService.obterCodigoPix(pedido);
+            try {
+                if (pedido.getAsaasPaymentId() == null && !asaasPaymentService.recuperarCobranca(pedido))
+                    throw new PagamentoIndisponivelException("O pagamento ainda está sendo confirmado. Tente novamente em instantes.", pedidoId);
+                pix = asaasPaymentService.obterCodigoPix(pedido);
+            } catch (PagamentoIndisponivelException e) {
+                throw e;
+            } catch (RuntimeException e) {
+                // Não registra CPF, token ou corpo da resposta do provedor.
+                Integer status = e instanceof org.springframework.web.client.RestClientResponseException http
+                        ? http.getStatusCode().value() : null;
+                log.warn("PIX indisponível pedido={} etapa={} asaasStatus={} causa={}",
+                        pedidoId, pedido.getAsaasPaymentId() == null ? "recuperar-cobranca" : "codigo-pix",
+                        status, e.getClass().getSimpleName());
+                throw new PagamentoIndisponivelException(
+                        "Não foi possível carregar o PIX agora. Tente novamente em instantes.", pedidoId);
+            }
         } else if (List.of("CARTAO", "STRIPE", "GOOGLE_PAY").contains(forma)) {
             clientSecret = pedido.getStripePaymentIntentId() == null
                     ? stripePaymentService.criarPaymentIntentCartao(pedido).clientSecret()

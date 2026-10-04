@@ -171,7 +171,9 @@ public class AsaasPaymentService {
     public String obterCodigoPix(Pedido pedido) {
         if (mockMode) return "000201-e2e-mock";
         JsonObject resposta = buscar("/payments/" + pedido.getAsaasPaymentId() + "/pixQrCode");
-        if (!resposta.has("payload") || resposta.get("payload").isJsonNull()) {
+        if (resposta == null || !resposta.has("payload") || resposta.get("payload").isJsonNull()
+                || !resposta.get("payload").isJsonPrimitive() || !resposta.get("payload").getAsJsonPrimitive().isString()
+                || resposta.get("payload").getAsString().isBlank()) {
             throw new IllegalStateException("O Asaas não devolveu o código PIX da cobrança.");
         }
         return resposta.get("payload").getAsString();
