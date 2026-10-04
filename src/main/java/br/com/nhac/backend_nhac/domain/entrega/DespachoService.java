@@ -14,6 +14,8 @@ import br.com.nhac.backend_nhac.domain.usuario.UsuarioRepository;
 import br.com.nhac.backend_nhac.exceptions.AcessoNegadoException;
 import br.com.nhac.backend_nhac.exceptions.IdNaoEncontradoException;
 import br.com.nhac.backend_nhac.exceptions.RegraDeNegocioException;
+import br.com.nhac.backend_nhac.exceptions.CodigoEntregaInvalidoException;
+import br.com.nhac.backend_nhac.exceptions.CodigoEntregaBloqueadoException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
@@ -271,7 +273,9 @@ public class DespachoService {
     /**
      * Baixa da entrega pelo entregador. Exige código de confirmação.
      */
-    @Transactional
+    // A rejeição do código deve confirmar somente o contador/bloqueio. O lock
+    // continua na mesma transação; outras falhas ainda provocam rollback.
+    @Transactional(noRollbackFor = {CodigoEntregaInvalidoException.class, CodigoEntregaBloqueadoException.class})
     public void concluirEntrega(String pedidoId, Usuario usuarioLogado, String codigoEntrega) {
         Entregador entregador = entregadorService.buscarPorUsuario(usuarioLogado);
         Pedido pedido = buscarPedidoDoEntregador(pedidoId, entregador);

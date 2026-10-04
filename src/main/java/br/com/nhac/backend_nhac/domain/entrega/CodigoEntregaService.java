@@ -7,7 +7,6 @@ import br.com.nhac.backend_nhac.exceptions.CodigoEntregaInvalidoException;
 import br.com.nhac.backend_nhac.exceptions.CodigoEntregaObrigatorioException;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.security.MessageDigest;
@@ -29,6 +28,7 @@ public class CodigoEntregaService {
         this.pedidoRepository = pedidoRepository;
     }
 
+    @Transactional(noRollbackFor = {CodigoEntregaInvalidoException.class, CodigoEntregaBloqueadoException.class})
     public void validarCodigo(Pedido pedido, String codigoInformado) {
         if (codigoInformado == null || codigoInformado.isBlank()) {
             throw new CodigoEntregaObrigatorioException();
@@ -56,10 +56,13 @@ public class CodigoEntregaService {
         }
 
         resetarTentativas(pedido.getId());
+        // O UPDATE JPQL não atualiza a entidade gerenciada. Mantê-la coerente
+        // evita que o flush de ENTREGUE regrave os contadores anteriores.
+        pedido.setCodigoEntregaTentativas(0);
+        pedido.setCodigoEntregaBloqueadoAte(null);
     }
 
-    @Transactional(propagation = Propagation.REQUIRES_NEW)
-    public void registrarTentativaFalha(Pedido pedido) {
+    private void registrarTentativaFalha(Pedido pedido) {
         int tentativasAtuais = pedido.getCodigoEntregaTentativas() + 1;
         Instant bloqueadoAte = null;
         if (tentativasAtuais >= maxTentativas) {
@@ -68,8 +71,7 @@ public class CodigoEntregaService {
         pedidoRepository.incrementarTentativasCodigoEntrega(pedido.getId(), bloqueadoAte);
     }
 
-    @Transactional(propagation = Propagation.REQUIRES_NEW)
-    public void resetarTentativas(String pedidoId) {
+    private void resetarTentativas(String pedidoId) {
         pedidoRepository.resetarTentativasCodigoEntrega(pedidoId);
     }
 }
