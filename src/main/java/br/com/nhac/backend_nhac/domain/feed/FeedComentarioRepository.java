@@ -8,5 +8,7 @@ public interface FeedComentarioRepository extends JpaRepository<FeedComentario, 
     @org.springframework.data.jpa.repository.EntityGraph(attributePaths = "usuario")
     Page<FeedComentario> findByPostIdOrderByCriadoEmAscIdAsc(String postId, Pageable pageable);
     Optional<FeedComentario> findByIdAndPostId(String id, String postId);
-    void deleteByPostId(String postId);
+    @org.springframework.data.jpa.repository.Modifying
+    @org.springframework.data.jpa.repository.Query("delete from FeedComentario c where c.post.id = :postId")
+    void deleteByPostId(@org.springframework.data.repository.query.Param("postId") String postId);
 }

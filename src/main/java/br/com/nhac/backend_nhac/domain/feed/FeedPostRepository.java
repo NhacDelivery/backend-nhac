@@ -7,6 +7,10 @@ import org.springframework.data.repository.query.Param;
 import java.util.Optional;
 
 public interface FeedPostRepository extends JpaRepository<FeedPost, String> {
+    @EntityGraph(attributePaths = {"usuario", "loja"})
+    @Query("select p from FeedPost p where p.id = :id")
+    Optional<FeedPost> buscarComRelacionamentos(@Param("id") String id);
+
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("select p from FeedPost p where p.id = :id")
     Optional<FeedPost> buscarComBloqueio(@Param("id") String id);

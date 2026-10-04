@@ -94,8 +94,8 @@ public class FeedService {
             interacoes.delete(existente.get());
             delta = -1;
         }
-        if (tipo == FeedInteracao.Tipo.CURTIDA) post.setCurtidas(post.getCurtidas() + delta);
-        else post.setSalvos(post.getSalvos() + delta);
+        if (tipo == FeedInteracao.Tipo.CURTIDA) post.setCurtidas(Math.max(0, post.getCurtidas() + delta));
+        else post.setSalvos(Math.max(0, post.getSalvos() + delta));
         return respostas(new PageImpl<>(List.of(post)), usuario).getContent().getFirst();
     }
 
@@ -125,7 +125,7 @@ public class FeedService {
         if (!post.getUsuario().getId().equals(usuario.getId()))
             verificarAutor(comentario.getUsuario().getId(), usuario);
         comentarios.delete(comentario);
-        post.setComentarios(post.getComentarios() - 1);
+        post.setComentarios(Math.max(0, post.getComentarios() - 1));
     }
 
     private void aplicar(FeedPost post, Usuario usuario, FeedPostCreateDTO dto) {
@@ -141,8 +141,10 @@ public class FeedService {
             throw new RegraDeNegocioException("O rótulo de promoção exige um post patrocinado.");
         }
         post.setConteudo(dto.conteudo().trim());
-        post.setImagens(new ArrayList<>(dto.imagens() == null ? List.of() : dto.imagens()));
-        post.setHashTags(new ArrayList<>(dto.hashTags() == null ? List.of() : new LinkedHashSet<>(dto.hashTags())));
+        post.getImagens().clear();
+        if (dto.imagens() != null) post.getImagens().addAll(dto.imagens());
+        post.getHashTags().clear();
+        if (dto.hashTags() != null) post.getHashTags().addAll(new LinkedHashSet<>(dto.hashTags()));
         post.setLoja(loja);
         post.setPatrocinado(dto.isPatrocinado());
         post.setSponsorLabel(dto.isPatrocinado() ? dto.sponsorLabel() : null);
@@ -150,7 +152,7 @@ public class FeedService {
     }
 
     private FeedPost buscarPost(String id, boolean bloquear) {
-        FeedPost post = (bloquear ? posts.buscarComBloqueio(id) : posts.findById(id))
+        FeedPost post = (bloquear ? posts.buscarComBloqueio(id) : posts.buscarComRelacionamentos(id))
                 .orElseThrow(() -> new IdNaoEncontradoException("Post não encontrado."));
         if (!post.getUsuario().isAtivo()) throw new IdNaoEncontradoException("Post não encontrado.");
         return post;

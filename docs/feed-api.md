@@ -1,7 +1,8 @@
 # Feed do Nhac
 
 Todas as rotas exigem o JWT atual e usam `/api/v1/feed/posts` como base.
-Não há seed fictício: o feed permanece vazio até a publicação de posts reais.
+O feed inicia vazio. Dados de demonstração só são criados pelo gerador opt-in de DEV,
+fora das migrations; veja `docs/catalogo-social-dev.md`.
 
 | Método | Sufixo | Função |
 |---|---|---|
@@ -59,5 +60,8 @@ migração MariaDB existente. No ambiente do assistente, execução bloqueada po
 do Maven Central e JDK 17 (o projeto exige 25). CI deve validar antes do merge.
 
 No Nhac, a listagem e os detalhes consomem a API, com comentários, curtidas e salvos reais.
-A criação/edição de post está disponível pela API; o app atual ainda não possui composer.
+O Nhac possui tela de publicação com texto, fotos, hashtags e menção de loja.
+Edição continua disponível pela API. `dadosOperacionais` é `@Embedded`, carregado
+nas colunas da loja; não exige subgrafo. Deleções explícitas das dependências usam
+JPQL em lote para manter compatibilidade também com o H2 gerado pelo Hibernate.
 O backend deve ser implantado antes da versão do app que remove os mocks.

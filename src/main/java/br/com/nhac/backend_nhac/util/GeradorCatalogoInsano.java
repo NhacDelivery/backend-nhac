@@ -163,7 +163,20 @@ public class GeradorCatalogoInsano {
     // MAIN
     // ==========================================================
     public static void main(String[] args) {
-        Path caminhoArquivo = Path.of("src/main/resources/db/migration/V998__populando_catalogo_completo.sql");
+        if (args.length > 0 && args[0].equals("--lojas-existentes")) {
+            String hash = System.getenv("NHAC_SEED_SENHA_HASH");
+            if (hash == null || !hash.matches("\\$2[aby]\\$[0-9]{2}\\$[./A-Za-z0-9]{53}"))
+                throw new IllegalArgumentException("Defina NHAC_SEED_SENHA_HASH com um bcrypt para as contas de demonstração.");
+            Path destino = Path.of(args.length > 1 ? args[1] : "tools/catalogo_social_dev.sql");
+            try {
+                if (destino.getParent() != null) Files.createDirectories(destino.getParent());
+                Files.writeString(destino, gerarComplementoLojasExistentes(hash));
+                System.out.println("SQL de demonstração gerado em " + destino);
+            } catch (IOException e) { throw new java.io.UncheckedIOException(e); }
+            return;
+        }
+        // Nunca sobrescrever uma migration já aplicada pelo Flyway.
+        Path caminhoArquivo = Path.of("tools/catalogo_completo_dev.sql");
 
         System.out.println("🔥 Iniciando geração do Catálogo Insano (100% PT-BR)...");
         long tempoInicio = System.currentTimeMillis();
@@ -394,6 +407,57 @@ public class GeradorCatalogoInsano {
             }
         }
         return totalProdutos;
+    }
+
+    /** SQL opt-in para um banco MariaDB de DEV já migrado até V1009. */
+    public static String gerarComplementoLojasExistentes(String senhaHash) {
+        StringBuilder sql = new StringBuilder("-- SOMENTE DEV: conteúdo e contas de demonstração. Não usar em produção.\nSTART TRANSACTION;\n");
+        // Donos existentes são preservados; só lojas sem dono recebem uma conta.
+        sql.append("INSERT INTO tb_usuarios (id,nome,email,telefone,senha,papel,ativo,email_verificado,telefone_verificado) ")
+                .append("SELECT CONCAT('demo-lojista-',MD5(l.id)),CONCAT('Demo ',LEFT(l.nome,80)),")
+                .append("CONCAT(MD5(l.id),'@lojista.demo.invalid'),'11900000000',")
+                .append(sql(senhaHash)).append(",'LOJISTA',TRUE,TRUE,TRUE FROM tb_lojas l ")
+                .append("WHERE l.usuario_id IS NULL AND NOT EXISTS (SELECT 1 FROM tb_usuarios u WHERE u.id=CONCAT('demo-lojista-',MD5(l.id)));\n")
+                .append("UPDATE tb_lojas l JOIN tb_usuarios u ON u.id=CONCAT('demo-lojista-',MD5(l.id)) SET l.usuario_id=u.id WHERE l.usuario_id IS NULL;\n");
+        for (int i = 1; i <= 3; i++) {
+            String cliente = "demo-feed-cliente-" + i;
+            sql.append("INSERT INTO tb_usuarios (id,nome,email,telefone,senha,papel,ativo,email_verificado,telefone_verificado) SELECT ")
+                    .append(sql(cliente)).append(",").append(sql("Cliente demonstração " + i)).append(",")
+                    .append(sql(cliente + "@demo.invalid")).append(",'11900000000',").append(sql(senhaHash))
+                    .append(",'CLIENTE',TRUE,TRUE,TRUE WHERE NOT EXISTS (SELECT 1 FROM tb_usuarios WHERE id=")
+                    .append(sql(cliente)).append(");\n");
+            String pedidoExpr = "CONCAT('demo-pedido-" + i + "-',MD5(l.id))";
+            sql.append("INSERT INTO tb_pedidos (id,usuario_id,loja_id,valor_total,taxa_frete,forma_pagamento,observacao,status) SELECT ")
+                    .append(pedidoExpr).append(",").append(sql(cliente))
+                    .append(",l.id,0,0,'DINHEIRO','Pedido de demonstração do catálogo social','ENTREGUE' FROM tb_lojas l ")
+                    .append("WHERE NOT EXISTS (SELECT 1 FROM tb_pedidos p WHERE p.id=").append(pedidoExpr).append(");\n");
+            sql.append("INSERT INTO tb_avaliacoes (id,pedido_id,usuario_id,loja_id,nota,comentario) SELECT ")
+                    .append("MD5(CONCAT('demo-avaliacao-',p.id)),p.id,p.usuario_id,p.loja_id,").append(i == 2 ? 4 : 5)
+                    .append(",'Avaliação de demonstração do catálogo social' FROM tb_pedidos p ")
+                    .append("WHERE p.id LIKE 'demo-pedido-").append(i).append("-%' AND p.observacao='Pedido de demonstração do catálogo social' ")
+                    .append("AND p.status='ENTREGUE' AND NOT EXISTS (SELECT 1 FROM tb_avaliacoes a WHERE a.pedido_id=p.id);\n");
+        }
+        for (int i = 1; i <= 2; i++) {
+            String idExpr = "CONCAT('demo-post-" + i + "-',MD5(l.id))";
+            String autorExpr = i == 1 ? "l.usuario_id" : "'demo-feed-cliente-1'";
+            sql.append("INSERT INTO tb_feed_posts (id,usuario_id,loja_id,conteudo,patrocinado,sponsor_label,criado_em,atualizado_em) SELECT ")
+                    .append(idExpr).append(",").append(autorExpr).append(",l.id,")
+                    .append("CONCAT('[Demonstração] Conheça ',l.nome,' no Nhac! #Nhac'),")
+                    .append(i == 1 ? "TRUE,'Demonstração'" : "FALSE,NULL")
+                    .append(",CURRENT_TIMESTAMP(6),CURRENT_TIMESTAMP(6) FROM tb_lojas l JOIN tb_usuarios u ON u.id=")
+                    .append(autorExpr).append(" WHERE u.ativo=TRUE ")
+                    .append(i == 1 ? "AND u.papel IN ('LOJISTA','ADMIN') " : "")
+                    .append("AND NOT EXISTS (SELECT 1 FROM tb_feed_posts p WHERE p.id=").append(idExpr).append(");\n");
+            sql.append("INSERT INTO tb_feed_imagens (post_id,ordem,url) SELECT p.id,0,l.imagem_url FROM tb_feed_posts p JOIN tb_lojas l ON l.id=p.loja_id ")
+                    .append("WHERE p.id LIKE 'demo-post-").append(i).append("-%' AND CHAR_LENGTH(l.imagem_url)<=2048 AND l.imagem_url LIKE 'https://%' ")
+                    .append("AND NOT EXISTS (SELECT 1 FROM tb_feed_imagens f WHERE f.post_id=p.id);\n");
+        }
+        sql.append("INSERT INTO tb_feed_hashtags (post_id,ordem,tag) SELECT p.id,0,'#Nhac' FROM tb_feed_posts p WHERE p.id LIKE 'demo-post-%' ")
+                .append("AND NOT EXISTS (SELECT 1 FROM tb_feed_hashtags h WHERE h.post_id=p.id);\n");
+        // Recalcular pela fonte real evita conservar médias fictícias do seed antigo.
+        sql.append("UPDATE tb_lojas l SET l.avaliacao_media=COALESCE((SELECT ROUND(AVG(a.nota),1) FROM tb_avaliacoes a WHERE a.loja_id=l.id),0),")
+                .append("l.total_avaliacoes=(SELECT COUNT(*) FROM tb_avaliacoes a WHERE a.loja_id=l.id);\nCOMMIT;\n");
+        return sql.toString();
     }
 
     // ==========================================================

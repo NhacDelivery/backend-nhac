@@ -15,6 +15,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 class FeedIntegrationTest extends AbstractIntegrationTest {
     @Autowired UsuarioRepository usuarios;
     @Autowired FeedService feed;
+    @Autowired org.springframework.jdbc.core.JdbcTemplate jdbc;
     private Usuario autor;
     private Usuario outro;
 
@@ -142,6 +143,64 @@ class FeedIntegrationTest extends AbstractIntegrationTest {
         feed.remover(id, autor);
         mockMvc.perform(get("/api/v1/feed/posts/" + id).with(user(autor))).andExpect(status().isNotFound());
         assertEquals(1, feed.listar(autor, "Novidades", 0, 20).getTotalElements());
+    }
+
+    @Test
+    void adminPodeEditarEExcluirPostDeTerceiro() throws Exception {
+        Usuario admin = usuarios.save(Usuario.builder().id("feed-admin").nome("Admin")
+                .telefone("11933333333").email("admin@feed.test").papel(Papel.ADMIN).build());
+        String id = criar("Original").id();
+        mockMvc.perform(put("/api/v1/feed/posts/" + id).with(user(admin))
+                .contentType(MediaType.APPLICATION_JSON).content("{\"conteudo\":\"Moderado\"}"))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.conteudo").value("Moderado"))
+                .andExpect(jsonPath("$.usuarioId").value(autor.getId()));
+        mockMvc.perform(delete("/api/v1/feed/posts/" + id).with(user(admin)))
+                .andExpect(status().isNoContent());
+        mockMvc.perform(get("/api/v1/feed/posts/" + id).with(user(autor)))
+                .andExpect(status().isNotFound());
+    }
+
+    @Test
+    void autorInativoNaoApareceNasListagensNemNosDetalhes() throws Exception {
+        String id = criar("Oculto").id();
+        feed.interagir(id, outro, FeedInteracao.Tipo.SALVO, true);
+        autor.setAtivo(false);
+        usuarios.save(autor);
+        for (String categoria : List.of("Destaques", "Novidades", "Em Alta", "Promoções"))
+            assertEquals(0, feed.listar(outro, categoria, 0, 20).getTotalElements());
+        assertEquals(0, feed.listarSalvos(outro, 0, 20).getTotalElements());
+        mockMvc.perform(get("/api/v1/feed/posts/" + id).with(user(outro)))
+                .andExpect(status().isNotFound());
+    }
+
+    @Test
+    void atualizaColecoesPersistidasERemoveValoresAntigos() {
+        var original = feed.criar(autor, new FeedPostCreateDTO("Original",
+                List.of("https://example.com/antiga.jpg"), List.of("#Antiga"), null, false, null));
+        feed.atualizar(original.id(), autor, new FeedPostCreateDTO("Novo",
+                List.of("https://example.com/nova.jpg"), List.of("#Nova", "#Nova"), null, false, null));
+        var atualizado = feed.buscar(original.id(), outro);
+        assertEquals(List.of("https://example.com/nova.jpg"), atualizado.imagens());
+        assertEquals(List.of("#Nova"), atualizado.hashTags());
+        feed.atualizar(original.id(), autor, new FeedPostCreateDTO("Sem mídia", null, null, null, false, null));
+        assertTrue(feed.buscar(original.id(), autor).imagens().isEmpty());
+        assertTrue(feed.buscar(original.id(), autor).hashTags().isEmpty());
+    }
+
+    @Test
+    void contagensDessintonizadasNaoFicamNegativas() {
+        String id = criar("Contagens").id();
+        feed.interagir(id, outro, FeedInteracao.Tipo.CURTIDA, true);
+        feed.interagir(id, outro, FeedInteracao.Tipo.SALVO, true);
+        var comentario = feed.comentar(id, outro, new FeedComentarioCreateDTO("Teste"));
+        jdbc.update("update tb_feed_posts set curtidas = 0, salvos = 0, comentarios = 0 where id = ?", id);
+        feed.interagir(id, outro, FeedInteracao.Tipo.CURTIDA, false);
+        feed.interagir(id, outro, FeedInteracao.Tipo.SALVO, false);
+        feed.removerComentario(id, comentario.id(), autor);
+        var post = feed.buscar(id, outro);
+        assertEquals(0, post.curtidas());
+        assertEquals(0, post.salvos());
+        assertEquals(0, post.comentarios());
     }
 
     @Test
