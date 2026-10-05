@@ -218,4 +218,47 @@ class FeedIntegrationTest extends AbstractIntegrationTest {
         }
         assertEquals(1, feed.buscar(id, autor).curtidas());
     }
+
+    @Test
+    void recentesEAutorConsultamTodasAsPaginasEPermissoes() throws Exception {
+        String id=criar("Discussão").id();
+        for (int i=0;i<23;i++) feed.comentar(id,outro,new FeedComentarioCreateDTO("Antigo "+i));
+        var resposta=feed.comentar(id,autor,new FeedComentarioCreateDTO("Resposta do autor"));
+        mockMvc.perform(get("/api/v1/feed/posts/"+id+"/comentarios").with(user(outro)).param("ordem","Recentes").param("size","2"))
+            .andExpect(status().isOk()).andExpect(jsonPath("$.content[0].id").value(resposta.id()))
+            .andExpect(jsonPath("$.content[0].podeExcluir").value(false));
+        mockMvc.perform(get("/api/v1/feed/posts/"+id+"/comentarios").with(user(autor)).param("autor","true"))
+            .andExpect(status().isOk()).andExpect(jsonPath("$.totalElements").value(1))
+            .andExpect(jsonPath("$.content[0].id").value(resposta.id()))
+            .andExpect(jsonPath("$.content[0].podeExcluir").value(true));
+        assertNotNull(feed.buscar(id,outro).topComment());
+    }
+    @Test
+    void repetePostEComentarioSemDuplicarEMantemEscopoPorUsuario() throws Exception {
+        String body="{\"conteudo\":\"Tentativa\"}";
+        var primeira=mockMvc.perform(post("/api/v1/feed/posts").with(user(autor)).header("Idempotency-Key","post-1")
+            .contentType(MediaType.APPLICATION_JSON).content(body)).andExpect(status().isCreated()).andReturn();
+        String id=objectMapper.readTree(primeira.getResponse().getContentAsString()).get("id").asText();
+        mockMvc.perform(post("/api/v1/feed/posts").with(user(autor)).header("Idempotency-Key","post-1")
+            .contentType(MediaType.APPLICATION_JSON).content(body)).andExpect(status().isCreated()).andExpect(jsonPath("$.id").value(id));
+        mockMvc.perform(post("/api/v1/feed/posts").with(user(autor)).header("Idempotency-Key","post-1")
+            .contentType(MediaType.APPLICATION_JSON).content("{\"conteudo\":\"Outro\"}")).andExpect(status().isConflict());
+        mockMvc.perform(post("/api/v1/feed/posts").with(user(outro)).header("Idempotency-Key","post-1")
+            .contentType(MediaType.APPLICATION_JSON).content(body)).andExpect(status().isCreated());
+        for (int i=0;i<2;i++) mockMvc.perform(post("/api/v1/feed/posts/"+id+"/comentarios").with(user(outro))
+            .header("Idempotency-Key","comentario-1").contentType(MediaType.APPLICATION_JSON).content("{\"conteudo\":\"Gostei\"}"))
+            .andExpect(status().isCreated());
+        assertEquals(1,feed.buscar(id,autor).comentarios());
+        assertEquals(2,feed.listar(autor,"Novidades",0,20).getTotalElements());
+    }
+    @Test
+    void destaquesOrdenamPorSalvosENovidadesPorData() {
+        String primeiro=criar("Salvo").id();
+        criar("Mais novo");
+        feed.interagir(primeiro,outro,FeedInteracao.Tipo.SALVO,true);
+        assertEquals(primeiro,feed.listar(autor,"Destaques",0,20).getContent().getFirst().id());
+        assertNotEquals(primeiro,feed.listar(autor,"Novidades",0,20).getContent().getFirst().id());
+        assertTrue(feed.buscar(primeiro,autor).podeEditar());
+        assertFalse(feed.buscar(primeiro,outro).podeEditar());
+    }
 }

@@ -8,6 +8,6 @@ public record FeedPostResponseDTO(
         String conteudo, List<String> imagens, List<String> hashTags,
         long curtidas, long comentarios, long salvos, boolean curtido, boolean salvo,
         @com.fasterxml.jackson.annotation.JsonProperty("isPatrocinado") boolean isPatrocinado, String sponsorLabel, MentionedStoreDTO mentionedStore,
-        Instant criadoEm, Instant atualizadoEm) {
+        Instant criadoEm, Instant atualizadoEm, FeedComentarioResponseDTO topComment, boolean podeEditar) {
     public record MentionedStoreDTO(String id, String nome, String imageUrl, float rating, String avaliacoes) {}
 }

@@ -76,6 +76,13 @@ public class AvaliacaoService {
         return avaliacaoRepository.findByLojaId(lojaId, pageable).map(AvaliacaoResumoDTO::new);
     }
 
+    @Transactional(readOnly=true)
+    public java.util.Map<String,Object> resumoLoja(String lojaId) {
+        if (!lojaRepository.existsById(lojaId)) throw new IdNaoEncontradoException("Loja não encontrada.");
+        long total=avaliacaoRepository.countByLojaId(lojaId), positivas=avaliacaoRepository.countByLojaIdAndNotaGreaterThanEqual(lojaId,4);
+        return java.util.Map.of("total",total,"positivas",positivas,"percentualPositivo",total==0 ? 0.0 : 100.0*positivas/total);
+    }
+
     private void recalcularMediaLoja(Loja loja) {
         long total = avaliacaoRepository.countByLojaId(loja.getId());
         Double media = avaliacaoRepository.calcularMediaPorLojaId(loja.getId());

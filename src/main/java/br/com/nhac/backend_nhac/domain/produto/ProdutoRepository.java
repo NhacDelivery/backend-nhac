@@ -108,9 +108,15 @@ public interface ProdutoRepository extends JpaRepository<Produto, String> {
     Page<Produto> findByIsAtivoTrue(Pageable pageable);
 
     @Query("SELECT new br.com.nhac.backend_nhac.domain.produto.dto.ProdutoAvaliacaoResumoDTO(COUNT(a.id), AVG(a.nota)) " +
-           "FROM Avaliacao a " +
-           "JOIN a.pedido p " +
-           "JOIN p.itens i " +
-           "WHERE i.produto.id = :produtoId")
+           "FROM AvaliacaoProduto a " +
+           "WHERE a.produto.id = :produtoId")
     br.com.nhac.backend_nhac.domain.produto.dto.ProdutoAvaliacaoResumoDTO getResumoAvaliacoesPorProdutoId(@Param("produtoId") String produtoId);
+
+    @org.springframework.data.jpa.repository.EntityGraph(attributePaths="loja")
+    @Query(value="select p from Produto p where p.loja.id=:lojaId and p.isAtivo=true order by (select coalesce(sum(i.quantidade),0) from ItemPedido i where i.produto=p and i.pedido.status=br.com.nhac.backend_nhac.domain.pedido.StatusPedido.ENTREGUE) desc, p.id asc",
+        countQuery="select count(p) from Produto p where p.loja.id=:lojaId and p.isAtivo=true")
+    Page<Produto> catalogoVendidos(@Param("lojaId") String lojaId, Pageable pageable);
+    @org.springframework.data.jpa.repository.EntityGraph(attributePaths="loja")
+    @Query("select p from Produto p where p.loja.id=:lojaId and p.isAtivo=true and p.percentualDesconto>0 order by p.percentualDesconto desc, p.id asc")
+    Page<Produto> catalogoDestaques(@Param("lojaId") String lojaId, Pageable pageable);
 }

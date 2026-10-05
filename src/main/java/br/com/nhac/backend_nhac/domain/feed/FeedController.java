@@ -13,7 +13,8 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 @Tag(name = "Feed", description = "Posts, comentários, curtidas e salvos do feed")
 public class FeedController {
     private final FeedService service;
-    public FeedController(FeedService service) { this.service = service; }
+    private final FeedTentativaService tentativas;
+    public FeedController(FeedService service, FeedTentativaService tentativas) { this.service = service; this.tentativas = tentativas; }
 
     @GetMapping
     public Page<FeedPostResponseDTO> listar(@AuthenticationPrincipal Usuario usuario,
@@ -32,8 +33,10 @@ public class FeedController {
     }
     @PostMapping
     public ResponseEntity<FeedPostResponseDTO> criar(@AuthenticationPrincipal Usuario usuario,
-            @Valid @RequestBody FeedPostCreateDTO dto) {
-        return ResponseEntity.status(HttpStatus.CREATED).body(service.criar(usuario, dto));
+            @Valid @RequestBody FeedPostCreateDTO dto,
+            @RequestHeader(value="Idempotency-Key", required=false) String chave) {
+        String id = tentativas.executar(usuario, "post", chave, dto, () -> service.criar(usuario, dto).id());
+        return ResponseEntity.status(HttpStatus.CREATED).body(service.buscar(id, usuario));
     }
     @PutMapping("/{id}")
     public FeedPostResponseDTO atualizar(@PathVariable String id, @AuthenticationPrincipal Usuario usuario,
@@ -62,13 +65,16 @@ public class FeedController {
     }
     @GetMapping("/{id}/comentarios")
     public Page<FeedComentarioResponseDTO> comentarios(@PathVariable String id,
-            @RequestParam(defaultValue = "0") int page, @RequestParam(defaultValue = "20") int size) {
-        return service.listarComentarios(id, page, size);
+            @RequestParam(defaultValue = "0") int page, @RequestParam(defaultValue = "20") int size,
+            @RequestParam(defaultValue="Padrao") String ordem, @RequestParam(defaultValue="false") boolean autor, @AuthenticationPrincipal Usuario usuario) {
+        return service.listarComentarios(id, page, size, ordem, autor, usuario);
     }
     @PostMapping("/{id}/comentarios")
     public ResponseEntity<FeedComentarioResponseDTO> comentar(@PathVariable String id,
-            @AuthenticationPrincipal Usuario usuario, @Valid @RequestBody FeedComentarioCreateDTO dto) {
-        return ResponseEntity.status(HttpStatus.CREATED).body(service.comentar(id, usuario, dto));
+            @AuthenticationPrincipal Usuario usuario, @Valid @RequestBody FeedComentarioCreateDTO dto,
+            @RequestHeader(value="Idempotency-Key", required=false) String chave) {
+        String comentarioId = tentativas.executar(usuario, "comentario:"+id, chave, dto, () -> service.comentar(id, usuario, dto).id());
+        return ResponseEntity.status(HttpStatus.CREATED).body(service.buscarComentario(id, comentarioId));
     }
     @DeleteMapping("/{id}/comentarios/{comentarioId}") @ResponseStatus(HttpStatus.NO_CONTENT)
     public void removerComentario(@PathVariable String id, @PathVariable String comentarioId,

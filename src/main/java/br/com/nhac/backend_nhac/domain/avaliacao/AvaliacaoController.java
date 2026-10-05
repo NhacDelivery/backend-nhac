@@ -69,4 +69,7 @@ public class AvaliacaoController {
         Page<AvaliacaoResumoDTO> avaliacoes = avaliacaoService.listarAvaliacoesPorLoja(lojaId, pageable);
         return ResponseEntity.ok(avaliacoes);
     }
+
+    @GetMapping("/lojas/{lojaId}/avaliacoes/resumo")
+    public java.util.Map<String,Object> resumoLoja(@PathVariable String lojaId) { return avaliacaoService.resumoLoja(lojaId); }
 }
