@@ -66,122 +66,54 @@ public class VerificacaoEmailService {
                 <head>
                 <meta charset="UTF-8">
                 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-                <meta http-equiv="X-UA-Compatible" content="IE=edge">
                 <title>Confirme seu e-mail · Nhac</title>
-                <!--[if mso]>
-                <noscript>
-                <xml>
-                <o:OfficeDocumentSettings>
-                <o:PixelsPerInch>96</o:PixelsPerInch>
-                </o:OfficeDocumentSettings>
-                </xml>
-                </noscript>
-                <![endif]-->
                 <style>
                 body, table, td { font-family: 'Roboto', Arial, Helvetica, sans-serif; }
-                body { margin:0; padding:0; background-color:#FFE7E5; -webkit-text-size-adjust:100%%; -ms-text-size-adjust:100%%; }
-                table { border-collapse:collapse; }
-                img { border:0; line-height:100%%; outline:none; text-decoration:none; }
-                a { text-decoration:none; }
-                @media screen and (max-width: 600px) {
-                    .email-container { width:100%% !important; }
-                    .fluid-padding { padding-left:20px !important; padding-right:20px !important; }
-                }
+                body { margin:0; padding:0; background-color:#FFE7E5; }
+                .email-container { max-width:600px; margin: 0 auto; background-color:#FFE7E5; }
+                .header { background-color:#FFE7E5; padding: 25px 30px; }
+                .header img { max-height: 50px; display: block; }
+                .sub-header { background-color:#FF6961; padding: 15px 30px; font-size:16px; font-weight:700; color:#FFFFFF; }
+                .content { padding: 40px 30px; color: #333333; font-size: 15px; line-height: 1.6; }
+                .greeting { font-size: 18px; font-weight: 700; color: #FF6961; margin-bottom: 25px; }
+                .highlight { background-color: #FCDABB; padding: 2px 4px; border-radius: 4px; font-weight: bold; }
+                .code-box { text-align: center; margin: 40px 0; }
+                .code { font-size: 44px; font-weight: 700; color: #FF6961; letter-spacing: 4px; }
                 </style>
                 </head>
-                <body style="margin:0; padding:0; background-color:#FFE7E5;">
-                <div style="display:none; max-height:0; overflow:hidden; opacity:0; mso-hide:all;">
-                Confirme seu e-mail para concluir seu cadastro no Nhac Delivery.
-                </div>
+                <body style="background-color:#FFE7E5; margin:0; padding:0;">
                 <table role="presentation" width="100%%" cellpadding="0" cellspacing="0" border="0" style="background-color:#FFE7E5;">
                 <tr>
-                <td align="center" style="padding:40px 16px;">
-                <table role="presentation" class="email-container" width="600" cellpadding="0" cellspacing="0" border="0" style="width:600px; max-width:600px;">
+                <td align="center">
+                <table role="presentation" class="email-container" width="600" cellpadding="0" cellspacing="0" border="0" style="width:600px; max-width:600px; text-align: left;">
                 <tr>
-                <td align="center" style="padding-bottom:28px;">
-                <table role="presentation" cellpadding="0" cellspacing="0" border="0">
-                <tr>
-                <td style="font-size:26px; font-weight:700; color:#FF6961; font-family:Arial, Helvetica, sans-serif;">
-                Nhac
-                </td>
-                </tr>
-                </table>
+                <td class="header" style="background-color:#FFE7E5; padding:25px 30px;">
+                  <!-- Você pode usar cid:logo se for anexar a imagem ou colocar uma URL pública -->
+                  <img src="cid:logo" alt="Nhac" style="max-height:50px; display:block;" />
                 </td>
                 </tr>
                 <tr>
-                <td style="background-color:#FFFFFF; border-radius:20px; padding:40px;" class="fluid-padding">
-                <table role="presentation" width="100%%" cellpadding="0" cellspacing="0" border="0">
-                <tr>
-                <td align="center" style="padding-bottom:24px;">
-                <table role="presentation" cellpadding="0" cellspacing="0" border="0">
-                <tr>
-                <td width="64" height="64" align="center" valign="middle" style="background-color:#FFEBD9; border-radius:50%%; width:64px; height:64px; font-size:26px; line-height:64px;">
-                          ✉️
-                        </td>
-                </tr>
-                </table>
+                <td class="sub-header" style="background-color:#FF6961; padding:15px 30px; font-size:16px; font-weight:700; color:#FFFFFF;">
+                  Esse é seu código de acesso
                 </td>
                 </tr>
                 <tr>
-                <td align="center" style="padding-bottom:8px;">
-                <span style="font-size:22px; font-weight:700; color:#5D201C; font-family:Arial, Helvetica, sans-serif;">
-                Confirme seu e-mail
-                    </span>
-                </td>
-                </tr>
-                <tr>
-                <td align="center" style="padding-bottom:28px;">
-                <span style="font-size:14px; line-height:22px; color:#8A8A8A; font-family:Arial, Helvetica, sans-serif;">
-                Olá! Você está quase lá. Utilize o código abaixo<br>
-                para confirmar seu e-mail e concluir seu cadastro no Nhac.
-                    </span>
-                </td>
-                </tr>
-                <tr>
-                <td align="center" style="padding-bottom:24px;">
-                <table role="presentation" cellpadding="0" cellspacing="0" border="0">
-                <tr>
-                <td align="center" style="background-color:#f9f9f9; border: 1px dashed #cccccc; border-radius:8px; padding:20px 40px;">
-                <span style="display:inline-block; font-size:32px; font-weight:700; letter-spacing: 4px; color:#FF6961; font-family:monospace, Arial, Helvetica, sans-serif;">
-                %s
-                </span>
-                </td>
-                </tr>
-                </table>
-                </td>
-                </tr>
-                <tr>
-                <td align="center" style="padding-bottom:24px;">
-                <span style="font-size:12.5px; color:#C9BCBC; font-family:Arial, Helvetica, sans-serif;">
-                Este código expira em %d minutos
-                </span>
-                </td>
-                </tr>
-                </table>
-                </td>
-                </tr>
-                <tr>
-                <td style="padding:24px 8px 0;">
-                <table role="presentation" width="100%%" cellpadding="0" cellspacing="0" border="0" style="background-color:#FFF6F5; border-radius:14px;">
-                <tr>
-                <td style="padding:16px 20px;">
-                <span style="font-size:12.5px; line-height:19px; color:#5D201C; font-family:Arial, Helvetica, sans-serif;">
-                      ℹ️ <strong>Precisa de ajuda?</strong> Se você não solicitou este cadastro, pode ignorar este e-mail com segurança.
-                </span>
-                </td>
-                </tr>
-                </table>
-                </td>
-                </tr>
-                <tr>
-                <td align="center" style="padding:32px 20px 0;">
-                <span style="font-size:11.5px; color:#C9BCBC; font-family:Arial, Helvetica, sans-serif;">
-                Enviado por Nhac · Este é um e-mail automático, não responda.
-                </span>
-                <br><br>
-                <span style="font-size:11.5px; color:#C9BCBC; font-family:Arial, Helvetica, sans-serif;">
-                © %d Nhac. Todos os direitos reservados.
-              </span>
+                <td class="content" style="padding:40px 30px; color:#333333; font-size:15px; line-height:1.6;">
+                  <div class="greeting" style="font-size:18px; font-weight:700; color:#FF6961; margin-bottom:25px;">
+                    Olá!
+                  </div>
+                  
+                  <div style="margin-bottom:20px;">
+                    Para validarmos o acesso ao seu aplicativo com segurança, <strong>use o código abaixo diretamente no seu app do <span class="highlight" style="background-color:#FCDABB; padding:2px 4px; border-radius:4px;">Nhac</span>.</strong>
+                  </div>
+                  
+                  <div class="code-box" style="text-align:center; margin:40px 0;">
+                    <span class="code" style="font-size:44px; font-weight:700; color:#FF6961; letter-spacing:4px;">%s</span>
+                  </div>
+                  
+                  <div style="margin-bottom:20px; text-align: center; color: #8A8A8A; font-size: 14px;">
+                    Este código expira em <strong>%d minutos</strong>.
+                  </div>
                 </td>
                 </tr>
                 </table>
@@ -190,7 +122,7 @@ public class VerificacaoEmailService {
                 </table>
                 </body>
                 </html>
-                """.formatted(codigo, TEMPO_EXPIRACAO_MINUTOS, java.time.Year.now().getValue());
+                """.formatted(codigo, TEMPO_EXPIRACAO_MINUTOS);
         emailService.enviarEmailHtml(email, assunto, htmlConteudo);
     }
 @Transactional
@@ -291,122 +223,54 @@ public void verificarCodigoCadastro(String email, String codigoDigitado) {
                 <head>
                 <meta charset="UTF-8">
                 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-                <meta http-equiv="X-UA-Compatible" content="IE=edge">
                 <title>Redefinir senha · Nhac</title>
-                <!--[if mso]>
-                <noscript>
-                <xml>
-                <o:OfficeDocumentSettings>
-                <o:PixelsPerInch>96</o:PixelsPerInch>
-                </o:OfficeDocumentSettings>
-                </xml>
-                </noscript>
-                <![endif]-->
                 <style>
                 body, table, td { font-family: 'Roboto', Arial, Helvetica, sans-serif; }
-                body { margin:0; padding:0; background-color:#FFE7E5; -webkit-text-size-adjust:100%%; -ms-text-size-adjust:100%%; }
-                table { border-collapse:collapse; }
-                img { border:0; line-height:100%%; outline:none; text-decoration:none; }
-                a { text-decoration:none; }
-                @media screen and (max-width: 600px) {
-                    .email-container { width:100%% !important; }
-                    .fluid-padding { padding-left:20px !important; padding-right:20px !important; }
-                }
+                body { margin:0; padding:0; background-color:#FFE7E5; }
+                .email-container { max-width:600px; margin: 0 auto; background-color:#FFE7E5; }
+                .header { background-color:#FFE7E5; padding: 25px 30px; }
+                .header img { max-height: 50px; display: block; }
+                .sub-header { background-color:#FF6961; padding: 15px 30px; font-size:16px; font-weight:700; color:#FFFFFF; }
+                .content { padding: 40px 30px; color: #333333; font-size: 15px; line-height: 1.6; }
+                .greeting { font-size: 18px; font-weight: 700; color: #FF6961; margin-bottom: 25px; }
+                .highlight { background-color: #FCDABB; padding: 2px 4px; border-radius: 4px; font-weight: bold; }
+                .code-box { text-align: center; margin: 40px 0; }
+                .code { font-size: 44px; font-weight: 700; color: #FF6961; letter-spacing: 4px; }
                 </style>
                 </head>
-                <body style="margin:0; padding:0; background-color:#FFE7E5;">
-                <div style="display:none; max-height:0; overflow:hidden; opacity:0; mso-hide:all;">
-                Recebemos uma solicitação para redefinir a senha da sua conta Nhac. O código de verificação expira em 15 minutos.
-                </div>
+                <body style="background-color:#FFE7E5; margin:0; padding:0;">
                 <table role="presentation" width="100%%" cellpadding="0" cellspacing="0" border="0" style="background-color:#FFE7E5;">
                 <tr>
-                <td align="center" style="padding:40px 16px;">
-                <table role="presentation" class="email-container" width="600" cellpadding="0" cellspacing="0" border="0" style="width:600px; max-width:600px;">
+                <td align="center">
+                <table role="presentation" class="email-container" width="600" cellpadding="0" cellspacing="0" border="0" style="width:600px; max-width:600px; text-align: left;">
                 <tr>
-                <td align="center" style="padding-bottom:28px;">
-                <table role="presentation" cellpadding="0" cellspacing="0" border="0">
-                <tr>
-                <td style="font-size:26px; font-weight:700; color:#FF6961; font-family:Arial, Helvetica, sans-serif;">
-                Nhac
-                </td>
-                </tr>
-                </table>
+                <td class="header" style="background-color:#FFE7E5; padding:25px 30px;">
+                  <!-- Você pode usar cid:logo se for anexar a imagem ou colocar uma URL pública -->
+                  <img src="cid:logo" alt="Nhac" style="max-height:50px; display:block;" />
                 </td>
                 </tr>
                 <tr>
-                <td style="background-color:#FFFFFF; border-radius:20px; padding:40px;" class="fluid-padding">
-                <table role="presentation" width="100%%" cellpadding="0" cellspacing="0" border="0">
-                <tr>
-                <td align="center" style="padding-bottom:24px;">
-                <table role="presentation" cellpadding="0" cellspacing="0" border="0">
-                <tr>
-                <td width="64" height="64" align="center" valign="middle" style="background-color:#FFEBD9; border-radius:50%%; width:64px; height:64px; font-size:26px; line-height:64px;">
-                          🔒
-                        </td>
-                </tr>
-                </table>
+                <td class="sub-header" style="background-color:#FF6961; padding:15px 30px; font-size:16px; font-weight:700; color:#FFFFFF;">
+                  Esse é seu código de acesso
                 </td>
                 </tr>
                 <tr>
-                <td align="center" style="padding-bottom:8px;">
-                <span style="font-size:22px; font-weight:700; color:#5D201C; font-family:Arial, Helvetica, sans-serif;">
-                Redefinir sua senha
-                    </span>
-                </td>
-                </tr>
-                <tr>
-                <td align="center" style="padding-bottom:28px;">
-                <span style="font-size:14px; line-height:22px; color:#8A8A8A; font-family:Arial, Helvetica, sans-serif;">
-                Olá, %s. Recebemos uma solicitação para redefinir a<br>
-        senha da sua conta Nhac. Utilize o código abaixo no aplicativo para continuar.
-                    </span>
-                </td>
-                </tr>
-                <tr>
-                <td align="center" style="padding-bottom:24px;">
-                <table role="presentation" cellpadding="0" cellspacing="0" border="0">
-                <tr>
-                <td align="center" style="background-color:#f9f9f9; border: 1px dashed #cccccc; border-radius:8px; padding:20px 40px;">
-                <span style="display:inline-block; font-size:32px; font-weight:700; letter-spacing: 4px; color:#FF6961; font-family:monospace, Arial, Helvetica, sans-serif;">
-                %s
-                </span>
-                </td>
-                </tr>
-                </table>
-                </td>
-                </tr>
-                <tr>
-                <td align="center" style="padding-bottom:24px;">
-                <span style="font-size:12.5px; color:#C9BCBC; font-family:Arial, Helvetica, sans-serif;">
-                Este código expira em %d minutos
-                </span>
-                </td>
-                </tr>
-                </table>
-                </td>
-                </tr>
-                <tr>
-                <td style="padding:24px 8px 0;">
-                <table role="presentation" width="100%%" cellpadding="0" cellspacing="0" border="0" style="background-color:#FFF6F5; border-radius:14px;">
-                <tr>
-                <td style="padding:16px 20px;">
-                <span style="font-size:12.5px; line-height:19px; color:#5D201C; font-family:Arial, Helvetica, sans-serif;">
-                      🔒 <strong>Não foi você?</strong> Se você não solicitou a redefinição de senha, pode ignorar este e-mail com segurança — sua senha atual continua válida.
-                </span>
-                </td>
-                </tr>
-                </table>
-                </td>
-                </tr>
-                <tr>
-                <td align="center" style="padding:32px 20px 0;">
-                <span style="font-size:11.5px; color:#C9BCBC; font-family:Arial, Helvetica, sans-serif;">
-                Enviado por Nhac · Este é um e-mail automático, não responda.
-                </span>
-                <br><br>
-                <span style="font-size:11.5px; color:#C9BCBC; font-family:Arial, Helvetica, sans-serif;">
-                © %d Nhac. Todos os direitos reservados.
-              </span>
+                <td class="content" style="padding:40px 30px; color:#333333; font-size:15px; line-height:1.6;">
+                  <div class="greeting" style="font-size:18px; font-weight:700; color:#FF6961; margin-bottom:25px;">
+                    Olá, %s!
+                  </div>
+                  
+                  <div style="margin-bottom:20px;">
+                    Para validarmos o acesso ao seu aplicativo com segurança, <strong>use o código abaixo diretamente no seu app do <span class="highlight" style="background-color:#FCDABB; padding:2px 4px; border-radius:4px;">Nhac</span>.</strong>
+                  </div>
+                  
+                  <div class="code-box" style="text-align:center; margin:40px 0;">
+                    <span class="code" style="font-size:44px; font-weight:700; color:#FF6961; letter-spacing:4px;">%s</span>
+                  </div>
+                  
+                  <div style="margin-bottom:20px; text-align: center; color: #8A8A8A; font-size: 14px;">
+                    Este código expira em <strong>%d minutos</strong>.
+                  </div>
                 </td>
                 </tr>
                 </table>
@@ -415,7 +279,7 @@ public void verificarCodigoCadastro(String email, String codigoDigitado) {
                 </table>
                 </body>
                 </html>
-                """.formatted(nomeUsuario, codigo, TEMPO_EXPIRACAO_MINUTOS, java.time.Year.now().getValue());
+                """.formatted(nomeUsuario, codigo, TEMPO_EXPIRACAO_MINUTOS);
         emailService.enviarEmailHtml(email, assunto, htmlConteudo);
     }
 }
