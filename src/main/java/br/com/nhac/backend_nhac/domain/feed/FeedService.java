@@ -32,7 +32,8 @@ public class FeedService {
         Sort sort = Sort.by(Sort.Direction.DESC, "criadoEm", "id");
         switch (categoria) {
             case "Em Alta" -> sort = Sort.by(Sort.Direction.DESC, "curtidas", "comentarios", "criadoEm", "id");
-            case "Destaques", "Novidades" -> { }
+            case "Destaques" -> sort = Sort.by(Sort.Direction.DESC, "salvos", "curtidas", "criadoEm", "id");
+            case "Novidades" -> { }
             case "Promoções" -> promocoes = true;
             default -> throw new RegraDeNegocioException("Categoria de feed inválida.");
         }
@@ -58,7 +59,7 @@ public class FeedService {
                 .orElseThrow(() -> new IdNaoEncontradoException("Usuário não encontrado.")));
         aplicar(post, usuario, dto);
         posts.save(post);
-        return resposta(post, Set.of());
+        return respostas(new PageImpl<>(List.of(post)), usuario).getContent().getFirst();
     }
 
     public FeedPostResponseDTO atualizar(String id, Usuario usuario, FeedPostCreateDTO dto) {
@@ -101,9 +102,30 @@ public class FeedService {
 
     @Transactional(readOnly = true)
     public Page<FeedComentarioResponseDTO> listarComentarios(String id, int page, int size) {
+        return listarComentarios(id, page, size, "Padrao", false);
+    }
+    @Transactional(readOnly=true)
+    public Page<FeedComentarioResponseDTO> listarComentarios(String id, int page, int size, String ordem, boolean autor) {
+        return listarComentarios(id, page, size, ordem, autor, null);
+    }
+    @Transactional(readOnly=true)
+    public Page<FeedComentarioResponseDTO> listarComentarios(String id, int page, int size, String ordem, boolean autor, Usuario usuario) {
         FeedPost post = buscarPost(id, false);
-        return comentarios.findByPostIdOrderByCriadoEmAscIdAsc(id, pagina(page, size, Sort.unsorted()))
-                .map(c -> respostaComentario(c, post));
+        if (!Set.of("Padrao", "Recentes").contains(ordem)) throw new RegraDeNegocioException("Ordenação inválida.");
+        Sort sort = Sort.by("criadoEm", "id");
+        if (ordem.equals("Recentes")) sort = sort.descending();
+        return comentarios.listar(id, autor ? post.getUsuario().getId() : null, pagina(page, size, sort))
+                .map(c -> {
+                    var dto = respostaComentario(c, post);
+                    boolean podeExcluir = usuario != null && (usuario.getPapel() == Papel.ADMIN || c.getUsuario().getId().equals(usuario.getId()) || post.getUsuario().getId().equals(usuario.getId()));
+                    return new FeedComentarioResponseDTO(dto.id(), dto.usuarioId(), dto.nomeUsuario(), dto.avatarUrl(), dto.conteudo(), dto.isAuthor(), dto.criadoEm(), podeExcluir);
+                });
+    }
+    @Transactional(readOnly=true)
+    public FeedComentarioResponseDTO buscarComentario(String postId, String comentarioId) {
+        FeedPost post = buscarPost(postId, false);
+        return respostaComentario(comentarios.findByIdAndPostId(comentarioId, postId)
+                .orElseThrow(() -> new IdNaoEncontradoException("Comentário não encontrado.")), post);
     }
 
     public FeedComentarioResponseDTO comentar(String id, Usuario usuario, FeedComentarioCreateDTO dto) {
@@ -176,10 +198,15 @@ public class FeedService {
             for (FeedInteracao i : interacoes.findByUsuarioIdAndPostIdIn(usuario.getId(), ids))
                 estados.computeIfAbsent(i.getPost().getId(), k -> EnumSet.noneOf(FeedInteracao.Tipo.class)).add(i.getTipo());
         }
-        return pagina.map(p -> resposta(p, estados.getOrDefault(p.getId(), Set.of())));
+        Map<String, FeedComentarioResponseDTO> destacados = new HashMap<>();
+        if (!ids.isEmpty()) for (var c : comentarios.destacados(ids)) destacados.put(c.getPost().getId(), respostaComentario(c, c.getPost()));
+        return pagina.map(p -> resposta(p, estados.getOrDefault(p.getId(), Set.of()), destacados.get(p.getId()), p.getUsuario().getId().equals(usuario.getId()) || usuario.getPapel() == Papel.ADMIN));
     }
 
     private FeedPostResponseDTO resposta(FeedPost p, Set<FeedInteracao.Tipo> estados) {
+        return resposta(p, estados, null, false);
+    }
+    private FeedPostResponseDTO resposta(FeedPost p, Set<FeedInteracao.Tipo> estados, FeedComentarioResponseDTO topComment, boolean podeEditar) {
         var loja = p.getLoja();
         var dados = loja == null ? null : loja.getDadosOperacionais();
         var mentioned = loja == null ? null : new FeedPostResponseDTO.MentionedStoreDTO(loja.getId(), loja.getNome(),
@@ -189,11 +216,11 @@ public class FeedService {
                 p.getUsuario().getImagemUrl(), p.getConteudo(), List.copyOf(p.getImagens()), List.copyOf(p.getHashTags()),
                 p.getCurtidas(), p.getComentarios(), p.getSalvos(), estados.contains(FeedInteracao.Tipo.CURTIDA),
                 estados.contains(FeedInteracao.Tipo.SALVO), p.isPatrocinado(), p.getSponsorLabel(), mentioned,
-                p.getCriadoEm(), p.getAtualizadoEm());
+                p.getCriadoEm(), p.getAtualizadoEm(), topComment, podeEditar);
     }
 
     private FeedComentarioResponseDTO respostaComentario(FeedComentario c, FeedPost p) {
         return new FeedComentarioResponseDTO(c.getId(), c.getUsuario().getId(), c.getUsuario().getNome(),
-                c.getUsuario().getImagemUrl(), c.getConteudo(), c.getUsuario().getId().equals(p.getUsuario().getId()), c.getCriadoEm());
+                c.getUsuario().getImagemUrl(), c.getConteudo(), c.getUsuario().getId().equals(p.getUsuario().getId()), c.getCriadoEm(), false);
     }
 }

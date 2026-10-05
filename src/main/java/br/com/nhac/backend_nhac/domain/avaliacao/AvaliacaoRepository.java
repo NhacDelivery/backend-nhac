@@ -14,6 +14,8 @@ public interface AvaliacaoRepository extends JpaRepository<Avaliacao, String> {
 
     Page<Avaliacao> findByLojaId(String lojaId, Pageable pageable);
 
+    long countByLojaIdAndNotaGreaterThanEqual(String lojaId, Integer nota);
+
     long countByLojaId(String lojaId);
 
     @Query("SELECT AVG(a.nota) FROM Avaliacao a WHERE a.loja.id = :lojaId")
