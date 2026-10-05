@@ -83,8 +83,14 @@ public class UsuarioService {
             }
             usuario.setEmail(dados.email());
         }
-        if(dados.telefone() != null)
-            usuario.setTelefone(dados.telefone());
+        if (dados.telefone() != null && !dados.telefone().equals(usuario.getTelefone())) {
+            throw new RegraDeNegocioException("Confirme o novo telefone por SMS antes de alterá-lo.");
+        }
+        if (dados.fcmToken() != null) {
+            if (dados.fcmToken().length()>255) throw new RegraDeNegocioException("Token do aparelho inválido.");
+            if (!dados.fcmToken().isBlank()) usuarioRepository.removerTokenDeOutrasContas(dados.fcmToken(),id);
+            usuario.setFcmToken(dados.fcmToken().isBlank() ? null : dados.fcmToken());
+        }
         if(dados.imagemUrl() != null)
             usuario.setImagemUrl(dados.imagemUrl());
 

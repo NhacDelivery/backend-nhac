@@ -5,10 +5,10 @@ import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 
 public record CadastroEntregadorDTO(
-        @NotBlank(message = "A CNH é obrigatória.")
+        @jakarta.validation.constraints.Size(max = 30)
         String cnh,
 
-        @NotBlank(message = "A placa do veículo é obrigatória.")
+        @jakarta.validation.constraints.Size(max = 20)
         String placaVeiculo,
 
         @NotNull(message = "O tipo do veículo é obrigatório.")

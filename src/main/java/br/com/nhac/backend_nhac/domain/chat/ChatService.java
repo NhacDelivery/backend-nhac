@@ -39,6 +39,8 @@ public class ChatService {
 
     private static final int PREVIEW_MAX_CHARS = 120;
 
+    @org.springframework.beans.factory.annotation.Autowired
+    private org.springframework.context.ApplicationEventPublisher avisoPublisher;
     private final ConversaRepository conversaRepository;
     private final MensagemRepository mensagemRepository;
     private final LojaRepository lojaRepository;
@@ -257,6 +259,11 @@ public class ChatService {
         conversa.registrarNovaMensagem(tipo, truncarPreview(conteudo));
         conversaRepository.save(conversa);
 
+        if (avisoPublisher != null && tipo == RemetenteTipo.LOJA && conversa.getParticipanteTipo() == ParticipanteTipo.ENTREGADOR) {
+            avisoPublisher.publishEvent(new br.com.nhac.backend_nhac.domain.notificacao.AvisoEntregadorEvent(
+                "mensagem_"+mensagem.getId(),conversa.getClienteId(),"MENSAGEM","Você recebeu uma mensagem da loja.",
+                null,conversa.getLoja().getId(),conversa.getLoja().getNome(),null));
+        }
         return new MensagemDTO(mensagem);
     }
 

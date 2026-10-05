@@ -24,6 +24,8 @@ import java.util.List;
 @Tag(name = "Entregas e Despacho", description = "Endpoints de despacho, ofertas para motoboys, ciclo de vida da corrida e rotas no mapa")
 public class EntregaController {
 
+    @org.springframework.beans.factory.annotation.Autowired
+    private CoordenadasEntregaService coordenadasService;
     private final DespachoService despachoService;
     private final RotaService rotaService;
     private final PedidoRepository pedidoRepository;
@@ -134,7 +136,17 @@ public class EntregaController {
     ) {
         Pedido pedido = buscarPedido(pedidoId);
         validarAcessoARota(pedido, usuarioLogado);
-        return ResponseEntity.ok(rotaService.calcularRota(pedido));
+        return ResponseEntity.ok(rotaService.calcularRota(pedido, pedido.getEntregador() != null && usuarioLogado.getId().equals(pedido.getEntregador().getUsuario().getId())));
+    }
+
+    public record CoordenadasDestinoDTO(
+        @jakarta.validation.constraints.NotNull @jakarta.validation.constraints.DecimalMin("-90") @jakarta.validation.constraints.DecimalMax("90") Double latitude,
+        @jakarta.validation.constraints.NotNull @jakarta.validation.constraints.DecimalMin("-180") @jakarta.validation.constraints.DecimalMax("180") Double longitude) {}
+    @PutMapping("/{pedidoId}/coordenadas-destino")
+    public ResponseEntity<Void> corrigirDestino(@PathVariable String pedidoId, @AuthenticationPrincipal Usuario usuario,
+            @RequestBody @jakarta.validation.Valid CoordenadasDestinoDTO dto) {
+        coordenadasService.corrigir(pedidoId, usuario, dto.latitude(), dto.longitude());
+        return ResponseEntity.noContent().build();
     }
 
     public record LocalizacaoEntregadorDTO(Double latitude, Double longitude,
