@@ -25,7 +25,7 @@ class AvaliacaoProdutoIntegrationTest extends AbstractIntegrationTest {
     @BeforeEach void dados() {
         comprador=usuarios.save(Usuario.builder().id("comprador").nome("Comprador").email("comprador@review.test").telefone("11911111111").build());
         outro=usuarios.save(Usuario.builder().id("outro").nome("Outro").email("outro@review.test").telefone("11922222222").build());
-        var loja=lojas.save(Loja.builder().id("loja-review").nome("Loja").isAberto(true).dadosOperacionais(new DadosOperacionais()).build());
+        var loja=lojas.save(Loja.builder().id("loja-review").nome("Loja").isAberto(true).dadosOperacionais(new DadosOperacionais()).endereco(new EnderecoLoja("Rua", "1", "Osasco", "SP", "06000-000", "Centro", null)).build());
         produto=produto("produto-a",loja,10); segundo=produto("produto-b",loja,0);
     }
     private Produto produto(String id,Loja loja,int desconto) {
