@@ -39,7 +39,7 @@ public class AvaliacaoProdutoService {
     @Transactional(readOnly=true)
     public Page<AvaliacaoProdutoResponseDTO> listar(String id, boolean fotos, boolean positivas, int page, int size) {
         if (!produtos.existsById(id)) throw new IdNaoEncontradoException("Produto não encontrado.");
-        return avaliacoes.listar(id,fotos,positivas,pagina(page,size)).map(AvaliacaoProdutoResponseDTO::new);
+        return avaliacoes.listar(id,fotos,positivas,PageRequest.of(pagina(page,size).getPageNumber(),size,Sort.by(Sort.Direction.DESC,"criadoEm","id"))).map(AvaliacaoProdutoResponseDTO::new);
     }
     @Transactional(readOnly=true)
     public Page<ProdutoResumoDTO> catalogo(String lojaId, String filtro, int page, int size) {
