@@ -80,9 +80,9 @@ class RotaServiceTest {
     void semCoordenadasNaoConsultaServicoNemInventaDestino() {
         Pedido pedido = pedidoValido();
         pedido.setEntregaLatitude(null);
-        var erro = assertThrows(br.com.nhac.backend_nhac.exceptions.RegraDeNegocioException.class,
+        var erro = assertThrows(br.com.nhac.backend_nhac.exceptions.RotaDadosException.class,
                 () -> rotaService.calcularRota(pedido));
-        assertTrue(erro.getMessage().contains("não possui coordenadas de entrega"));
+        assertTrue(erro.getMessage().contains("corrija as coordenadas"));
         server.verify();
     }
 
@@ -90,7 +90,7 @@ class RotaServiceTest {
     void lojaComZeroZeroRecebeCausaEspecifica() {
         Pedido pedido = pedidoValido();
         pedido.getLoja().setGeoLocalizacao(new GeoLocalizacao(0, 0, null));
-        var erro = assertThrows(br.com.nhac.backend_nhac.exceptions.RegraDeNegocioException.class,
+        var erro = assertThrows(br.com.nhac.backend_nhac.exceptions.RotaDadosException.class,
                 () -> rotaService.calcularRota(pedido));
         assertTrue(erro.getMessage().contains("coordenadas da loja inválidas"));
         server.verify();
@@ -100,7 +100,7 @@ class RotaServiceTest {
     void falhaExternaNaoViraLinhaRetaNemDistanciaFicticia() {
         server.expect(org.springframework.test.web.client.match.MockRestRequestMatchers.anything())
                 .andRespond(org.springframework.test.web.client.response.MockRestResponseCreators.withServerError());
-        assertThrows(br.com.nhac.backend_nhac.exceptions.RegraDeNegocioException.class,
+        assertThrows(br.com.nhac.backend_nhac.exceptions.RotaTemporariaException.class,
                 () -> rotaService.calcularRota(pedidoValido()));
         server.verify();
     }

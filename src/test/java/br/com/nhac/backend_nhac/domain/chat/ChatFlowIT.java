@@ -88,7 +88,7 @@ public class ChatFlowIT extends AbstractIntegrationTest {
         usuario.setNome("Usuario " + email);
         usuario.setEmail(email);
         usuario.setSenha("senha123");
-        usuario.setTelefone("11900000000");
+        usuario.setTelefone(String.format("+55119999%05d", Math.floorMod(email.hashCode(), 100000)));
         usuario.setPapel(papel);
         return usuarioRepository.save(usuario);
     }

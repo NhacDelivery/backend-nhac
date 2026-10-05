@@ -10,5 +10,10 @@ public record AtualizarVeiculoDTO(
         @NotNull TipoVeiculo tipoVeiculo,
         @Size(max = 20) String placaVeiculo,
         @Size(max = 60) String modeloVeiculo,
-        @Size(max = 30) String corVeiculo
-) {}
+        @Size(max = 30) String corVeiculo,
+        @Size(max = 30) String cnh
+) {
+    public AtualizarVeiculoDTO(TipoVeiculo tipoVeiculo,String placaVeiculo,String modeloVeiculo,String corVeiculo) {
+        this(tipoVeiculo,placaVeiculo,modeloVeiculo,corVeiculo,null);
+    }
+}

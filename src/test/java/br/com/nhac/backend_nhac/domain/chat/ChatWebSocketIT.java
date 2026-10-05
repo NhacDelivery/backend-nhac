@@ -219,7 +219,7 @@ public class ChatWebSocketIT extends AbstractIntegrationTest {
         u.setNome("Usuario " + email);
         u.setEmail(email);
         u.setSenha("senha123");
-        u.setTelefone("11900000000");
+        u.setTelefone(String.format("+55119999%05d", Math.floorMod(email.hashCode(), 100000)));
         u.setPapel(papel);
         u.setAtivo(true);
         u.setEmailVerificado(true);

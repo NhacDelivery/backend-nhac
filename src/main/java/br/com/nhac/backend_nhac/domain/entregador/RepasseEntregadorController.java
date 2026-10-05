@@ -22,8 +22,10 @@ public class RepasseEntregadorController {
     @org.springframework.transaction.annotation.Transactional(readOnly=true)
     public Page<ExtratoDTO> extrato(@AuthenticationPrincipal Usuario usuario,@RequestParam(defaultValue="0") int page){
         var entregador=entregadores.buscarPorUsuario(usuario);
-        return pedidos.findHistoricoDoEntregador(entregador.getId(),StatusPedido.ENTREGUE,PageRequest.of(Math.max(0,page),20))
-            .map(p->ExtratoDTO.de(p,repasses.findById(p.getId()).orElse(null)));
+        var historico = pedidos.findHistoricoDoEntregador(entregador.getId(),StatusPedido.ENTREGUE,PageRequest.of(Math.max(0,page),20));
+        var registros = repasses.findAllById(historico.stream().map(Pedido::getId).toList()).stream()
+            .collect(java.util.stream.Collectors.toMap(RepasseEntregador::getPedidoId,java.util.function.Function.identity()));
+        return historico.map(p -> ExtratoDTO.de(p,registros.get(p.getId())));
     }
     @PutMapping("/suporte/repasses/{id}/apuracao") @PreAuthorize("hasRole('ADMIN')")
     public RepasseEntregador apurar(@PathVariable String id,@RequestBody @Valid ApurarDTO dto){return service.apurar(id,dto.valorDevido());}

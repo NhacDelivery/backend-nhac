@@ -99,7 +99,7 @@ public class EntregadorService {
             throw new RegraDeNegocioException("Não é possível trocar o veículo durante uma entrega.");
         }
         // Trocar bicicleta por veículo motorizado exige CNH já cadastrada.
-        entregador.setCnh(ValidacaoEntregador.cnh(entregador.getCnh(), dto.tipoVeiculo()));
+        entregador.setCnh(ValidacaoEntregador.cnh(dto.cnh() == null ? entregador.getCnh() : dto.cnh(), dto.tipoVeiculo()));
         entregador.setTipoVeiculo(dto.tipoVeiculo());
         entregador.setPlacaVeiculo(ValidacaoEntregador.placa(dto.placaVeiculo(), dto.tipoVeiculo()));
         entregador.setModeloVeiculo(dto.modeloVeiculo() == null ? null : dto.modeloVeiculo().trim());

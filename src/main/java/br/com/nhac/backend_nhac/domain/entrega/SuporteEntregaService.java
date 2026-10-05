@@ -28,6 +28,8 @@ public class SuporteEntregaService {
             var ticket = anterior.get();
             if (!ticket.getUsuarioId().equals(usuario.getId()) || !ticket.getPedidoId().equals(pedidoId))
                 throw new AcessoNegadoException("Protocolo de outra solicitação.");
+            if (!ticket.getMotivo().equals(dto.motivo()) || !ticket.getDescricao().equals(dto.descricao().trim()))
+                throw new RegraDeNegocioException("Protocolo já usado com outros dados. Consulte a solicitação existente.");
             return ticket;
         }
         var ticket = new SolicitacaoSuporte();
