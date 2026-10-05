@@ -31,8 +31,13 @@ public class Usuario implements UserDetails {
     @Column(nullable = true, length = 100)
     private String email;
 
-    @Column(nullable = false, length = 20, unique = true)
+    @Column(length = 20, unique = true)
     private String telefone;
+
+    @PrePersist @PreUpdate
+    private void normalizarTelefone() {
+        telefone = TelefoneNormalizador.normalizar(telefone);
+    }
 
     @Column(name = "imagem_url", columnDefinition = "TEXT")
     private String imagemUrl;
