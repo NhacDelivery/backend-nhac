@@ -76,6 +76,16 @@ public class FeedController {
         String comentarioId = tentativas.executar(usuario, "comentario:"+id, chave, dto, () -> service.comentar(id, usuario, dto).id());
         return ResponseEntity.status(HttpStatus.CREATED).body(service.buscarComentario(id, comentarioId));
     }
+    @PutMapping("/{id}/comentarios/{comentarioId}/curtida")
+    public FeedComentarioResponseDTO curtirComentario(@PathVariable String id, @PathVariable String comentarioId,
+            @AuthenticationPrincipal Usuario usuario) {
+        return service.curtirComentario(id, comentarioId, usuario, true);
+    }
+    @DeleteMapping("/{id}/comentarios/{comentarioId}/curtida")
+    public FeedComentarioResponseDTO descurtirComentario(@PathVariable String id, @PathVariable String comentarioId,
+            @AuthenticationPrincipal Usuario usuario) {
+        return service.curtirComentario(id, comentarioId, usuario, false);
+    }
     @DeleteMapping("/{id}/comentarios/{comentarioId}") @ResponseStatus(HttpStatus.NO_CONTENT)
     public void removerComentario(@PathVariable String id, @PathVariable String comentarioId,
             @AuthenticationPrincipal Usuario usuario) {

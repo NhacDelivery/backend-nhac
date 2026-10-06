@@ -36,7 +36,7 @@ public class FeedTentativaService {
         if (payload instanceof FeedPostCreateDTO dto) {
             append(b, dto.conteudo()); append(b, dto.imagens()); append(b, dto.hashTags());
             append(b, dto.lojaId()); append(b, dto.isPatrocinado()); append(b, dto.sponsorLabel());
-        } else if (payload instanceof FeedComentarioCreateDTO dto) append(b, dto.conteudo());
+        } else if (payload instanceof FeedComentarioCreateDTO dto) { append(b, dto.conteudo()); if (dto.respostaAId() != null) append(b, dto.respostaAId()); }
         else throw new IllegalArgumentException("Payload não suportado.");
         return b.toString();
     }
