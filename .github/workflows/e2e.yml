@@ -57,9 +57,8 @@ jobs:
         uses: actions/checkout@v4
         with:
           repository: NhacDelivery/Nhac
-          # Branch do app cliente que contém tool/run_e2e.sh.
-          # A branch do PR do backend não existe necessariamente nesse repositório.
-          ref: eu-e-tu
+          # Integra o backend com a branch do cliente que utiliza estes contratos.
+          ref: feature/feed-api
           path: Nhac
 
       - name: Preparar ambiente do app E2E
@@ -81,6 +80,10 @@ jobs:
           java-version: '25'
           cache: maven
           cache-dependency-path: backend-nhac/pom.xml
+
+      - name: Build backend for isolated E2E
+        working-directory: backend-nhac
+        run: ./mvnw -B -ntp -DskipTests package
 
       - name: Capture backend JDK
         id: backend-java

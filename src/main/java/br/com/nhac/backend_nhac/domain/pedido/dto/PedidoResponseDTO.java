@@ -57,7 +57,7 @@ public record PedidoResponseDTO(
                         item.getNome(),
                         item.getImagemUrl(),
                         item.getPrecoHistorico(),
-                        item.getQuantidade()
+                        item.getQuantidade(), java.util.List.copyOf(item.getAdicionais())
                 )).toList() : List.of(),
                 pedido.getDesconto(),
                 pedido.getCupomId(),
@@ -100,7 +100,7 @@ public record PedidoResponseDTO(
                         item.getNome(),
                         item.getImagemUrl(),
                         item.getPrecoHistorico(),
-                        item.getQuantidade()
+                        item.getQuantidade(), java.util.List.copyOf(item.getAdicionais())
                 )).toList() : List.of(),
                 pedido.getDesconto(),
                 pedido.getCupomId(),
@@ -128,6 +128,10 @@ public record PedidoResponseDTO(
             String nome,
             String imagemUrl,
             BigDecimal preco,
-            Integer quantidade
-    ) {}
+            Integer quantidade, List<String> adicionais
+    ) {
+        public ItemPedidoResponseDTO(String id, String produtoId, String nome, String imagemUrl, BigDecimal preco, Integer quantidade) {
+            this(id,produtoId,nome,imagemUrl,preco,quantidade,List.of());
+        }
+    }
 }

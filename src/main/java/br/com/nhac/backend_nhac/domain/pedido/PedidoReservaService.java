@@ -91,11 +91,6 @@ public class PedidoReservaService {
                 throw new EstoqueInsuficienteException(produtoReal.getId(), itemDto.quantidade(), produtoReal.getEstoque() == null ? 0 : produtoReal.getEstoque());
             }
 
-            int atualizados = produtoRepository.decrementarEstoqueSeDisponivel(produtoReal.getId(), itemDto.quantidade());
-            if (atualizados == 0) {
-                throw new EstoqueInsuficienteException(produtoReal.getId(), itemDto.quantidade(), produtoReal.getEstoque());
-            }
-
             ItemPedido novoItem = itemDto.toEntity(produtoReal);
             // Snapshot histórico sempre vem da fonte canônica do servidor.
             // Nome/imagem enviados pelo app são mantidos no DTO por
@@ -103,7 +98,29 @@ public class PedidoReservaService {
             novoItem.setNome(produtoReal.getNome());
             novoItem.setImagemUrl(produtoReal.getImagemUrl());
             BigDecimal precoReal = produtoReal.getPreco();
+            var selecionados = itemDto.adicionais() == null ? java.util.List.<String>of() : itemDto.adicionais();
+            var ids = new java.util.HashSet<>(selecionados);
+            if (ids.size() != selecionados.size()) throw new RegraDeNegocioException("Não repita um adicional.");
+            var validos = new java.util.HashSet<String>();
+            for (var grupo : produtoReal.getAdicionais()) {
+                int quantidadeGrupo = 0;
+                for (var adicional : grupo.getItens()) if (ids.contains(adicional.getId())) {
+                    validos.add(adicional.getId()); quantidadeGrupo++;
+                    precoReal = precoReal.add(adicional.getPreco());
+                    novoItem.getAdicionais().add(grupo.getNome()+": "+adicional.getNome()+" (+R$ "+adicional.getPreco()+")");
+                }
+                int minimo = Math.max(grupo.isObrigatorio() ? 1 : 0, grupo.getMinimo()==null ? 0 : grupo.getMinimo());
+                int maximo = grupo.getMaximo()==null ? grupo.getItens().size() : grupo.getMaximo();
+                if (quantidadeGrupo < minimo || quantidadeGrupo > maximo)
+                    throw new RegraDeNegocioException("Selecione entre "+minimo+" e "+maximo+" opções em "+grupo.getNome()+".");
+            }
+            if (!validos.equals(ids)) throw new RegraDeNegocioException("Adicional não pertence a este produto.");
             novoItem.setPrecoHistorico(precoReal);
+
+            int atualizados = produtoRepository.decrementarEstoqueSeDisponivel(produtoReal.getId(), itemDto.quantidade());
+            if (atualizados == 0) {
+                throw new EstoqueInsuficienteException(produtoReal.getId(), itemDto.quantidade(), produtoReal.getEstoque());
+            }
 
             BigDecimal subtotal = precoReal.multiply(BigDecimal.valueOf(novoItem.getQuantidade()));
             valorTotalItens = valorTotalItens.add(subtotal);

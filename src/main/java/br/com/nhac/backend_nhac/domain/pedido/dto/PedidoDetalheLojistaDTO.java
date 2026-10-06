@@ -55,7 +55,8 @@ public record PedidoDetalheLojistaDTO(
                         item.getNome(),
                         item.getImagemUrl(),
                         item.getPrecoHistorico(),
-                        item.getQuantidade()
+                        item.getQuantidade(),
+                        List.copyOf(item.getAdicionais())
                 )).toList() : List.of()
         );
     }

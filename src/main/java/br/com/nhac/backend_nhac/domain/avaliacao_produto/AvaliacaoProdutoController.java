@@ -9,6 +9,10 @@ import org.springframework.data.domain.Page;
 public class AvaliacaoProdutoController {
     private final AvaliacaoProdutoService service;
     public AvaliacaoProdutoController(AvaliacaoProdutoService service) { this.service=service; }
+    @GetMapping("/pedidos/{pedidoId}/avaliacoes-produtos")
+    public java.util.List<AvaliacaoProdutoResponseDTO> minhas(@PathVariable String pedidoId, @AuthenticationPrincipal Usuario usuario) {
+        return service.minhas(pedidoId,usuario);
+    }
     @PostMapping("/produtos/{id}/avaliacoes")
     public AvaliacaoProdutoResponseDTO criar(@PathVariable String id, @AuthenticationPrincipal Usuario usuario, @Valid @RequestBody AvaliacaoProdutoDTO dto) {
         return service.criar(id,usuario,dto);
