@@ -47,6 +47,11 @@ public class ResourceExceptionHandler {
         return ResponseEntity.status(e.getHttpStatus()).body(erro);
     }
 
+    @ExceptionHandler(org.springframework.security.access.AccessDeniedException.class)
+    public ResponseEntity<ErroPadraoDTO> acessoNegado(org.springframework.security.access.AccessDeniedException e, HttpServletRequest request) {
+        return handleNhacException(new AcessoNegadoException("Você não tem permissão para realizar esta ação."), request);
+    }
+
     @ExceptionHandler(IllegalArgumentException.class)
     public ResponseEntity<ErroPadraoDTO> regraDeNegocio(IllegalArgumentException e, HttpServletRequest request) {
         String requestId = UUID.randomUUID().toString();
