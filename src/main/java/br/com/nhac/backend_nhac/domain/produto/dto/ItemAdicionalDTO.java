@@ -19,6 +19,8 @@ public record ItemAdicionalDTO(
         @Schema(description = "Preço adicional deste item", example = "2.50")
         @NotNull(message = "O preço do item adicional é obrigatório.")
         @PositiveOrZero(message = "O preço não pode ser negativo.")
-        BigDecimal preco
+        BigDecimal preco,
+        String id
 ) {
+    public ItemAdicionalDTO(String nome, BigDecimal preco) { this(nome, preco, null); }
 }

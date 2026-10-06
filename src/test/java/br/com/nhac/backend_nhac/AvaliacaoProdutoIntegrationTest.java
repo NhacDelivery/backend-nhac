@@ -20,6 +20,8 @@ class AvaliacaoProdutoIntegrationTest extends AbstractIntegrationTest {
     @Autowired ProdutoRepository produtos;
     @Autowired PedidoRepository pedidos;
     @Autowired AvaliacaoProdutoService service;
+    @Autowired PedidoReservaService reserva;
+    @Autowired org.springframework.jdbc.core.JdbcTemplate jdbc;
     private Usuario comprador, outro;
     private Produto produto, segundo;
     @BeforeEach void dados() {
@@ -37,6 +39,42 @@ class AvaliacaoProdutoIntegrationTest extends AbstractIntegrationTest {
         p.setTaxaFrete(BigDecimal.ZERO); p.setFormaPagamento("DINHEIRO"); p.setStatus(status); p.setCriadoEm(Instant.now());
         var i=new ItemPedido(); i.setId(UUID.randomUUID().toString()); i.setProduto(produto); i.setNome(produto.getNome()); i.setPrecoHistorico(BigDecimal.TEN); i.setQuantidade(quantidade); p.adicionarItem(i);
         pedidos.save(p); return id;
+    }
+    @Autowired UsuarioService usuarioService;
+    @Test void dispositivoDePushNaoPermaneceVinculadoAOutraConta() {
+        usuarioService.atualizarUsuarioParcial(comprador.getId(), new br.com.nhac.backend_nhac.domain.usuario.dto.UsuarioAtualizarDTO(null,null,null,null,"dispositivo",null));
+        usuarioService.atualizarUsuarioParcial(outro.getId(), new br.com.nhac.backend_nhac.domain.usuario.dto.UsuarioAtualizarDTO(null,null,null,null,"dispositivo",null));
+        assertNull(usuarios.findById(comprador.getId()).orElseThrow().getFcmToken());
+        assertEquals("dispositivo", usuarios.findById(outro.getId()).orElseThrow().getFcmToken());
+    }
+    @Test void categoriasIgnoramEstoqueZeroEProdutosInativos() throws Exception {
+        produto.setEstoque(3); produtos.save(produto);
+        segundo.setCategoriaMenu("Inexistente"); segundo.setEstoque(0); produtos.save(segundo);
+        mockMvc.perform(get("/api/v1/produtos/categorias")).andExpect(status().isOk())
+            .andExpect(jsonPath("$[0]").value("Lanches")).andExpect(jsonPath("$.length()").value(1));
+    }
+    @Test void consultaAvaliacaoExistenteExigeDonoDoPedido() throws Exception {
+        pedido("consulta",produto,StatusPedido.ENTREGUE,1);
+        service.criar(produto.getId(),comprador,new AvaliacaoProdutoDTO("consulta",5,"Ótimo",List.of()));
+        mockMvc.perform(get("/api/v1/pedidos/consulta/avaliacoes-produtos").with(user(comprador)))
+            .andExpect(status().isOk()).andExpect(jsonPath("$[0].produtoId").value(produto.getId()));
+        mockMvc.perform(get("/api/v1/pedidos/consulta/avaliacoes-produtos").with(user(outro))).andExpect(status().isForbidden());
+    }
+    @Test void adicionaisObrigatoriosPrecoServidorESnapshot() {
+        produto.setEstoque(5);
+        var grupo=new GrupoAdicional(); grupo.setId("grupo-1"); grupo.setNome("Molhos"); grupo.setProduto(produto);
+        grupo.setObrigatorio(true); grupo.setMinimo(1); grupo.setMaximo(1);
+        var extra=new ItemAdicional(); extra.setId("extra-1"); extra.setNome("Barbecue"); extra.setPreco(new BigDecimal("2.50")); extra.setGrupoAdicional(grupo);
+        grupo.getItens().add(extra); produto.getAdicionais().add(grupo); produtos.save(produto);
+        var endereco=new br.com.nhac.backend_nhac.domain.pedido.dto.PedidoCreateDTO.EnderecoEntregaDTO("Rua","1","Centro","Osasco","SP","06000-000",null,-23.0,-46.0);
+        java.util.function.Function<List<String>,br.com.nhac.backend_nhac.domain.pedido.dto.PedidoCreateDTO> dto = ids -> new br.com.nhac.backend_nhac.domain.pedido.dto.PedidoCreateDTO(
+            "loja-review","DINHEIRO",null,null,null,endereco,null,List.of(new br.com.nhac.backend_nhac.domain.pedido.dto.PedidoCreateDTO.ItemPedidoDTO(produto.getId(),"Cliente",null,2,ids)));
+        assertThrows(br.com.nhac.backend_nhac.exceptions.RegraDeNegocioException.class,()->reserva.reservar(dto.apply(List.of()),comprador,"sem-adicional"));
+        assertThrows(br.com.nhac.backend_nhac.exceptions.RegraDeNegocioException.class,()->reserva.reservar(dto.apply(List.of("extra-estranho")),comprador,"extra-errado"));
+        var pedido=reserva.reservar(dto.apply(List.of("extra-1")),comprador,"com-adicional");
+        assertEquals(new BigDecimal("12.50"),jdbc.queryForObject("select preco_historico from tb_itens_pedido where pedido_id=?",BigDecimal.class,pedido.pedido().getId()));
+        assertTrue(jdbc.queryForObject("select descricao from tb_item_pedido_adicionais",String.class).contains("Barbecue"));
+        assertEquals(pedido.pedido().getId(),reserva.reservar(dto.apply(List.of("extra-1")),comprador,"com-adicional").pedido().getId());
     }
     @Test void avaliacaoDeProdutoValidaCompraEFiltrosEReplay() throws Exception {
         String id=pedido("entregue",produto,StatusPedido.ENTREGUE,1);

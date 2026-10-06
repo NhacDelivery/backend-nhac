@@ -432,7 +432,8 @@ public class PedidoService {
         String itens = dto.itens().stream()
                 .sorted(Comparator.comparing(PedidoCreateDTO.ItemPedidoDTO::produtoId)
                         .thenComparing(PedidoCreateDTO.ItemPedidoDTO::quantidade))
-                .map(i -> n(i.produtoId()) + ":" + i.quantidade())
+                .map(i -> n(i.produtoId()) + ":" + i.quantidade() + (i.adicionais()==null || i.adicionais().isEmpty() ? "" : ":" + i.adicionais().stream().sorted().collect(java.util.stream.Collectors.joining(";"))))
+                .sorted()
                 .reduce((a, b) -> a + "," + b)
                 .orElse("");
 

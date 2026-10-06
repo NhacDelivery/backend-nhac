@@ -77,6 +77,18 @@ class FeedIntegrationTest extends AbstractIntegrationTest {
     }
 
     @Test
+    void compartilhamentoPublicoEscapaConteudoEDenunciaTemControleDeAcesso() throws Exception {
+        String postId=criar("<script>alert(1)</script>").id();
+        mockMvc.perform(get("/publicacao/"+postId)).andExpect(status().isOk())
+            .andExpect(content().string(org.hamcrest.Matchers.containsString("&lt;script&gt;")))
+            .andExpect(content().string(org.hamcrest.Matchers.not(org.hamcrest.Matchers.containsString("<script>"))));
+        mockMvc.perform(post("/api/v1/feed/posts/"+postId+"/denuncias").with(user(outro)).contentType(MediaType.APPLICATION_JSON).content("{\"motivo\":\"Spam\"}"))
+            .andExpect(status().isCreated()).andExpect(jsonPath("$.status").value("ABERTA"));
+        mockMvc.perform(get("/api/v1/feed/denuncias").with(user(outro))).andExpect(status().isForbidden());
+        feed.remover(postId,autor);
+        mockMvc.perform(get("/publicacao/"+postId)).andExpect(status().isNotFound());
+    }
+    @Test
     void exigeAutenticacao() throws Exception {
         mockMvc.perform(get("/api/v1/feed/posts")).andExpect(status().isForbidden());
     }

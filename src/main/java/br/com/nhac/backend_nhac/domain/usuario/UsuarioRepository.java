@@ -12,6 +12,10 @@ import org.springframework.stereotype.Repository;
 @Repository
 public interface UsuarioRepository extends JpaRepository<Usuario, String> {
 
+    @org.springframework.data.jpa.repository.Modifying
+    @org.springframework.data.jpa.repository.Query("update Usuario u set u.fcmToken = null where u.fcmToken = :token and u.id <> :id")
+    int desvincularTokenDeOutrasContas(@org.springframework.data.repository.query.Param("token") String token, @org.springframework.data.repository.query.Param("id") String id);
+
     Optional<Usuario> findByEmailIgnoreCase(String email);
 
     Optional<Usuario> findByTelefone(String telefone);

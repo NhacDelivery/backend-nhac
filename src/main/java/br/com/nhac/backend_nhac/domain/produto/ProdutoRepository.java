@@ -13,6 +13,8 @@ import org.springframework.stereotype.Repository;
 
 @Repository
 public interface ProdutoRepository extends JpaRepository<Produto, String> {
+    @Query("select distinct trim(p.categoriaMenu) from Produto p where p.isAtivo=true and p.estoque>0 and p.loja.isAberto=true and trim(p.categoriaMenu)<>'' order by trim(p.categoriaMenu)")
+    java.util.List<String> categoriasDisponiveis();
 
     @Query("SELECT p FROM Produto p JOIN FETCH p.loja WHERE p.id = :id AND p.isAtivo = true")
     Optional<Produto> findByIdAndIsAtivoTrue(@Param("id") String id);

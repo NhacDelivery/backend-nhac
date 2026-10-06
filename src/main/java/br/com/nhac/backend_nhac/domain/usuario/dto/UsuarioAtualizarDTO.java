@@ -10,7 +10,7 @@ public record UsuarioAtualizarDTO(
         @Size(max = 20)
         String telefone,
         String imagemUrl,
-        String fcmToken,
+        @Size(max = 255) String fcmToken,
         String cpf
 ) {
 }

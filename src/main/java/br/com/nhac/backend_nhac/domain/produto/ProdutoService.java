@@ -38,6 +38,9 @@ public class ProdutoService {
     }
 
     @Transactional(readOnly = true)
+    public java.util.List<String> categoriasDisponiveis() { return produtoRepository.categoriasDisponiveis(); }
+
+    @Transactional(readOnly = true)
     @Cacheable(cacheNames = PRODUTOS, key = "'promocoes:' + #p0", condition = "#p0.isPaged() && #p0.pageNumber < 20 && #p0.pageSize <= 100")
     public Page<ProdutoResumoDTO> listarPromocoes(Pageable pageable) {
         return produtoRepository.findPromocoes(pageable).map(ProdutoResumoDTO::new);

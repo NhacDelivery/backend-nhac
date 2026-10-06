@@ -72,8 +72,8 @@ public record ProdutoResumoDTO(
                             grupo.getMinimo(),
                             grupo.getMaximo(),
                             grupo.getItens() != null ? grupo.getItens().stream()
-                                .map(item -> new ItemAdicionalDTO(item.getNome(), item.getPreco()))
-                                .toList() : List.of()
+                                .map(item -> new ItemAdicionalDTO(item.getNome(), item.getPreco(), item.getId()))
+                                .toList() : List.of(), grupo.getId()
                     ))
                     .toList() : List.of()
         );

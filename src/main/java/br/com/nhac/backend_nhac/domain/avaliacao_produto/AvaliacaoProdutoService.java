@@ -37,6 +37,12 @@ public class AvaliacaoProdutoService {
         avaliacoes.save(a); return new AvaliacaoProdutoResponseDTO(a);
     }
     @Transactional(readOnly=true)
+    public java.util.List<AvaliacaoProdutoResponseDTO> minhas(String pedidoId, Usuario usuario) {
+        var pedido=pedidos.findById(pedidoId).orElseThrow(() -> new IdNaoEncontradoException("Pedido não encontrado."));
+        if (!pedido.getUsuarioId().equals(usuario.getId())) throw new AcessoNegadoException("Você só pode consultar avaliações dos seus pedidos.");
+        return avaliacoes.findByPedidoId(pedidoId).stream().map(AvaliacaoProdutoResponseDTO::new).toList();
+    }
+    @Transactional(readOnly=true)
     public Page<AvaliacaoProdutoResponseDTO> listar(String id, boolean fotos, boolean positivas, int page, int size) {
         if (!produtos.existsById(id)) throw new IdNaoEncontradoException("Produto não encontrado.");
         return avaliacoes.listar(id,fotos,positivas,PageRequest.of(pagina(page,size).getPageNumber(),size,Sort.by(Sort.Direction.DESC,"criadoEm","id"))).map(AvaliacaoProdutoResponseDTO::new);
