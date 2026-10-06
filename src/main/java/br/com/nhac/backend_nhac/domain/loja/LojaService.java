@@ -60,7 +60,7 @@ public class LojaService {
     @Cacheable(cacheNames = LOJA)
     public LojaDetalhesDTO obterLojaId(String id) {
 
-        Loja loja = lojaRepository.findByIdAndIsAbertoTrue(id)
+        Loja loja = lojaRepository.findById(id)
                 .orElseThrow(() -> new IdNaoEncontradoException("A loja com o id: " + id + " não foi encontrada."));
 
         return new LojaDetalhesDTO(loja);

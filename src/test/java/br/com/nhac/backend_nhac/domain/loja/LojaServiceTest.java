@@ -162,7 +162,7 @@ class LojaServiceTest {
     void deveObterDetalhesDaLojaComSucesso() {
         Loja loja = construirLojaCompleta("loja_1", true);
 
-        when(lojaRepository.findByIdAndIsAbertoTrue("loja_1")).thenReturn(Optional.of(loja));
+        when(lojaRepository.findById("loja_1")).thenReturn(Optional.of(loja));
 
         LojaDetalhesDTO resultado = lojaService.obterLojaId("loja_1");
 
@@ -173,14 +173,22 @@ class LojaServiceTest {
     }
 
     @Test
-    @DisplayName("Deve lançar IdNaoEncontradoException quando a loja não existir ou estiver fechada")
-    void deveLancarExcecaoQuandoLojaNaoEncontradaOuFechada() {
-        when(lojaRepository.findByIdAndIsAbertoTrue("loja_fantasma")).thenReturn(Optional.empty());
+    @DisplayName("Deve lançar IdNaoEncontradoException quando a loja não existir")
+    void deveLancarExcecaoQuandoLojaNaoEncontrada() {
+        when(lojaRepository.findById("loja_fantasma")).thenReturn(Optional.empty());
 
         Exception excecao = assertThrows(IdNaoEncontradoException.class,
                 () -> lojaService.obterLojaId("loja_fantasma"));
 
         assertEquals("A loja com o id: loja_fantasma não foi encontrada.", excecao.getMessage());
+    }
+
+    @Test
+    @DisplayName("Loja fechada continua acessível no perfil, sem permitir compras")
+    void deveObterDetalhesDaLojaFechada() {
+        Loja loja = construirLojaCompleta("loja_fechada", false);
+        when(lojaRepository.findById("loja_fechada")).thenReturn(Optional.of(loja));
+        assertFalse(lojaService.obterLojaId("loja_fechada").isAberto());
     }
 
     @Test
