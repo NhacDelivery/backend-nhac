@@ -40,6 +40,9 @@ class MariaDbMigrationIT {
             try (var rs = statement.executeQuery("SELECT usuario_id FROM tb_lojas WHERE id='loja_0002'")) {
                 assertTrue(rs.next()); assertEquals(owner, rs.getString(1));
             }
+            try (var rs = statement.executeQuery("SELECT COUNT(*) FROM tb_usuarios WHERE id LIKE 'demo-%' AND (telefone IS NOT NULL OR telefone_verificado=TRUE)")) {
+                assertTrue(rs.next()); assertEquals(0, rs.getLong(1));
+            }
             try (var rs = statement.executeQuery("SELECT l.total_avaliacoes,l.avaliacao_media,u.papel FROM tb_lojas l JOIN tb_usuarios u ON u.id=l.usuario_id WHERE l.id='loja_0001'")) {
                 assertTrue(rs.next()); assertEquals(3, rs.getInt(1));
                 assertEquals(4.7, rs.getDouble(2), 0.01); assertEquals("LOJISTA", rs.getString(3));
