@@ -81,6 +81,10 @@ jobs:
           cache: maven
           cache-dependency-path: backend-nhac/pom.xml
 
+      - name: Build backend for isolated E2E
+        working-directory: backend-nhac
+        run: ./mvnw -B -ntp -DskipTests package
+
       - name: Capture backend JDK
         id: backend-java
         shell: bash
