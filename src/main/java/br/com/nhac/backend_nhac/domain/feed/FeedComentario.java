@@ -19,6 +19,13 @@ public class FeedComentario {
     private Usuario usuario;
     @Column(nullable = false, length = 2000)
     private String conteudo;
+    @Column(name = "resposta_a_id", length = 50)
+    private String respostaAId;
+    @ElementCollection
+    @CollectionTable(name = "tb_feed_comentario_curtidas", joinColumns = @JoinColumn(name = "comentario_id"))
+    @Column(name = "usuario_id", length = 50, nullable = false)
+    @org.hibernate.annotations.OnDelete(action = org.hibernate.annotations.OnDeleteAction.CASCADE)
+    private java.util.Set<String> curtidores = new java.util.HashSet<>();
     @Column(name = "criado_em", nullable = false)
     private Instant criadoEm = Instant.now();
 }
