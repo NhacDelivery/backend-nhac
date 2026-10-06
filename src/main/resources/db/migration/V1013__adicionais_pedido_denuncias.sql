@@ -1,4 +1,5 @@
 CREATE TABLE tb_item_pedido_adicionais (
+    id BIGINT NOT NULL AUTO_INCREMENT PRIMARY KEY,
     item_pedido_id VARCHAR(50) NOT NULL,
     descricao VARCHAR(200) NOT NULL,
     CONSTRAINT fk_item_pedido_adicionais FOREIGN KEY (item_pedido_id) REFERENCES tb_itens_pedido(id) ON DELETE CASCADE

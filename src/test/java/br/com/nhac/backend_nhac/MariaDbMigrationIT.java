@@ -81,6 +81,38 @@ class MariaDbMigrationIT {
             assertEquals(0, flyway.migrate().migrationsExecuted,
                     "Executar novamente não deve reaplicar migrations");
             verificarCatalogoSocial(mariadb);
+            verificarChavePrimariaAdicionais(mariadb);
+        }
+    }
+
+    private static void verificarChavePrimariaAdicionais(MariaDBContainer<?> db) throws java.sql.SQLException {
+        try (var connection = java.sql.DriverManager.getConnection(db.getJdbcUrl(), db.getUsername(), db.getPassword())) {
+            try (var keys = connection.getMetaData().getPrimaryKeys(connection.getCatalog(), null, "tb_item_pedido_adicionais")) {
+                assertTrue(keys.next(), "Adicionais de pedido devem ter chave primária");
+                assertEquals("id", keys.getString("COLUMN_NAME"));
+            }
+            connection.setAutoCommit(false);
+            try (var statement = connection.createStatement()) {
+                assertEquals(1, statement.executeUpdate("INSERT INTO tb_itens_pedido (id,pedido_id,produto_id,nome_historico,preco_historico,quantidade) SELECT 'item_pk_migration',p.id,pr.id,'Produto de teste',1.00,1 FROM tb_pedidos p JOIN tb_produtos pr ON pr.loja_id=p.loja_id LIMIT 1"));
+                String itemId;
+                try (var rows = statement.executeQuery("SELECT id FROM tb_itens_pedido WHERE id='item_pk_migration'")) {
+                    assertTrue(rows.next());
+                    itemId = rows.getString(1);
+                }
+                try (var insert = connection.prepareStatement("INSERT INTO tb_item_pedido_adicionais (item_pedido_id, descricao) VALUES (?, ?)")) {
+                    insert.setString(1, itemId);
+                    insert.setString(2, "Mesmo adicional");
+                    insert.executeUpdate();
+                    insert.executeUpdate();
+                }
+                try (var rows = statement.executeQuery("SELECT COUNT(*), COUNT(DISTINCT id) FROM tb_item_pedido_adicionais WHERE descricao='Mesmo adicional'")) {
+                    assertTrue(rows.next());
+                    assertEquals(2, rows.getInt(1));
+                    assertEquals(2, rows.getInt(2));
+                }
+            } finally {
+                connection.rollback();
+            }
         }
     }
 }
