@@ -66,6 +66,9 @@ class SuporteAdministrativoSecurityTest {
     }
     @Test void permiteAdministradorAtivoGlobal() throws Exception {
         when(tickets.findByStatusOrderByCriadoEmAsc(anyString(), any())).thenReturn(Page.empty());
+        when(suporte.responder(anyString(), anyString())).thenReturn(new SolicitacaoSuporte());
+        when(repasses.apurar(anyString(), any())).thenReturn(new RepasseEntregador());
+        when(repasses.registrarPagamento(anyString(), anyString(), any(), any())).thenReturn(new RepasseEntregador());
         verificar(Usuario.builder().id("admin").papel(Papel.ADMIN).build(), 200);
         verify(suporte).responder(eq("ticket"), anyString());
         verify(repasses).apurar(eq("pedido"), any());

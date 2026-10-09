@@ -88,6 +88,31 @@ class MariaDbMigrationIT {
         }
     }
 
+    @Test
+    void telefoneDuplicadoInterrompeAntesDeAlterarContasLegadas() throws java.sql.SQLException {
+        try (var db = new MariaDBContainer<>("mariadb:11")
+                .withDatabaseName("nhac_telefone").withUsername("nhac").withPassword("nhac_test")) {
+            db.start();
+            Flyway.configure().dataSource(db.getJdbcUrl(), db.getUsername(), db.getPassword())
+                    .locations("classpath:db/migration").target("1014").load().migrate();
+            try (var connection = java.sql.DriverManager.getConnection(db.getJdbcUrl(), db.getUsername(), db.getPassword());
+                    var statement = connection.createStatement()) {
+                statement.executeUpdate("INSERT INTO tb_usuarios (id,nome,email,telefone,senha,papel) VALUES "
+                        + "('dup-a','A','dup-a@teste.com','11912345678','hash','CLIENTE'),"
+                        + "('dup-b','B','dup-b@teste.com','+5511912345678','hash','CLIENTE')");
+                var flyway = Flyway.configure().dataSource(db.getJdbcUrl(), db.getUsername(), db.getPassword())
+                        .locations("classpath:db/migration").load();
+                var erro = org.junit.jupiter.api.Assertions.assertThrows(
+                        org.flywaydb.core.api.FlywayException.class, flyway::migrate);
+                assertTrue(erro.getMessage().contains("telefones duplicados apos normalizacao"));
+                try (var rows = statement.executeQuery("SELECT telefone FROM tb_usuarios WHERE id='dup-a'")) {
+                    assertTrue(rows.next());
+                    assertEquals("11912345678", rows.getString(1), "Não deve alterar contas antes de resolver posse");
+                }
+            }
+        }
+    }
+
     private static void verificarChavePrimariaAdicionais(MariaDBContainer<?> db) throws java.sql.SQLException {
         try (var connection = java.sql.DriverManager.getConnection(db.getJdbcUrl(), db.getUsername(), db.getPassword())) {
             try (var keys = connection.getMetaData().getPrimaryKeys(connection.getCatalog(), null, "tb_item_pedido_adicionais")) {

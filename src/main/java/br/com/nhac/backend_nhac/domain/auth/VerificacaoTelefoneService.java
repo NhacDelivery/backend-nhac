@@ -4,6 +4,7 @@ import br.com.nhac.backend_nhac.domain.auth.CodigoVerificacao;
 import br.com.nhac.backend_nhac.domain.auth.dto.EnviarCodigoSmsDTO;
 import br.com.nhac.backend_nhac.domain.auth.dto.ValidarCodigoSmsDTO;
 import br.com.nhac.backend_nhac.exceptions.RegraDeNegocioException;
+import br.com.nhac.backend_nhac.exceptions.CodigoSmsRejeitadoException;
 import br.com.nhac.backend_nhac.domain.auth.CodigoVerificacaoRepository;
 import br.com.nhac.backend_nhac.domain.usuario.UsuarioRepository;
 import lombok.RequiredArgsConstructor;
@@ -47,7 +48,7 @@ public class VerificacaoTelefoneService {
         smsService.enviarSms(telefone, mensagem);
     }
 
-    @Transactional(noRollbackFor = RegraDeNegocioException.class)
+    @Transactional(noRollbackFor = CodigoSmsRejeitadoException.class)
     public void validarCodigo(ValidarCodigoSmsDTO dto) {
         String telefone = dto.telefone().trim();
         LocalDateTime agora = LocalDateTime.now();
@@ -59,13 +60,13 @@ public class VerificacaoTelefoneService {
         if (registro.getTentativas() >= MAX_TENTATIVAS) {
             registro.setUtilizado(true);
             codigoRepository.save(registro);
-            throw new RegraDeNegocioException("Limite de tentativas excedido para este código. Solicite um novo.");
+            throw new CodigoSmsRejeitadoException("Limite de tentativas excedido para este código. Solicite um novo.");
         }
 
         if (!registro.getCodigo().equals(dto.codigo().trim())) {
             registro.setTentativas(registro.getTentativas() + 1);
             codigoRepository.save(registro);
-            throw new RegraDeNegocioException("Código de verificação inválido.");
+            throw new CodigoSmsRejeitadoException("Código de verificação inválido.");
         }
 
         registro.setUtilizado(true);

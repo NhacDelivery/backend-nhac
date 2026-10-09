@@ -30,27 +30,40 @@ public class RotaService {
             com.github.benmanes.caffeine.cache.Caffeine.newBuilder().maximumSize(256)
                     .expireAfterWrite(java.time.Duration.ofMinutes(15)).recordStats().build();
 
-    @Value("${nhac.routing.osrm-url:https://router.project-osrm.org}")
-    private String osrmBaseUrl = "https://router.project-osrm.org";
+    private final String osrmBaseUrl;
+    private final boolean mockMode;
+    private final String cyclingUrl;
 
-    @Value("${nhac.routing.mock-mode:false}")
-    private boolean mockMode;
+    @org.springframework.beans.factory.annotation.Autowired
+    public RotaService(
+            @Value("${nhac.routing.osrm-url:https://router.project-osrm.org}") String osrmBaseUrl,
+            @Value("${nhac.routing.osrm-cycling-url:${OSRM_CYCLING_URL:}}") String cyclingUrl,
+            @Value("${nhac.routing.mock-mode:false}") boolean mockMode) {
+        this(criarRestClient(), osrmBaseUrl, cyclingUrl, mockMode);
+    }
 
     public RotaService() {
-        var factory = new SimpleClientHttpRequestFactory();
-        factory.setConnectTimeout(4000);
-        factory.setReadTimeout(4000);
-        this.restClient = RestClient.builder()
-                .requestFactory(factory)
-                .build();
+        this(criarRestClient(), "https://router.project-osrm.org", "", false);
     }
 
     public RotaService(RestClient restClient) {
-        this.restClient = restClient;
+        this(restClient, "https://router.project-osrm.org", "", false);
     }
 
-    @Value("${nhac.routing.osrm-cycling-url:${OSRM_CYCLING_URL:}}")
-    private String cyclingUrl = "";
+    public RotaService(RestClient restClient, String osrmBaseUrl, String cyclingUrl, boolean mockMode) {
+        this.restClient = restClient;
+        this.osrmBaseUrl = osrmBaseUrl;
+        this.cyclingUrl = cyclingUrl;
+        this.mockMode = mockMode;
+    }
+
+    private static RestClient criarRestClient() {
+        var factory = new SimpleClientHttpRequestFactory();
+        factory.setConnectTimeout(4000);
+        factory.setReadTimeout(4000);
+        return RestClient.builder().requestFactory(factory).build();
+    }
+
     public RotaEntregaResponseDTO calcularRota(Pedido pedido) { return calcularRota(pedido, false); }
     public RotaEntregaResponseDTO calcularRota(Pedido pedido, boolean operacional) {
         if (pedido.getLoja() == null || pedido.getLoja().getGeoLocalizacao() == null)
