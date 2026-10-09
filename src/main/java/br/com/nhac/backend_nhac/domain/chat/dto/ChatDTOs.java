@@ -12,6 +12,14 @@ import jakarta.validation.constraints.Pattern;
 
 public class ChatDTOs {
 
+    public enum TipoConversa { LOJA, CLIENTE }
+
+    public record InterlocutorDTO(String id, String nome, String imagemUrl) {}
+
+    public record ConversaClienteResumoDTO(
+            String id, TipoConversa tipo, InterlocutorDTO interlocutor,
+            String ultimaMensagemPreview, Instant ultimaMensagemEm, int naoLidas) {}
+
     /**
      * Resumo de conversa para a listagem no painel do lojista.
      * participanteTipo (V039) deixa explícito se a linha é uma conversa com

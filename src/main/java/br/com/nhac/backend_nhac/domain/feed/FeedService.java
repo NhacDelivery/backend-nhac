@@ -115,11 +115,7 @@ public class FeedService {
         Sort sort = Sort.by("criadoEm", "id");
         if (ordem.equals("Recentes")) sort = sort.descending();
         return comentarios.listar(id, autor ? post.getUsuario().getId() : null, pagina(page, size, sort))
-                .map(c -> {
-                    var dto = respostaComentario(c, post);
-                    boolean podeExcluir = usuario != null && (usuario.getPapel() == Papel.ADMIN || c.getUsuario().getId().equals(usuario.getId()) || post.getUsuario().getId().equals(usuario.getId()));
-                    return new FeedComentarioResponseDTO(dto.id(), dto.usuarioId(), dto.nomeUsuario(), dto.avatarUrl(), dto.conteudo(), dto.isAuthor(), dto.criadoEm(), podeExcluir);
-                });
+                .map(c -> respostaComentario(c, post, usuario));
     }
     @Transactional(readOnly=true)
     public FeedComentarioResponseDTO buscarComentario(String postId, String comentarioId) {
@@ -135,9 +131,23 @@ public class FeedService {
         comentario.setPost(post);
         comentario.setUsuario(usuarios.getReferenceById(usuario.getId()));
         comentario.setConteudo(dto.conteudo().trim());
+        if (dto.respostaAId() != null) {
+            FeedComentario pai = comentarios.findByIdAndPostId(dto.respostaAId(), id)
+                    .orElseThrow(() -> new IdNaoEncontradoException("Comentário respondido não encontrado nesta publicação."));
+            comentario.setRespostaAId(pai.getId());
+        }
         comentarios.save(comentario);
         post.setComentarios(post.getComentarios() + 1);
         return respostaComentario(comentario, post);
+    }
+
+    public FeedComentarioResponseDTO curtirComentario(String postId, String comentarioId, Usuario usuario, boolean ativo) {
+        FeedPost post = buscarPost(postId, true);
+        FeedComentario comentario = comentarios.findByIdAndPostId(comentarioId, postId)
+                .orElseThrow(() -> new IdNaoEncontradoException("Comentário não encontrado."));
+        if (ativo) comentario.getCurtidores().add(usuario.getId());
+        else comentario.getCurtidores().remove(usuario.getId());
+        return respostaComentario(comentario, post, usuario);
     }
 
     public void removerComentario(String postId, String comentarioId, Usuario usuario) {
@@ -220,7 +230,16 @@ public class FeedService {
     }
 
     private FeedComentarioResponseDTO respostaComentario(FeedComentario c, FeedPost p) {
+        return respostaComentario(c, p, null);
+    }
+    private FeedComentarioResponseDTO respostaComentario(FeedComentario c, FeedPost p, Usuario usuario) {
+        boolean podeExcluir = usuario != null && (usuario.getPapel() == Papel.ADMIN ||
+                c.getUsuario().getId().equals(usuario.getId()) || p.getUsuario().getId().equals(usuario.getId()));
+        String respostaANome = c.getRespostaAId() == null ? null : comentarios.findByIdAndPostId(c.getRespostaAId(), p.getId())
+                .map(pai -> pai.getUsuario().getNome()).orElse("Comentário excluído");
         return new FeedComentarioResponseDTO(c.getId(), c.getUsuario().getId(), c.getUsuario().getNome(),
-                c.getUsuario().getImagemUrl(), c.getConteudo(), c.getUsuario().getId().equals(p.getUsuario().getId()), c.getCriadoEm(), false);
+                c.getUsuario().getImagemUrl(), c.getConteudo(), c.getUsuario().getId().equals(p.getUsuario().getId()),
+                c.getCriadoEm(), podeExcluir, c.getCurtidores().size(),
+                usuario != null && c.getCurtidores().contains(usuario.getId()), c.getRespostaAId(), respostaANome);
     }
 }

@@ -32,6 +32,9 @@ public class ProdutoController {
 
     private final ProdutoService produtoService;
 
+    @GetMapping("/categorias")
+    public java.util.List<String> categorias() { return produtoService.categoriasDisponiveis(); }
+
     @Autowired
     public ProdutoController(ProdutoService produtoService) {
         this.produtoService = produtoService;

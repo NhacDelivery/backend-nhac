@@ -151,9 +151,13 @@ public record PedidoCreateDTO(
 
                 @NotNull(message = "A quantidade é obrigatória.")
                 @Positive(message = "A quantidade deve ser maior que zero.")
-                Integer quantidade
+                Integer quantidade,
+                @Size(max = 100) List<@NotBlank String> adicionais
         ) {
 
+                public ItemPedidoDTO(String produtoId, String nome, String imagemUrl, Integer quantidade) {
+                        this(produtoId, nome, imagemUrl, quantidade, List.of());
+                }
                 public ItemPedido toEntity(Produto produtoReferencia) {
                         ItemPedido item = new ItemPedido();
 

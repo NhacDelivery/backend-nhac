@@ -96,6 +96,11 @@ public class UsuarioService {
         if(dados.imagemUrl() != null)
             usuario.setImagemUrl(dados.imagemUrl());
 
+        if (dados.fcmToken() != null) {
+            String token = dados.fcmToken().trim();
+            if (!token.isEmpty()) usuarioRepository.desvincularTokenDeOutrasContas(token, id);
+            usuario.setFcmToken(token.isEmpty() ? null : token);
+        }
         usuarioRepository.save(usuario);
     }
 

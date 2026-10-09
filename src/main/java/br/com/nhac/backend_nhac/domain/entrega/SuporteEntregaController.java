@@ -27,12 +27,12 @@ public class SuporteEntregaController {
     public List<SolicitacaoSuporte> listar(@PathVariable String pedidoId, @AuthenticationPrincipal Usuario usuario) {
         return service.listar(pedidoId, usuario);
     }
-    @GetMapping("/suporte/entregas") @PreAuthorize("hasRole('ADMIN')")
+    @GetMapping("/suporte/entregas") @PreAuthorize("hasRole('ADMIN') and principal.ativo and principal.papel.name() == 'ADMIN' and principal.lojaVinculadaId == null")
     public Page<SolicitacaoSuporte> fila(@RequestParam(defaultValue="ABERTO") String status,
             @RequestParam(defaultValue="0") int page) {
         return repository.findByStatusOrderByCriadoEmAsc(status, PageRequest.of(Math.max(0,page),20));
     }
-    @PutMapping("/suporte/entregas/{id}/resposta") @PreAuthorize("hasRole('ADMIN')")
+    @PutMapping("/suporte/entregas/{id}/resposta") @PreAuthorize("hasRole('ADMIN') and principal.ativo and principal.papel.name() == 'ADMIN' and principal.lojaVinculadaId == null")
     public SolicitacaoSuporte responder(@PathVariable String id, @RequestBody @Valid RespostaDTO dto) {
         return service.responder(id,dto.resposta());
     }

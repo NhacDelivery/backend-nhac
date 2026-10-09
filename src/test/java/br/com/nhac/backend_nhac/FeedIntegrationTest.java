@@ -32,6 +32,63 @@ class FeedIntegrationTest extends AbstractIntegrationTest {
     }
 
     @Test
+    void curtidaComentarioIdempotenteEEstadoPorUsuario() throws Exception {
+        String postId = criar("Post").id();
+        String comentarioId = feed.comentar(postId, autor, new FeedComentarioCreateDTO("Comentário")).id();
+        String path = "/api/v1/feed/posts/" + postId + "/comentarios/" + comentarioId + "/curtida";
+        for (int i = 0; i < 2; i++) mockMvc.perform(put(path).with(user(outro)))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.curtidas").value(1))
+                .andExpect(jsonPath("$.curtido").value(true));
+        mockMvc.perform(get("/api/v1/feed/posts/" + postId + "/comentarios").with(user(autor)))
+                .andExpect(jsonPath("$.content[0].curtidas").value(1))
+                .andExpect(jsonPath("$.content[0].curtido").value(false))
+                .andExpect(jsonPath("$.content[0].criadoEm").isNotEmpty());
+        mockMvc.perform(get("/api/v1/feed/posts/" + postId + "/comentarios").with(user(outro)))
+                .andExpect(jsonPath("$.content[0].curtido").value(true));
+        for (int i = 0; i < 2; i++) mockMvc.perform(delete(path).with(user(outro)))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.curtidas").value(0))
+                .andExpect(jsonPath("$.curtido").value(false));
+        mockMvc.perform(put(path).with(user(outro))).andExpect(status().isOk());
+        feed.remover(postId, autor);
+        assertEquals(0, jdbc.queryForObject("select count(*) from tb_feed_comentario_curtidas", Integer.class));
+    }
+
+    @Test
+    void respostaVinculadaValidaPublicacaoEIdempotencia() throws Exception {
+        String postId = criar("Post").id();
+        String pai = feed.comentar(postId, autor, new FeedComentarioCreateDTO("Pergunta")).id();
+        String path = "/api/v1/feed/posts/" + postId + "/comentarios";
+        String body = "{\"conteudo\":\"Resposta\",\"respostaAId\":\"" + pai + "\"}";
+        for (int i = 0; i < 2; i++) mockMvc.perform(post(path).with(user(outro))
+                .header("Idempotency-Key", "resposta-1").contentType(MediaType.APPLICATION_JSON).content(body))
+                .andExpect(status().isCreated()).andExpect(jsonPath("$.respostaAId").value(pai))
+                .andExpect(jsonPath("$.respostaANome").value("Autor real"));
+        assertEquals(2, feed.buscar(postId, autor).comentarios());
+        String outroPost = criar("Outro post").id();
+        mockMvc.perform(post("/api/v1/feed/posts/" + outroPost + "/comentarios").with(user(outro))
+                .contentType(MediaType.APPLICATION_JSON).content(body)).andExpect(status().isNotFound());
+        mockMvc.perform(post(path).with(user(outro)).header("Idempotency-Key", "resposta-1")
+                .contentType(MediaType.APPLICATION_JSON).content("{\"conteudo\":\"Resposta\"}"))
+                .andExpect(status().isConflict());
+        feed.removerComentario(postId, pai, autor);
+        mockMvc.perform(get(path).with(user(outro))).andExpect(status().isOk())
+                .andExpect(jsonPath("$.content[0].respostaANome").value("Comentário excluído"));
+        assertEquals(1, feed.buscar(postId, autor).comentarios());
+    }
+
+    @Test
+    void compartilhamentoPublicoEscapaConteudoEDenunciaTemControleDeAcesso() throws Exception {
+        String postId=criar("<script>alert(1)</script>").id();
+        mockMvc.perform(get("/publicacao/"+postId)).andExpect(status().isOk())
+            .andExpect(content().string(org.hamcrest.Matchers.containsString("&lt;script&gt;")))
+            .andExpect(content().string(org.hamcrest.Matchers.not(org.hamcrest.Matchers.containsString("<script>"))));
+        mockMvc.perform(post("/api/v1/feed/posts/"+postId+"/denuncias").with(user(outro)).contentType(MediaType.APPLICATION_JSON).content("{\"motivo\":\"Spam\"}"))
+            .andExpect(status().isCreated()).andExpect(jsonPath("$.status").value("ABERTA"));
+        mockMvc.perform(get("/api/v1/feed/denuncias").with(user(outro))).andExpect(status().isForbidden());
+        feed.remover(postId,autor);
+        mockMvc.perform(get("/publicacao/"+postId)).andExpect(status().isNotFound());
+    }
+    @Test
     void exigeAutenticacao() throws Exception {
         mockMvc.perform(get("/api/v1/feed/posts")).andExpect(status().isForbidden());
     }

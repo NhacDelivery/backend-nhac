@@ -1,6 +1,10 @@
 #!/usr/bin/env bash
 set -Eeuo pipefail
 
+# Ajusta apenas o helper de teste no checkout temporário do app. O backend
+# mantém a preparação do E2E sem alterar o código de produção do cliente.
+python3 "$BACKEND_DIR/.github/scripts/prepare-client-e2e.py" "$PWD"
+
 # Capture Android startup errors even when flutter test produces no test output.
 # The workflow uploads this directory after the emulator runner exits.
 mkdir -p e2e-logs

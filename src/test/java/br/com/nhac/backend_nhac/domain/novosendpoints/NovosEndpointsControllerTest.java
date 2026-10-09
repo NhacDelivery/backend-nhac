@@ -54,7 +54,12 @@ import br.com.nhac.backend_nhac.domain.usuario.dto.FuncionarioResponseDTO;
 @br.com.nhac.backend_nhac.infra.security.WebMvcControllerTest(controllers = {FuncionarioController.class, PainelController.class, FinanceiroController.class,
         ChatController.class, ConversaClienteController.class})
 @AutoConfigureMockMvc(addFilters = false)
+@org.springframework.context.annotation.Import(NovosEndpointsControllerTest.MethodSecurityConfig.class)
 class NovosEndpointsControllerTest {
+
+    @org.springframework.boot.test.context.TestConfiguration(proxyBeanMethods = false)
+    @org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity
+    static class MethodSecurityConfig {}
 
     @Autowired
     private MockMvc mockMvc;
@@ -70,6 +75,7 @@ class NovosEndpointsControllerTest {
 
     @MockitoBean
     private ChatService chatService;
+
 
     @MockitoBean
     private br.com.nhac.backend_nhac.infra.security.TokenService tokenService;
@@ -92,6 +98,36 @@ void configurarAutenticacao() {
     @AfterEach
     void limparAutenticacao() {
         SecurityContextHolder.clearContext();
+    }
+
+    @Test
+    void clienteEnviaJsonPeloService() throws Exception {
+        MensagemDTO mensagem = new MensagemDTO("msg_1", "conv_1", RemetenteTipo.CLIENTE,
+                usuario.getId(), "Olá", Instant.now());
+        when(chatService.enviarMensagem("conv_1", usuario, "Olá", null)).thenReturn(mensagem);
+        mockMvc.perform(post("/api/v1/conversas/conv_1/mensagens").with(csrf())
+                        .contentType("application/json").content("{\"conteudo\":\"Olá\"}"))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.id").value("msg_1"));
+        verify(chatService).validarConversaDoCliente("conv_1", usuario);
+        verify(chatService).enviarMensagem("conv_1", usuario, "Olá", null);
+    }
+
+    @Test
+    void lojistaNaoChegaAoServiceDoChatDoCliente() throws Exception {
+        usuario.setPapel(br.com.nhac.backend_nhac.domain.usuario.Papel.LOJISTA);
+        SecurityContextHolder.getContext().setAuthentication(
+                new UsernamePasswordAuthenticationToken(usuario, null, usuario.getAuthorities()));
+        mockMvc.perform(get("/api/v1/conversas"))
+                .andExpect(status().isForbidden());
+        org.mockito.Mockito.verifyNoInteractions(chatService);
+    }
+
+    @Test
+    void rejeitaMensagemVaziaAntesDeEnviar() throws Exception {
+        mockMvc.perform(post("/api/v1/conversas/conv_1/mensagens").with(csrf())
+                        .contentType("application/json").content("{\"conteudo\":\"   \"}"))
+                .andExpect(status().isBadRequest());
+        org.mockito.Mockito.verifyNoInteractions(chatService);
     }
 
     @Test

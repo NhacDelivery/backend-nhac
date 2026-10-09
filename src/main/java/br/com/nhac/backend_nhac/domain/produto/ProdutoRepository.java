@@ -13,6 +13,8 @@ import org.springframework.stereotype.Repository;
 
 @Repository
 public interface ProdutoRepository extends JpaRepository<Produto, String> {
+    @Query("select distinct trim(p.categoriaMenu) from Produto p where p.isAtivo=true and p.estoque>0 and p.loja.isAberto=true and trim(p.categoriaMenu)<>'' order by trim(p.categoriaMenu)")
+    java.util.List<String> categoriasDisponiveis();
 
     @Query("SELECT p FROM Produto p JOIN FETCH p.loja WHERE p.id = :id AND p.isAtivo = true")
     Optional<Produto> findByIdAndIsAtivoTrue(@Param("id") String id);
@@ -39,7 +41,7 @@ public interface ProdutoRepository extends JpaRepository<Produto, String> {
         JOIN FETCH p.loja 
         WHERE p.isAtivo = true
         AND (:lojaId IS NULL OR p.loja.id = :lojaId)
-        AND (:categoriaMenu IS NULL OR LOWER(p.categoriaMenu) = LOWER(:categoriaMenu))
+        AND (:categoriaMenu IS NULL OR LOWER(TRIM(p.categoriaMenu)) = LOWER(TRIM(:categoriaMenu)))
         AND (:nome IS NULL OR LOWER(p.nome) LIKE LOWER(CONCAT('%', :nome, '%')))
         AND (:precoMaximo IS NULL OR p.preco <= :precoMaximo)
     """,
@@ -48,7 +50,7 @@ public interface ProdutoRepository extends JpaRepository<Produto, String> {
         JOIN p.loja
         WHERE p.isAtivo = true
         AND (:lojaId IS NULL OR p.loja.id = :lojaId)
-        AND (:categoriaMenu IS NULL OR LOWER(p.categoriaMenu) = LOWER(:categoriaMenu))
+        AND (:categoriaMenu IS NULL OR LOWER(TRIM(p.categoriaMenu)) = LOWER(TRIM(:categoriaMenu)))
         AND (:nome IS NULL OR LOWER(p.nome) LIKE LOWER(CONCAT('%', :nome, '%')))
         AND (:precoMaximo IS NULL OR p.preco <= :precoMaximo)
     """)
@@ -62,13 +64,13 @@ public interface ProdutoRepository extends JpaRepository<Produto, String> {
     @Query(value = """
         SELECT p FROM Produto p
         WHERE p.loja.id = :lojaId
-        AND (:categoriaMenu IS NULL OR LOWER(p.categoriaMenu) = LOWER(:categoriaMenu))
+        AND (:categoriaMenu IS NULL OR LOWER(TRIM(p.categoriaMenu)) = LOWER(TRIM(:categoriaMenu)))
         AND (:nome IS NULL OR LOWER(p.nome) LIKE LOWER(CONCAT('%', :nome, '%')))
         """,
             countQuery = """
         SELECT COUNT(p) FROM Produto p
         WHERE p.loja.id = :lojaId
-        AND (:categoriaMenu IS NULL OR LOWER(p.categoriaMenu) = LOWER(:categoriaMenu))
+        AND (:categoriaMenu IS NULL OR LOWER(TRIM(p.categoriaMenu)) = LOWER(TRIM(:categoriaMenu)))
         AND (:nome IS NULL OR LOWER(p.nome) LIKE LOWER(CONCAT('%', :nome, '%')))
         """)
     Page<Produto> findByLoja(

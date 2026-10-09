@@ -15,6 +15,10 @@ import java.math.BigDecimal;
 @EqualsAndHashCode(of = "id")
 public class ItemPedido {
 
+    public ItemPedido(String id, Pedido pedido, Produto produto, String nome, String imagemUrl, BigDecimal precoHistorico, Integer quantidade) {
+        this.id=id; this.pedido=pedido; this.produto=produto; this.nome=nome; this.imagemUrl=imagemUrl; this.precoHistorico=precoHistorico; this.quantidade=quantidade;
+    }
+
     @Id
     @Column(updatable = false, nullable = false, length = 50)
     private String id;
@@ -38,4 +42,8 @@ public class ItemPedido {
 
     @Column(nullable = false)
     private Integer quantidade;
+    @ElementCollection
+    @CollectionTable(name = "tb_item_pedido_adicionais", joinColumns = @JoinColumn(name = "item_pedido_id"))
+    @Column(name = "descricao", nullable = false, length = 200)
+    private java.util.List<String> adicionais = new java.util.ArrayList<>();
 }

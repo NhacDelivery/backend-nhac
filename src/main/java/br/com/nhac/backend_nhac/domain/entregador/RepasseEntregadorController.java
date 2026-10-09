@@ -27,8 +27,8 @@ public class RepasseEntregadorController {
             .collect(java.util.stream.Collectors.toMap(RepasseEntregador::getPedidoId,java.util.function.Function.identity()));
         return historico.map(p -> ExtratoDTO.de(p,registros.get(p.getId())));
     }
-    @PutMapping("/suporte/repasses/{id}/apuracao") @PreAuthorize("hasRole('ADMIN')")
+    @PutMapping("/suporte/repasses/{id}/apuracao") @PreAuthorize("hasRole('ADMIN') and principal.ativo and principal.papel.name() == 'ADMIN' and principal.lojaVinculadaId == null")
     public RepasseEntregador apurar(@PathVariable String id,@RequestBody @Valid ApurarDTO dto){return service.apurar(id,dto.valorDevido());}
-    @PutMapping("/suporte/repasses/{id}/pagamento") @PreAuthorize("hasRole('ADMIN')")
+    @PutMapping("/suporte/repasses/{id}/pagamento") @PreAuthorize("hasRole('ADMIN') and principal.ativo and principal.papel.name() == 'ADMIN' and principal.lojaVinculadaId == null")
     public RepasseEntregador pago(@PathVariable String id,@RequestBody @Valid PagoDTO dto){return service.registrarPagamento(id,dto.referencia(),dto.valor(),dto.pagoEm());}
 }

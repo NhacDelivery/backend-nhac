@@ -164,7 +164,7 @@ class CatalogCacheTest {
         assertNull(caches.getCache(LOJAS).get("page"));
         assertNull(caches.getCache(PRODUTOS).get("page"));
         assertFalse(productService.buscarProdutoPorId("product").lojaAberta());
-        assertThrows(IdNaoEncontradoException.class, () -> shopService.obterLojaId("shop"));
+        assertFalse(shopService.obterLojaId("shop").isAberto());
     }
 
     @Test
