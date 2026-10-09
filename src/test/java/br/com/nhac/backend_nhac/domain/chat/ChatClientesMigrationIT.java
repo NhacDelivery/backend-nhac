@@ -25,7 +25,9 @@ class ChatClientesMigrationIT {
             }
             Flyway flyway = Flyway.configure().dataSource(db.getJdbcUrl(), db.getUsername(), db.getPassword())
                     .locations("classpath:db/migration").load();
-            assertEquals(1, flyway.migrate().migrationsExecuted);
+            int pendentes = flyway.info().pending().length;
+            assertTrue(pendentes > 0);
+            assertEquals(pendentes, flyway.migrate().migrationsExecuted);
             flyway.validate();
             try (var connection = DriverManager.getConnection(db.getJdbcUrl(), db.getUsername(), db.getPassword());
                  var s = connection.createStatement()) {
