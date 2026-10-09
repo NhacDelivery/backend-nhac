@@ -54,7 +54,12 @@ import br.com.nhac.backend_nhac.domain.usuario.dto.FuncionarioResponseDTO;
 @br.com.nhac.backend_nhac.infra.security.WebMvcControllerTest(controllers = {FuncionarioController.class, PainelController.class, FinanceiroController.class,
         ChatController.class, ConversaClienteController.class})
 @AutoConfigureMockMvc(addFilters = false)
+@org.springframework.context.annotation.Import(NovosEndpointsControllerTest.MethodSecurityConfig.class)
 class NovosEndpointsControllerTest {
+
+    @org.springframework.boot.test.context.TestConfiguration(proxyBeanMethods = false)
+    @org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity
+    static class MethodSecurityConfig {}
 
     @Autowired
     private MockMvc mockMvc;
