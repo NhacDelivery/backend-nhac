@@ -26,4 +26,9 @@ public class FeedPublicoController {
         if(fingerprints.isEmpty()) return java.util.List.of();
         return java.util.List.of(java.util.Map.of("relation",java.util.List.of("delegate_permission/common.handle_all_urls"),"target",java.util.Map.of("namespace","android_app","package_name","com.feentzs.nhac","sha256_cert_fingerprints",fingerprints)));
     }
+    @GetMapping(value="/.well-known/apple-app-site-association", produces=MediaType.APPLICATION_JSON_VALUE)
+    public java.util.Map<String,Object> associacaoApple(@org.springframework.beans.factory.annotation.Value("${nhac.ios.team-id:}") String team) {
+        var detalhes = team.matches("[A-Z0-9]{10}") ? java.util.List.of(java.util.Map.of("appID",team+".com.feentzs.nhac", "paths",java.util.List.of("/publicacao/*"))) : java.util.List.of();
+        return java.util.Map.of("applinks", java.util.Map.of("apps", java.util.List.of(), "details", detalhes));
+    }
 }

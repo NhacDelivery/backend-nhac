@@ -31,8 +31,13 @@ public class Usuario implements UserDetails {
     @Column(nullable = true, length = 100)
     private String email;
 
-    @Column(nullable = false, length = 20)
+    @Column(length = 20, unique = true)
     private String telefone;
+
+    @PrePersist @PreUpdate
+    private void normalizarTelefone() {
+        telefone = TelefoneNormalizador.normalizar(telefone);
+    }
 
     @Column(name = "imagem_url", columnDefinition = "TEXT")
     private String imagemUrl;
@@ -92,6 +97,9 @@ public class Usuario implements UserDetails {
     @Column(name = "notificar_novidades", nullable = false)
     @Builder.Default
     private boolean notificarNovidades = false;
+
+    @Column(name="preferencias_comida", length=2000)
+    private String preferenciasComida;
 
     @Override
     public Collection<? extends GrantedAuthority> getAuthorities() {

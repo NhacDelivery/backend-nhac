@@ -20,6 +20,11 @@ public interface UsuarioRepository extends JpaRepository<Usuario, String> {
 
     Optional<Usuario> findByTelefone(String telefone);
 
+    @org.springframework.data.jpa.repository.Modifying
+    @org.springframework.data.jpa.repository.Query("update Usuario u set u.fcmToken=null where u.fcmToken=:token and u.id<>:id")
+    void removerTokenDeOutrasContas(@org.springframework.data.repository.query.Param("token") String token,
+            @org.springframework.data.repository.query.Param("id") String id);
+
     boolean existsByCpfAndIdNot(String cpf, String id);
 
     @Lock(LockModeType.PESSIMISTIC_WRITE)

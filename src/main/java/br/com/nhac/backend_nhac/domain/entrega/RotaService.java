@@ -25,7 +25,7 @@ public class RotaService {
 
     private final RestClient restClient;
     private record RouteKey(String pedidoId, String nomeLoja, Object geo, Double lat, Double lng,
-            String servidor, boolean mock) {}
+            String servidor, boolean mock, boolean operacional, Object etapa, Object veiculo, Double entregadorLat, Double entregadorLng) {}
     private final com.github.benmanes.caffeine.cache.Cache<RouteKey, RotaEntregaResponseDTO> rotas =
             com.github.benmanes.caffeine.cache.Caffeine.newBuilder().maximumSize(256)
                     .expireAfterWrite(java.time.Duration.ofMinutes(15)).recordStats().build();
@@ -49,38 +49,58 @@ public class RotaService {
         this.restClient = restClient;
     }
 
-    public RotaEntregaResponseDTO calcularRota(Pedido pedido) {
+    @Value("${nhac.routing.osrm-cycling-url:${OSRM_CYCLING_URL:}}")
+    private String cyclingUrl = "";
+    public RotaEntregaResponseDTO calcularRota(Pedido pedido) { return calcularRota(pedido, false); }
+    public RotaEntregaResponseDTO calcularRota(Pedido pedido, boolean operacional) {
         if (pedido.getLoja() == null || pedido.getLoja().getGeoLocalizacao() == null)
-            return calcularSemCache(pedido);
+            return calcularSemCache(pedido, operacional);
         var geo = pedido.getLoja().getGeoLocalizacao();
         var key = new RouteKey(pedido.getId(), pedido.getLoja().getNome(),
                 java.util.List.of(geo.getGeoLat(), geo.getGeoLng()), pedido.getEntregaLatitude(),
-                pedido.getEntregaLongitude(), osrmBaseUrl, mockMode);
-        return rotas.get(key, ignored -> calcularSemCache(pedido));
+                pedido.getEntregaLongitude(), osrmBaseUrl + cyclingUrl, mockMode, operacional,
+                pedido.getStatus(), pedido.getEntregador() == null ? null : pedido.getEntregador().getTipoVeiculo(),
+                operacional && pedido.getEntregador() != null ? pedido.getEntregador().getLatitudeAtual() : null,
+                operacional && pedido.getEntregador() != null ? pedido.getEntregador().getLongitudeAtual() : null);
+        return rotas.get(key, ignored -> calcularSemCache(pedido, operacional));
     }
 
-    private RotaEntregaResponseDTO calcularSemCache(Pedido pedido) {
+    private RotaEntregaResponseDTO calcularSemCache(Pedido pedido, boolean operacional) {
         if (pedido.getLoja() == null || pedido.getLoja().getGeoLocalizacao() == null) {
-            throw new br.com.nhac.backend_nhac.exceptions.RegraDeNegocioException("Rota indisponível: a loja não possui coordenadas geográficas cadastradas. Entre em contato com a loja para corrigir o cadastro.");
+            throw new br.com.nhac.backend_nhac.exceptions.RotaDadosException("Rota indisponível: a loja não possui coordenadas geográficas cadastradas. Entre em contato com a loja para corrigir o cadastro.");
         }
 
         double origemLat = pedido.getLoja().getGeoLocalizacao().getGeoLat();
         double origemLng = pedido.getLoja().getGeoLocalizacao().getGeoLng();
 
-        if (!mockMode &&
-                (pedido.getEntregaLatitude() == null || pedido.getEntregaLongitude() == null)) {
-            throw new br.com.nhac.backend_nhac.exceptions.RegraDeNegocioException(
-                    "Rota indisponível: este pedido não possui coordenadas de entrega. Entre em contato com a loja para confirmar o endereço; em uma nova compra, confirme o endereço no checkout.");
+        boolean ateLoja = operacional && pedido.getStatus() == br.com.nhac.backend_nhac.domain.pedido.StatusPedido.PREPARANDO;
+        boolean bicicleta = operacional && pedido.getEntregador() != null &&
+                pedido.getEntregador().getTipoVeiculo() == br.com.nhac.backend_nhac.domain.entregador.TipoVeiculo.BICICLETA;
+        double destinoLat;
+        double destinoLng;
+        if (ateLoja) {
+            destinoLat = origemLat; destinoLng = origemLng;
+            var entregador = pedido.getEntregador();
+            if (entregador == null || entregador.getLatitudeAtual() == null || entregador.getLongitudeAtual() == null ||
+                    entregador.getUltimaAtualizacaoLocalizacao() == null ||
+                    entregador.getUltimaAtualizacaoLocalizacao().isBefore(java.time.Instant.now().minusSeconds(120)))
+                throw new br.com.nhac.backend_nhac.exceptions.RotaDadosException("Atualize sua localização para calcular o trajeto até a loja.");
+            origemLat = entregador.getLatitudeAtual(); origemLng = entregador.getLongitudeAtual();
+        } else {
+            if (!mockMode && (pedido.getEntregaLatitude() == null || pedido.getEntregaLongitude() == null))
+                throw new br.com.nhac.backend_nhac.exceptions.RotaDadosException("Confirme e corrija as coordenadas do destino. Repetir a consulta não recupera esse dado.");
+            destinoLat = mockMode ? -23.551000 : pedido.getEntregaLatitude();
+            destinoLng = mockMode ? -46.634000 : pedido.getEntregaLongitude();
         }
-        double destinoLat = mockMode ? -23.551000 : pedido.getEntregaLatitude();
-        double destinoLng = mockMode ? -46.634000 : pedido.getEntregaLongitude();
-
+        String servidor = bicicleta ? cyclingUrl : osrmBaseUrl;
+        if (bicicleta && !mockMode && servidor.isBlank())
+            throw new br.com.nhac.backend_nhac.exceptions.RotaDadosException("O serviço de rotas para bicicleta não foi configurado. Abra a navegação externa em modo bicicleta.");
         if (!coordenadasValidas(origemLat, origemLng)) {
-            throw new br.com.nhac.backend_nhac.exceptions.RegraDeNegocioException(
+            throw new br.com.nhac.backend_nhac.exceptions.RotaDadosException(
                     "Rota indisponível: coordenadas da loja inválidas. Solicite à loja a correção do cadastro.");
         }
         if (!coordenadasValidas(destinoLat, destinoLng)) {
-            throw new br.com.nhac.backend_nhac.exceptions.RegraDeNegocioException(
+            throw new br.com.nhac.backend_nhac.exceptions.RotaDadosException(
                     "Rota indisponível: coordenadas de entrega inválidas. Entre em contato com a loja para confirmar o endereço.");
         }
         PontoCoordenadaDTO origem = new PontoCoordenadaDTO(origemLat, origemLng);
@@ -89,7 +109,7 @@ public class RotaService {
 
         if (!mockMode) try {
             String url = String.format(Locale.US, "%s/route/v1/driving/%.6f,%.6f;%.6f,%.6f?overview=full&geometries=polyline",
-                    osrmBaseUrl, origemLng, origemLat, destinoLng, destinoLat);
+                    servidor, origemLng, origemLat, destinoLng, destinoLat);
 
             String jsonResponse = restClient.get()
                     .uri(url)
@@ -134,13 +154,13 @@ public class RotaService {
         }
 
         if (!mockMode) {
-            throw new br.com.nhac.backend_nhac.exceptions.RegraDeNegocioException(
+            throw new br.com.nhac.backend_nhac.exceptions.RotaTemporariaException(
                     "O serviço de rotas não retornou um trajeto válido. Tente carregar a rota novamente mais tarde.");
         }
         // Geometria sintética exclusiva dos testes E2E explicitamente configurados.
         double distanciaKm = EntregadorService.calcularDistanciaKm(origemLat, origemLng, destinoLat, destinoLng);
         double distanciaMetros = distanciaKm * 1000.0;
-        int duracaoMinutos = (int) Math.ceil((distanciaKm / 30.0) * 60.0); // estimativa a 30 km/h de moto
+        int duracaoMinutos = (int) Math.ceil((distanciaKm / (bicicleta ? 18.0 : 30.0)) * 60.0); // estimativa a 30 km/h de moto
 
         List<PontoCoordenadaDTO> fallbackPoints = List.of(origem, destino);
         String fallbackPolyline = codificarPolyline(fallbackPoints);

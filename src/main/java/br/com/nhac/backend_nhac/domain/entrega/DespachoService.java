@@ -132,6 +132,9 @@ public class DespachoService {
             ofertaEntregaRepository.save(oferta);
             OfertaEntregaDTO dto = new OfertaEntregaDTO(oferta);
             ofertasCriadas.add(dto);
+            eventPublisher.publishEvent(new br.com.nhac.backend_nhac.domain.notificacao.AvisoEntregadorEvent(
+                "oferta_"+oferta.getId(),entregador.getUsuario().getId(),"OFERTA","Nova oferta de corrida disponível.",
+                pedido.getId(),pedido.getLoja().getId(),pedido.getLoja().getNome(),oferta.getId()));
 
             // Dispara notificação WebSocket em tempo real para o canal específico do motoboy
             try {

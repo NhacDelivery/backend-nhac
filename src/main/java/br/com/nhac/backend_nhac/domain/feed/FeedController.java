@@ -40,8 +40,10 @@ public class FeedController {
     }
     @PutMapping("/{id}")
     public FeedPostResponseDTO atualizar(@PathVariable String id, @AuthenticationPrincipal Usuario usuario,
-            @Valid @RequestBody FeedPostCreateDTO dto) {
-        return service.atualizar(id, usuario, dto);
+            @Valid @RequestBody FeedPostCreateDTO dto,
+            @RequestHeader(value="Idempotency-Key", required=false) String chave) {
+        tentativas.executar(usuario, "editar:"+id, chave, dto, () -> service.atualizar(id, usuario, dto).id());
+        return service.buscar(id, usuario);
     }
     @DeleteMapping("/{id}") @ResponseStatus(HttpStatus.NO_CONTENT)
     public void remover(@PathVariable String id, @AuthenticationPrincipal Usuario usuario) {

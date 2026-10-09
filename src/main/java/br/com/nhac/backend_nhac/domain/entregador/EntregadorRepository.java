@@ -17,6 +17,18 @@ public interface EntregadorRepository extends JpaRepository<Entregador, String> 
 
     List<Entregador> findByStatusOperacionalAndAtivoTrue(StatusOperacional statusOperacional);
 
+    @org.springframework.data.jpa.repository.Modifying(clearAutomatically = true, flushAutomatically = true)
+    @org.springframework.data.jpa.repository.Query("""
+            update Entregador e set e.statusOperacional = br.com.nhac.backend_nhac.domain.entregador.StatusOperacional.OFFLINE,
+                e.version = e.version + 1
+            where e.statusOperacional = br.com.nhac.backend_nhac.domain.entregador.StatusOperacional.ONLINE
+              and (e.ultimaAtualizacaoLocalizacao is null or e.ultimaAtualizacaoLocalizacao < :limite)
+              and not exists (select p.id from Pedido p where p.entregador.id = e.id
+                and p.status in (br.com.nhac.backend_nhac.domain.pedido.StatusPedido.PREPARANDO,
+                                 br.com.nhac.backend_nhac.domain.pedido.StatusPedido.SAIU_ENTREGA))
+            """)
+    int expirarDisponibilidade(@org.springframework.data.repository.query.Param("limite") java.time.Instant limite);
+
     boolean existsByUsuarioId(String usuarioId);
 
     /**

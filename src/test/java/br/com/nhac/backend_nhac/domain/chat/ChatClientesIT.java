@@ -38,7 +38,7 @@ class ChatClientesIT extends AbstractIntegrationTest {
 
     private Usuario criar(String id, Papel papel) {
         Usuario u = Usuario.builder().id(id).nome("Nome " + id).email(id + "@teste.com")
-                .telefone("11900000000").senha("senha").papel(papel).build();
+                .telefone("+551190000000" + java.util.List.of("a", "b", "terceiro", "lojista", "admin").indexOf(id)).senha("senha").papel(papel).build();
         return usuarios.saveAndFlush(u);
     }
 

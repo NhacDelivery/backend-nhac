@@ -6,6 +6,7 @@ import br.com.nhac.backend_nhac.domain.loja.*;
 import br.com.nhac.backend_nhac.domain.pedido.*;
 import br.com.nhac.backend_nhac.domain.usuario.*;
 import br.com.nhac.backend_nhac.exceptions.RegraDeNegocioException;
+import br.com.nhac.backend_nhac.exceptions.RotaDadosException;
 import org.junit.jupiter.api.Test;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
 import java.time.Instant;
@@ -22,6 +23,7 @@ class AuditoriaMotoboyTest {
         var service = new EntregadorService(repository, users);
         var user = new Usuario();
         user.setId("u"); user.setPapel(Papel.CLIENTE);
+        user.setNome("Entregador de Teste");
         when(repository.save(any())).thenAnswer(i -> i.getArgument(0));
         service.cadastrar(new CadastroEntregadorDTO("12345678900", "ABC1D23",
             TipoVeiculo.MOTO, "52998224725", "Preta", "Honda"), user);
@@ -69,6 +71,6 @@ class AuditoriaMotoboyTest {
         var loja = new Loja();
         loja.setGeoLocalizacao(new GeoLocalizacao(-23.5, -46.6, "x"));
         var pedido = new Pedido(); pedido.setId("p"); pedido.setLoja(loja);
-        assertThrows(RegraDeNegocioException.class, () -> new RotaService().calcularRota(pedido));
+        assertThrows(RotaDadosException.class, () -> new RotaService().calcularRota(pedido));
     }
 }

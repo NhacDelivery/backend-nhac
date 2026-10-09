@@ -50,7 +50,7 @@ class EntregadorServiceTest {
                 "12345678900",      // cnh
                 "ABC1D23",          // placaVeiculo
                 TipoVeiculo.MOTO,   // tipoVeiculo
-                "98765432100",      // cpf
+                "52998224725",      // cpf
                 "Preta",            // corVeiculo (opcional)
                 "Honda CG 160"      // modeloVeiculo (opcional)
         );
@@ -124,6 +124,7 @@ class EntregadorServiceTest {
                 .usuario(usuario)
                 .cnh("12345678900")
                 .placaVeiculo("ABC1D23")
+                .ultimaAtualizacaoLocalizacao(Instant.now())
                 .statusOperacional(StatusOperacional.OFFLINE)
                 .ativo(true)
                 .build();
@@ -142,7 +143,8 @@ class EntregadorServiceTest {
     @Test
     void devePersistirEdicaoDeVeiculoEExporCamposAtualizados() {
         Entregador entregador = Entregador.builder().id("ent_1").usuario(usuario)
-                .statusOperacional(StatusOperacional.OFFLINE).build();
+                .ultimaAtualizacaoLocalizacao(Instant.now())
+                .cnh("12345678900").statusOperacional(StatusOperacional.OFFLINE).build();
         when(entregadorRepository.findByUsuarioId(usuario.getId())).thenReturn(Optional.of(entregador));
         when(entregadorRepository.save(any(Entregador.class))).thenAnswer(i -> i.getArgument(0));
 
@@ -170,9 +172,9 @@ class EntregadorServiceTest {
         Entregador entregador = Entregador.builder().id("ent_1").usuario(usuario)
                 .cnh("12345678900").build();
         when(entregadorRepository.findByUsuarioId(usuario.getId())).thenReturn(Optional.of(entregador));
-        when(usuarioRepository.existsByCpfAndIdNot("98765432100", usuario.getId())).thenReturn(true);
+        when(usuarioRepository.existsByCpfAndIdNot("52998224725", usuario.getId())).thenReturn(true);
         assertThrows(RegraDeNegocioException.class, () -> entregadorService.atualizarDocumentos(
-                new AtualizarDocumentosDTO("12345678901", "98765432100"), usuario));
+                new AtualizarDocumentosDTO("12345678901", "52998224725"), usuario));
         assertEquals("12345678900", entregador.getCnh());
         verify(usuarioRepository, never()).save(any());
     }
@@ -183,8 +185,8 @@ class EntregadorServiceTest {
         when(entregadorRepository.findByUsuarioId(usuario.getId())).thenReturn(Optional.of(entregador));
         when(entregadorRepository.save(any(Entregador.class))).thenAnswer(i -> i.getArgument(0));
         var documentos = entregadorService.atualizarDocumentos(
-                new AtualizarDocumentosDTO("12345678901", "98765432100"), usuario);
-        assertEquals("98765432100", documentos.cpf());
+                new AtualizarDocumentosDTO("12345678901", "52998224725"), usuario);
+        assertEquals("52998224725", documentos.cpf());
         assertEquals("12345678901", documentos.cnh());
         verify(usuarioRepository).save(usuario);
 

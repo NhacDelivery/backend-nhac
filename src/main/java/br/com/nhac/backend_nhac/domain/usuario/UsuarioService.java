@@ -56,11 +56,13 @@ public class UsuarioService {
         if (dto.email() != null && usuarioRepository.findByEmailIgnoreCase(dto.email()).isPresent()) {
             throw new RegraDeNegocioException("Este e-mail já está em uso.");
         }
-        if (dto.telefone() != null && usuarioRepository.findByTelefone(dto.telefone()).isPresent()) {
+        String telefone = TelefoneNormalizador.normalizar(dto.telefone());
+        if (telefone != null && usuarioRepository.findByTelefone(telefone).isPresent()) {
             throw new RegraDeNegocioException("Este telefone já está em uso.");
         }
 
         Usuario usuario = dto.toEntity();
+        usuario.setTelefone(telefone);
 
         if (dto.senha() != null && !dto.senha().isBlank()) {
             usuario.setSenha(passwordEncoder.encode(dto.senha()));
@@ -69,6 +71,21 @@ public class UsuarioService {
         usuarioRepository.save(usuario);
     }
 
+    @org.springframework.transaction.annotation.Transactional(readOnly=true)
+    public UsuarioController.PreferenciasComidaDTO preferenciasComida(String id) {
+        var u=usuarioRepository.findById(id).orElseThrow(() -> new br.com.nhac.backend_nhac.exceptions.IdNaoEncontradoException("Usuário não encontrado."));
+        return new UsuarioController.PreferenciasComidaDTO(u.getPreferenciasComida()==null ? null : java.util.Arrays.stream(u.getPreferenciasComida().split("\\n")).filter(v -> !v.isBlank()).toList());
+    }
+    @org.springframework.transaction.annotation.Transactional
+    public UsuarioController.PreferenciasComidaDTO salvarPreferenciasComida(String id, UsuarioController.PreferenciasComidaDTO dto) {
+        if(dto.preferencias()==null || dto.preferencias().size()>30 || dto.preferencias().stream().anyMatch(v -> v == null || v.isBlank() || v.length()>80 || v.contains("\n") || v.contains("\r")))
+            throw new br.com.nhac.backend_nhac.exceptions.RegraDeNegocioException("Preferências inválidas.");
+        var u=usuarioRepository.findLockedById(id).orElseThrow(() -> new br.com.nhac.backend_nhac.exceptions.IdNaoEncontradoException("Usuário não encontrado."));
+        String preferencias = String.join("\n", dto.preferencias().stream().map(String::trim).distinct().sorted().toList());
+        if (preferencias.length()>2000) throw new RegraDeNegocioException("Preferências inválidas.");
+        u.setPreferenciasComida(preferencias);
+        return preferenciasComida(id);
+    }
     @Transactional
     public void atualizarUsuarioParcial(String id, UsuarioAtualizarDTO dados) {
         Usuario usuario = usuarioRepository.findById(id)
@@ -83,13 +100,15 @@ public class UsuarioService {
             }
             usuario.setEmail(dados.email());
         }
-        if(dados.telefone() != null)
-            usuario.setTelefone(dados.telefone());
+        if (dados.telefone() != null && !java.util.Objects.equals(TelefoneNormalizador.normalizar(dados.telefone()), TelefoneNormalizador.normalizar(usuario.getTelefone()))) {
+            throw new RegraDeNegocioException("Confirme o novo telefone por SMS antes de alterá-lo.");
+        }
         if(dados.imagemUrl() != null)
             usuario.setImagemUrl(dados.imagemUrl());
 
         if (dados.fcmToken() != null) {
             String token = dados.fcmToken().trim();
+            if (token.length() > 255) throw new RegraDeNegocioException("Token do aparelho inválido.");
             if (!token.isEmpty()) usuarioRepository.desvincularTokenDeOutrasContas(token, id);
             usuario.setFcmToken(token.isEmpty() ? null : token);
         }

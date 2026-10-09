@@ -157,7 +157,10 @@ public class AuthController {
         novoUsuario.setId(body.id());
         novoUsuario.setNome(body.nome());
         novoUsuario.setEmail(body.email());
-        novoUsuario.setTelefone(body.telefone());
+        String telefone = br.com.nhac.backend_nhac.domain.usuario.TelefoneNormalizador.normalizar(body.telefone());
+        if (telefone != null && usuarioRepository.findByTelefone(telefone).isPresent())
+            throw new RegraDeNegocioException("Este telefone já está em uso.");
+        novoUsuario.setTelefone(telefone);
         novoUsuario.setSenha(passwordEncoder.encode(body.senha()));
         novoUsuario.setEnderecos(new ArrayList<>());
         novoUsuario.setEmailVerificado(true);

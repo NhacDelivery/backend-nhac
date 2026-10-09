@@ -50,13 +50,20 @@ public class EntregadorService {
             throw new RegraDeNegocioException("Contas de loja não podem se cadastrar como entregador.");
         }
 
+        if (usuario.getNome() == null || usuario.getNome().isBlank() || "Novo Usuário".equals(usuario.getNome())) {
+            throw new RegraDeNegocioException("Complete seu nome antes de cadastrar o entregador.");
+        }
+        String cpf = ValidacaoEntregador.cpf(dto.cpf());
+        if (usuarioRepository.existsByCpfAndIdNot(cpf, usuario.getId())) {
+            throw new RegraDeNegocioException("Este CPF já está em uso por outra conta.");
+        }
         Entregador entregador = Entregador.builder()
                 .id(UUID.randomUUID().toString())
                 .usuario(usuario)
-                .cnh(dto.cnh())
+                .cnh(ValidacaoEntregador.cnh(dto.cnh(), dto.tipoVeiculo()))
                 .corVeiculo(dto.corVeiculo())
                 .modeloVeiculo(dto.modeloVeiculo())
-                .placaVeiculo(dto.placaVeiculo())
+                .placaVeiculo(ValidacaoEntregador.placa(dto.placaVeiculo(), dto.tipoVeiculo()))
                 .tipoVeiculo(dto.tipoVeiculo())
                 .statusOperacional(StatusOperacional.OFFLINE)
                 .ativo(true)
@@ -73,7 +80,7 @@ public class EntregadorService {
         // SecurityFilter/StompAuthChannelInterceptor, que somam
         // ROLE_ENTREGADOR às authorities sem depender deste campo.
 
-        usuario.setCpf(dto.cpf().replaceAll("\\D", ""));
+        usuario.setCpf(cpf);
         usuarioRepository.save(usuario);
         Entregador salvo = entregadorRepository.save(entregador);
         return new EntregadorResponseDTO(salvo);
@@ -91,8 +98,10 @@ public class EntregadorService {
         if (entregador.getStatusOperacional() == StatusOperacional.EM_ENTREGA) {
             throw new RegraDeNegocioException("Não é possível trocar o veículo durante uma entrega.");
         }
+        // Trocar bicicleta por veículo motorizado exige CNH já cadastrada.
+        entregador.setCnh(ValidacaoEntregador.cnh(dto.cnh() == null ? entregador.getCnh() : dto.cnh(), dto.tipoVeiculo()));
         entregador.setTipoVeiculo(dto.tipoVeiculo());
-        entregador.setPlacaVeiculo(dto.placaVeiculo().trim().toUpperCase(Locale.ROOT));
+        entregador.setPlacaVeiculo(ValidacaoEntregador.placa(dto.placaVeiculo(), dto.tipoVeiculo()));
         entregador.setModeloVeiculo(dto.modeloVeiculo() == null ? null : dto.modeloVeiculo().trim());
         entregador.setCorVeiculo(dto.corVeiculo() == null ? null : dto.corVeiculo().trim());
         return new EntregadorResponseDTO(entregadorRepository.save(entregador));
@@ -101,11 +110,12 @@ public class EntregadorService {
     @Transactional
     public EntregadorResponseDTO atualizarDocumentos(AtualizarDocumentosDTO dto, Usuario usuario) {
         Entregador entregador = buscarPorUsuario(usuario);
-        if (usuarioRepository.existsByCpfAndIdNot(dto.cpf(), usuario.getId())) {
+        String cpf = ValidacaoEntregador.cpf(dto.cpf());
+        if (usuarioRepository.existsByCpfAndIdNot(cpf, usuario.getId())) {
             throw new RegraDeNegocioException("Este CPF já está em uso por outra conta.");
         }
-        usuario.setCpf(dto.cpf());
-        entregador.setCnh(dto.cnh());
+        usuario.setCpf(cpf);
+        entregador.setCnh(ValidacaoEntregador.cnh(dto.cnh(), entregador.getTipoVeiculo()));
         usuarioRepository.save(usuario);
         return new EntregadorResponseDTO(entregadorRepository.save(entregador));
     }
@@ -114,7 +124,7 @@ public class EntregadorService {
     public EntregadorResponseDTO atualizarDadosBancarios(AtualizarDadosBancariosDTO dto, Usuario usuario) {
         Entregador entregador = buscarPorUsuario(usuario);
         entregador.setTipoChavePix(dto.tipoChavePix());
-        entregador.setChavePix(dto.chavePix().trim());
+        entregador.setChavePix(ValidacaoEntregador.pix(dto.tipoChavePix(), dto.chavePix()));
         return new EntregadorResponseDTO(entregadorRepository.save(entregador));
     }
 
@@ -136,6 +146,11 @@ public class EntregadorService {
                     "Não é possível alterar manualmente o status durante uma entrega ativa.");
         }
 
+        if (dto.statusOperacional() == StatusOperacional.ONLINE &&
+                (entregador.getUltimaAtualizacaoLocalizacao() == null ||
+                entregador.getUltimaAtualizacaoLocalizacao().isBefore(Instant.now().minusSeconds(localizacaoMaxAgeSeconds)))) {
+            throw new RegraDeNegocioException("Atualize sua localização antes de ficar online.");
+        }
         entregador.setStatusOperacional(dto.statusOperacional());
         Entregador salvo = entregadorRepository.save(entregador);
         return new EntregadorResponseDTO(salvo);

@@ -44,6 +44,12 @@ public class E2EDataLoader implements CommandLineRunner {
     public static final String PRODUCT_ID = "e2e-produto-001";
     public static final String MERCHANT_ORDER_ID = "e2e-pedido-lojista-001";
 
+    @org.springframework.beans.factory.annotation.Value("${E2E_PASSWORD:}")
+    private String fixturePassword;
+    private String senhaFixture() {
+        if (fixturePassword == null || fixturePassword.length()<12) throw new IllegalStateException("Defina E2E_PASSWORD com uma senha temporária de pelo menos 12 caracteres para o backend isolado.");
+        return fixturePassword;
+    }
     private final JdbcTemplate jdbcTemplate;
     private final UsuarioRepository usuarioRepository;
     private final EnderecoUsuarioRepository enderecoRepository;
@@ -80,7 +86,7 @@ public class E2EDataLoader implements CommandLineRunner {
         cliente.setEmail("e2e.cliente@nhac.local");
         cliente.setTelefone("+5511999990001");
         cliente.setImagemUrl("");
-        cliente.setSenha(passwordEncoder.encode("NhacE2E#123"));
+        cliente.setSenha(passwordEncoder.encode(senhaFixture()));
         cliente.setEnderecos(new ArrayList<>());
         cliente.setPapel(Papel.CLIENTE);
         cliente.setTelefoneVerificado(true);
@@ -205,7 +211,7 @@ public class E2EDataLoader implements CommandLineRunner {
         usuario.setEmail(email);
         usuario.setTelefone(telefone);
         usuario.setImagemUrl("");
-        usuario.setSenha(passwordEncoder.encode("NhacE2E#123"));
+        usuario.setSenha(passwordEncoder.encode(senhaFixture()));
         usuario.setEnderecos(new ArrayList<>());
         usuario.setPapel(papel);
         usuario.setTelefoneVerificado(true);

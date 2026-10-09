@@ -61,7 +61,7 @@ class EnderecoUsuarioRepositoryTest {
         usuario.setId(id);
         usuario.setNome("Cliente teste");
         usuario.setEmail(id + "@nhac.local");
-        usuario.setTelefone("11999990000");
+        usuario.setTelefone(String.format("+55119999%05d", Math.floorMod(id.hashCode(), 100000)));
         return usuarioRepository.saveAndFlush(usuario);
     }
 

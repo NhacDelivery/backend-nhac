@@ -86,7 +86,7 @@ public class GoogleAuthService {
             novoUsuario.setImagemUrl(imagemUrl);
             novoUsuario.setEnderecos(new ArrayList<>());
             novoUsuario.setEmailVerificado(true);
-            novoUsuario.setTelefone("00000000000");
+            novoUsuario.setTelefone(null);
 
             novoUsuario.setSenha(null);
 

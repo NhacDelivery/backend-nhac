@@ -37,6 +37,27 @@ class UsuarioServiceTest {
     @InjectMocks private UsuarioService usuarioService;
 
     @Test
+    void distinguePreferenciasAusentesDeEscolhaVazia() {
+        var usuario = new Usuario(); usuario.setId("cliente");
+        when(usuarioRepository.findById("cliente")).thenReturn(Optional.of(usuario));
+        assertNull(usuarioService.preferenciasComida("cliente").preferencias());
+        usuario.setPreferenciasComida("");
+        assertEquals(List.of(), usuarioService.preferenciasComida("cliente").preferencias());
+    }
+    @Test
+    void sincronizaPreferenciasSemDuplicatas() {
+        var usuario = new Usuario(); usuario.setId("cliente");
+        when(usuarioRepository.findLockedById("cliente")).thenReturn(Optional.of(usuario));
+        when(usuarioRepository.findById("cliente")).thenReturn(Optional.of(usuario));
+        var salvas = usuarioService.salvarPreferenciasComida("cliente", new UsuarioController.PreferenciasComidaDTO(List.of(" Pizza ", "Pizza", "Sushi")));
+        assertEquals(List.of("Pizza", "Sushi"), salvas.preferencias());
+    }
+    @Test
+    void rejeitaPreferenciasComQuebraDeLinha() {
+        assertThrows(RegraDeNegocioException.class, () -> usuarioService.salvarPreferenciasComida("cliente", new UsuarioController.PreferenciasComidaDTO(List.of("Pizza\nSushi"))));
+        verifyNoInteractions(usuarioRepository);
+    }
+    @Test
     void estatisticasContamCuponsRecebidosMesmoSemPedido() {
         when(usuarioRepository.existsById("cliente")).thenReturn(true);
         when(cupomRepository.countByUsuarioId("cliente")).thenReturn(2L);
@@ -164,14 +185,24 @@ class UsuarioServiceTest {
         when(usuarioRepository.findById("user_1")).thenReturn(Optional.of(usuario));
 
         UsuarioAtualizarDTO dados = new UsuarioAtualizarDTO(
-                "Novo Nome", null, "11888887777", null, null, null
+                "Novo Nome", null, null, null, null, null
         );
 
         usuarioService.atualizarUsuarioParcial("user_1", dados);
 
         assertEquals("Novo Nome", usuario.getNome());
-        assertEquals("11888887777", usuario.getTelefone());
+        assertEquals("11999998888", usuario.getTelefone());
         verify(usuarioRepository).save(usuario);
+    }
+
+    @Test
+    void rejeitaTrocaDeTelefoneSemSms() {
+        Usuario usuario = usuarioPadrao("user_1");
+        when(usuarioRepository.findById("user_1")).thenReturn(Optional.of(usuario));
+        var dados = new UsuarioAtualizarDTO(null, null, "+5511888887777", null, null, null);
+        assertThrows(RegraDeNegocioException.class, () -> usuarioService.atualizarUsuarioParcial("user_1", dados));
+        assertEquals("11999998888", usuario.getTelefone());
+        verify(usuarioRepository, never()).save(any());
     }
 
     @Test
