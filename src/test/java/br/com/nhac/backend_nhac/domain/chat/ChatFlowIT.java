@@ -207,6 +207,26 @@ String conversaId = chatService.obterOuCriarConversa(lojaA.getId(), cliente).get
     }
 
     @Test
+    void clienteListaConversaComLojaEEnviaPeloRest() throws Exception {
+        String conversaId = abrirConversaComLoja(lojaA.getId());
+        mockMvc.perform(post("/api/v1/conversas/" + conversaId + "/mensagens")
+                        .header("Authorization", "Bearer " + tokenCliente)
+                        .contentType(org.springframework.http.MediaType.APPLICATION_JSON)
+                        .content("{\"conteudo\":\"Olá loja\"}"))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.remetenteTipo").value("CLIENTE"));
+        chatService.enviarMensagem(conversaId, donoA, "Olá cliente");
+        mockMvc.perform(get("/api/v1/conversas").header("Authorization", "Bearer " + tokenCliente))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.content.length()").value(1))
+                .andExpect(jsonPath("$.content[0].tipo").value("LOJA"))
+                .andExpect(jsonPath("$.content[0].interlocutor.id").value(lojaA.getId()))
+                .andExpect(jsonPath("$.content[0].naoLidas").value(1));
+        mockMvc.perform(patch("/api/v1/conversas/" + conversaId + "/lida")
+                        .header("Authorization", "Bearer " + tokenCliente))
+                .andExpect(status().isNoContent());
+        assertEquals(0, conversaRepository.findById(conversaId).orElseThrow().getNaoLidasCliente());
+    }
+
+    @Test
     void clienteComPerfilEntregadorAtivoDeveUsarOsDoisPapeis() throws Exception {
         Entregador perfil = Entregador.builder()
                 .id("ent-chat")
@@ -231,6 +251,12 @@ String conversaId = chatService.obterOuCriarConversa(lojaA.getId(), cliente).get
                         .header("Authorization", "Bearer " + tokenCliente))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.id").isNotEmpty());
+
+        mockMvc.perform(get("/api/v1/entregador/conversas").header("Authorization", "Bearer " + tokenCliente))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.content.length()").value(1))
+                .andExpect(jsonPath("$.content[0].interlocutor.id").value(lojaA.getId()));
+        mockMvc.perform(get("/api/v1/conversas").header("Authorization", "Bearer " + tokenCliente))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.content.length()").value(1));
 
         assertEquals(Papel.CLIENTE,
                 usuarioRepository.findById(cliente.getId()).orElseThrow().getPapel());

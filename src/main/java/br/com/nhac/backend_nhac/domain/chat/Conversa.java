@@ -21,19 +21,15 @@ import lombok.NoArgsConstructor;
 import lombok.Setter;
 
 /**
- * Um canal contínuo entre uma Loja e UM participante do outro lado — que pode
- * ser um CLIENTE (chat de pedido/dúvida) ou, desde a V039, um ENTREGADOR
- * (combinar retirada, avisar atraso, etc). Os dois tipos nunca coexistem na
- * mesma Conversa: são canais paralelos e independentes, cada um com seu
- * próprio par único (loja, participante, tipo).
- *
- * O nome da coluna/campo "clienteId" foi mantido por compatibilidade — ela
- * guarda o id do usuário do lado participante, seja ele CLIENTE ou
- * ENTREGADOR. Renomear a coluna exigiria migração de dados sem benefício
- * real; participanteTipo já deixa o significado explícito.
+ * Canal contínuo loja/participante (CLIENTE ou ENTREGADOR), ou entre dois clientes.
+ * No chat direto, loja é nula e os IDs dos clientes são armazenados em ordem
+ * canônica. Os campos antigos são preservados para compatibilidade dos canais
+ * de loja: naoLidasCliente pertence ao primeiro cliente e naoLidasLoja ao segundo.
  */
 @Entity
-@Table(name = "tb_conversas", uniqueConstraints = @UniqueConstraint(columnNames = {"loja_id", "cliente_id", "participante_tipo"}))
+@Table(name = "tb_conversas", uniqueConstraints = {
+        @UniqueConstraint(columnNames = {"loja_id", "cliente_id", "participante_tipo"}),
+        @UniqueConstraint(columnNames = {"cliente_id", "segundo_cliente_id"})})
 @Getter
 @Setter
 @NoArgsConstructor
@@ -46,12 +42,16 @@ public class Conversa {
     private String id;
 
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "loja_id", nullable = false)
+    @JoinColumn(name = "loja_id")
     private Loja loja;
 
     /** Id do usuário do lado participante (cliente OU entregador — ver participanteTipo). */
     @Column(name = "cliente_id", nullable = false, length = 50)
     private String clienteId;
+
+    /** Apenas no chat direto: os dois IDs são persistidos em ordem canônica. */
+    @Column(name = "segundo_cliente_id", length = 50)
+    private String segundoClienteId;
 
     @Enumerated(EnumType.STRING)
     @Column(name = "participante_tipo", nullable = false, length = 20)
@@ -77,7 +77,7 @@ public class Conversa {
      * Optimistic lock: duas mensagens simultâneas na mesma conversa disparam
      * UPDATE nos contadores nao_lidas_*. Sem @Version, a última transação
      * sobrescreve a anterior e o contador fica errado.
-     * Com @Version, a segunda recebe OptimisticLockException e o Spring retenta.
+     * Com @Version, uma alteração concorrente não pode sobrescrever a anterior.
      */
     @Version
     @Column(name = "version", nullable = false)
@@ -101,6 +101,41 @@ public class Conversa {
      */
     public Conversa(String id, Loja loja, String participanteId) {
         this(id, loja, participanteId, ParticipanteTipo.CLIENTE);
+    }
+
+    public static Conversa entreClientes(String id, String primeiroId, String segundoId) {
+        Conversa conversa = new Conversa(id, null, primeiroId);
+        conversa.segundoClienteId = segundoId;
+        return conversa;
+    }
+
+    public boolean isEntreClientes() {
+        return segundoClienteId != null;
+    }
+
+    public boolean temCliente(String usuarioId) {
+        return clienteId.equals(usuarioId) || (isEntreClientes() && segundoClienteId.equals(usuarioId));
+    }
+
+    /** No chat direto, naoLidasLoja guarda as não lidas do segundo cliente. */
+    public void registrarNovaMensagem(RemetenteTipo remetente, String remetenteId, String preview) {
+        if (!isEntreClientes()) {
+            registrarNovaMensagem(remetente, preview);
+            return;
+        }
+        ultimaMensagemEm = Instant.now();
+        ultimaMensagemPreview = preview;
+        if (clienteId.equals(remetenteId)) naoLidasLoja++;
+        else naoLidasCliente++;
+    }
+
+    public int naoLidasPara(String usuarioId) {
+        return clienteId.equals(usuarioId) ? naoLidasCliente : naoLidasLoja;
+    }
+
+    public void marcarComoLidaPor(String usuarioId) {
+        if (clienteId.equals(usuarioId)) marcarComoLidaPeloCliente();
+        else marcarComoLidaPelaLoja();
     }
 
     public void registrarNovaMensagem(RemetenteTipo remetente, String preview) {

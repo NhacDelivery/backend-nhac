@@ -16,6 +16,7 @@ import org.springframework.web.bind.annotation.RestController;
 
 import br.com.nhac.backend_nhac.domain.chat.ConversaClienteController.ConversaAbertaDTO;
 import br.com.nhac.backend_nhac.domain.chat.dto.ChatDTOs.MensagemDTO;
+import br.com.nhac.backend_nhac.domain.chat.dto.ChatDTOs.ConversaClienteResumoDTO;
 import br.com.nhac.backend_nhac.domain.usuario.Usuario;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -45,6 +46,15 @@ public class ConversaEntregadorController {
 
     public ConversaEntregadorController(ChatService chatService) {
         this.chatService = chatService;
+    }
+
+    @Operation(summary = "Listar conversas do entregador", description = "Conversas com lojas, mais recentes primeiro. Paginação limitada a 100 itens.")
+    @GetMapping
+    @PreAuthorize("hasAnyRole('ENTREGADOR', 'ADMIN')")
+    public ResponseEntity<Page<ConversaClienteResumoDTO>> listar(
+            @AuthenticationPrincipal Usuario usuario,
+            @PageableDefault(size = 20) Pageable pageable) {
+        return ResponseEntity.ok(chatService.listarConversasDoEntregador(usuario, pageable));
     }
 
     @Operation(
