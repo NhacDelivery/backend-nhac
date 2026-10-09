@@ -24,11 +24,8 @@ import java.util.Map;
  *   - envia mensagem publicando em /app/conversas/{conversaId}/enviar
  *   - recebe mensagens novas assinando /topic/conversas/{conversaId}
  *
- * Quem pode assinar um /topic/conversas/{id} não é validado aqui (o broker
- * simples do Spring não checa isso por padrão) — a validação real de "você
- * pode ver essa conversa" acontece no envio (resolverTipoRemetente) e no
- * histórico REST (ChatController). Ver nota no README sobre isso se for pra
- * produção: dá pra adicionar um DestinationMatcher customizado depois.
+ * SUBSCRIBE é autorizado pelo StompAuthChannelInterceptor; SEND, pelo ChatService.
+ * Chats diretos permitem somente os dois clientes, inclusive para assinatura.
  */
 @Controller
 @Validated
@@ -43,7 +40,7 @@ public class ChatWebSocketController {
     }
 
     @MessageMapping("/conversas/{conversaId}/enviar")
-    public void enviar(@DestinationVariable String conversaId, EnviarMensagemDTO dto, Principal principal) {
+    public void enviar(@DestinationVariable String conversaId, @jakarta.validation.Valid EnviarMensagemDTO dto, Principal principal) {
         Usuario remetente = extrairUsuario(principal);
         MensagemDTO mensagem = chatService.enviarMensagem(conversaId, remetente, dto.conteudo(), dto.clientMessageId());
         messagingTemplate.convertAndSend("/topic/conversas/" + conversaId, mensagem);
@@ -53,6 +50,12 @@ public class ChatWebSocketController {
     @SendToUser("/queue/erros")
     public Map<String, String> tratarErroDeNegocio(NhacException e) {
         return Map.of("erro", e.getMessage());
+    }
+
+    @MessageExceptionHandler(org.springframework.messaging.handler.annotation.support.MethodArgumentNotValidException.class)
+    @SendToUser("/queue/erros")
+    public Map<String, String> tratarPayloadInvalido(Exception e) {
+        return Map.of("erro", "Mensagem inválida. Envie conteudo com 1 a 4000 caracteres e clientMessageId em formato UUID.");
     }
 
     private Usuario extrairUsuario(Principal principal) {

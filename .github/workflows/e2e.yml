@@ -112,6 +112,15 @@ jobs:
           echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
           sudo udevadm control --reload-rules
           sudo udevadm trigger --name-match=kvm
+          # trigger é assíncrono: aguarda a regra antes de verificar o dispositivo.
+          sudo udevadm settle --timeout=30
+          if [ ! -c /dev/kvm ]; then
+            echo '::error::O runner não disponibilizou /dev/kvm para o emulador Android.'
+            exit 1
+          fi
+          # Garante acesso na sessão atual, sem depender de atualização de grupos.
+          sudo chmod a+rw /dev/kvm
+          ls -l /dev/kvm
           test -r /dev/kvm && test -w /dev/kvm
 
       - name: Run isolated Android E2E three times

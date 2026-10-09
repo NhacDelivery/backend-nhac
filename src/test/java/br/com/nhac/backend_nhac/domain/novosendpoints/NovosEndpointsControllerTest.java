@@ -72,6 +72,9 @@ class NovosEndpointsControllerTest {
     private ChatService chatService;
 
     @MockitoBean
+    private org.springframework.messaging.simp.SimpMessagingTemplate messagingTemplate;
+
+    @MockitoBean
     private br.com.nhac.backend_nhac.infra.security.TokenService tokenService;
 
     @MockitoBean
@@ -92,6 +95,26 @@ void configurarAutenticacao() {
     @AfterEach
     void limparAutenticacao() {
         SecurityContextHolder.clearContext();
+    }
+
+    @Test
+    void clienteEnviaJsonEPublicaNoTopico() throws Exception {
+        MensagemDTO mensagem = new MensagemDTO("msg_1", "conv_1", RemetenteTipo.CLIENTE,
+                usuario.getId(), "Olá", Instant.now());
+        when(chatService.enviarMensagem("conv_1", usuario, "Olá", null)).thenReturn(mensagem);
+        mockMvc.perform(post("/api/v1/conversas/conv_1/mensagens").with(csrf())
+                        .contentType("application/json").content("{\"conteudo\":\"Olá\"}"))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.id").value("msg_1"));
+        verify(chatService).validarConversaDoCliente("conv_1", usuario);
+        verify(messagingTemplate).convertAndSend("/topic/conversas/conv_1", mensagem);
+    }
+
+    @Test
+    void rejeitaMensagemVaziaAntesDeEnviar() throws Exception {
+        mockMvc.perform(post("/api/v1/conversas/conv_1/mensagens").with(csrf())
+                        .contentType("application/json").content("{\"conteudo\":\"   \"}"))
+                .andExpect(status().isBadRequest());
+        org.mockito.Mockito.verifyNoInteractions(messagingTemplate, chatService);
     }
 
     @Test

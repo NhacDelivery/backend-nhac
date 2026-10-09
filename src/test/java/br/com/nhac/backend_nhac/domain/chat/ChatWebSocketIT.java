@@ -53,6 +53,7 @@ public class ChatWebSocketIT extends AbstractIntegrationTest {
     @Autowired private ConversaRepository conversaRepository;
     @Autowired private MensagemRepository mensagemRepository;
     @Autowired private TokenService tokenService;
+    @Autowired private ChatService chatService;
 
     private Usuario donoA;
     private Usuario clienteA;
@@ -118,6 +119,65 @@ public class ChatWebSocketIT extends AbstractIntegrationTest {
     // ============================================================
     // 2) CONNECT sem token é recusado
     // ============================================================
+    @Test
+    void chatEntreClientesEntregaNosDoisSentidosERestPublicaNoMesmoTopico() throws Exception {
+        String id = chatService.obterOuCriarConversaEntreClientes(clienteB.getId(), clienteA).getId();
+        WebSocketStompClient client = criarClienteStomp();
+        StompSession a = conectar(client, tokenService.gerarToken(clienteA));
+        StompSession b = conectar(client, tokenService.gerarToken(clienteB));
+        BlockingQueue<MensagemDTO> recebidasA = new LinkedBlockingQueue<>();
+        BlockingQueue<MensagemDTO> recebidasB = new LinkedBlockingQueue<>();
+        try {
+            a.subscribe("/topic/conversas/" + id, receptor(recebidasA));
+            b.subscribe("/topic/conversas/" + id, receptor(recebidasB));
+            Thread.sleep(500); // SimpleBroker não confirma receipts de SUBSCRIBE.
+            a.send("/app/conversas/" + id + "/enviar", new EnviarMensagemDTO("Oi B"));
+            assertEquals(clienteA.getId(), recebidasA.poll(TIMEOUT_SECONDS, TimeUnit.SECONDS).remetenteUsuarioId());
+            assertEquals("Oi B", recebidasB.poll(TIMEOUT_SECONDS, TimeUnit.SECONDS).conteudo());
+            b.send("/app/conversas/" + id + "/enviar", new EnviarMensagemDTO("Oi A"));
+            assertEquals(clienteB.getId(), recebidasA.poll(TIMEOUT_SECONDS, TimeUnit.SECONDS).remetenteUsuarioId());
+            assertEquals("Oi A", recebidasB.poll(TIMEOUT_SECONDS, TimeUnit.SECONDS).conteudo());
+            mockMvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders
+                            .post("/api/v1/conversas/" + id + "/mensagens")
+                            .header("Authorization", "Bearer " + tokenService.gerarToken(clienteA))
+                            .contentType(org.springframework.http.MediaType.APPLICATION_JSON)
+                            .content("{\"conteudo\":\"Via REST\"}"))
+                    .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.status().isOk());
+            assertEquals("Via REST", recebidasB.poll(TIMEOUT_SECONDS, TimeUnit.SECONDS).conteudo());
+            assertEquals(3, mensagemRepository.countByConversaId(id));
+        } finally {
+            a.disconnect(); b.disconnect(); client.stop();
+        }
+    }
+
+    private StompFrameHandler receptor(BlockingQueue<MensagemDTO> fila) {
+        return new StompFrameHandler() {
+            @Override public Type getPayloadType(StompHeaders headers) { return MensagemDTO.class; }
+            @Override public void handleFrame(StompHeaders headers, Object payload) { fila.add((MensagemDTO) payload); }
+        };
+    }
+
+    @Test
+    void lojistaNaoPodeAssinarChatDiretoEntreClientes() throws Exception {
+        String id = chatService.obterOuCriarConversaEntreClientes(clienteB.getId(), clienteA).getId();
+        WebSocketStompClient client = criarClienteStomp();
+        BlockingQueue<String> erros = new LinkedBlockingQueue<>();
+        StompHeaders headers = new StompHeaders();
+        headers.add("Authorization", "Bearer " + tokenService.gerarToken(donoA));
+        StompSession session = client.connectAsync("ws://localhost:" + port + "/ws-native",
+                new WebSocketHttpHeaders(), headers, new StompSessionHandlerAdapter() {
+                    @Override public void handleFrame(StompHeaders h, Object payload) { erros.add("ERROR"); }
+                    @Override public void handleTransportError(StompSession s, Throwable e) { erros.add("CLOSED"); }
+                }).get(TIMEOUT_SECONDS, TimeUnit.SECONDS);
+        try {
+            session.subscribe("/topic/conversas/" + id, receptor(new LinkedBlockingQueue<>()));
+            assertNotNull(erros.poll(TIMEOUT_SECONDS, TimeUnit.SECONDS), "Servidor deve recusar a assinatura com ERROR ou fechar conexão");
+        } finally {
+            if (session.isConnected()) session.disconnect();
+            client.stop();
+        }
+    }
+
     @Test
     @DisplayName("CONNECT sem token é recusado (o interceptor lança WebSocketAutenticacaoException)")
     void connectSemTokenFalha() {

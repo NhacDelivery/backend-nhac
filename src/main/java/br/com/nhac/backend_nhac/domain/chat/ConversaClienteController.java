@@ -14,29 +14,57 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 import br.com.nhac.backend_nhac.domain.chat.dto.ChatDTOs.MensagemDTO;
+import br.com.nhac.backend_nhac.domain.chat.dto.ChatDTOs.ConversaClienteResumoDTO;
+import br.com.nhac.backend_nhac.domain.chat.dto.ChatDTOs.EnviarMensagemDTO;
 import br.com.nhac.backend_nhac.domain.usuario.Usuario;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.Valid;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.messaging.simp.SimpMessagingTemplate;
 
-/**
- * Endpoints do app do cliente para o chat:
- *  - POST  /conversas/lojas/{lojaId}          → abre/obtém a conversa com a loja (idempotente)
- *  - GET   /conversas/{conversaId}/mensagens  → histórico da conversa (paginado, mais recentes primeiro)
- *  - PATCH /conversas/{conversaId}/lida       → marca a conversa como lida pelo cliente
- *
- * O envio de mensagem é via WebSocket (ChatWebSocketController).
- */
+/** Caixa de conversas, abertura, envio REST, histórico e leitura do cliente. */
 @RestController
 @RequestMapping("/api/v1/conversas")
-@Tag(name = "Chat (cliente)", description = "Endpoints do app do cliente: abrir conversa com uma loja, ler o histórico e marcar como lida")
+@Tag(name = "Chat (cliente)", description = "Conversas com lojas e outros clientes, envio, histórico e leitura")
 public class ConversaClienteController {
 
     private final ChatService chatService;
+    private final SimpMessagingTemplate messagingTemplate;
 
-    public ConversaClienteController(ChatService chatService) {
+    public ConversaClienteController(ChatService chatService, SimpMessagingTemplate messagingTemplate) {
         this.chatService = chatService;
+        this.messagingTemplate = messagingTemplate;
+    }
+
+    @Operation(summary = "Listar conversas do cliente", description = "Conversas com lojas e outros clientes, mais recentes primeiro. Paginação limitada a 100 itens.")
+    @GetMapping
+    public ResponseEntity<Page<ConversaClienteResumoDTO>> listar(
+            @AuthenticationPrincipal Usuario usuario,
+            @PageableDefault(size = 20) Pageable pageable) {
+        return ResponseEntity.ok(chatService.listarConversasDoCliente(usuario, pageable));
+    }
+
+    @Operation(summary = "Abrir ou obter conversa entre clientes", description = "Uma conversa por par, independentemente de quem iniciou. Apenas clientes ativos; não permite conversar consigo mesmo.")
+    @PostMapping("/clientes/{clienteId}")
+    public ResponseEntity<ConversaAbertaDTO> obterOuCriarEntreClientes(
+            @AuthenticationPrincipal Usuario usuario, @PathVariable String clienteId) {
+        return ResponseEntity.ok(new ConversaAbertaDTO(
+                chatService.obterOuCriarConversaEntreClientes(clienteId, usuario).getId()));
+    }
+
+    @Operation(summary = "Enviar mensagem pelo cliente", description = "Envia para loja ou outro cliente e publica no mesmo tópico WebSocket. clientMessageId opcional permite repetir a requisição sem duplicar a mensagem.")
+    @PostMapping("/{conversaId}/mensagens")
+    public ResponseEntity<MensagemDTO> enviar(
+            @AuthenticationPrincipal Usuario usuario, @PathVariable String conversaId,
+            @Valid @RequestBody EnviarMensagemDTO dto) {
+        // Aplica as mesmas permissões do histórico antes de reutilizar o envio comum.
+        chatService.validarConversaDoCliente(conversaId, usuario);
+        MensagemDTO mensagem = chatService.enviarMensagem(conversaId, usuario, dto.conteudo(), dto.clientMessageId());
+        messagingTemplate.convertAndSend("/topic/conversas/" + conversaId, mensagem);
+        return ResponseEntity.ok(mensagem);
     }
 
     /**
