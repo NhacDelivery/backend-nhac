@@ -128,6 +128,8 @@ jobs:
         env:
           RUN_E2E: 'true'
           E2E_DB_MANAGED: 'true'
+          # Mesma senha do serviço MariaDB isolado; impede geração aleatória no runner.
+          E2E_DB_PASSWORD: 'nhac_e2e'
           E2E_REPEAT: '3'
           E2E_DEVICE_ID: emulator-5554
           BACKEND_DIR: ${{ github.workspace }}/backend-nhac

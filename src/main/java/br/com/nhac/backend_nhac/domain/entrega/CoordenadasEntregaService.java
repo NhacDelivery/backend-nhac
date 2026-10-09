@@ -28,9 +28,12 @@ public class CoordenadasEntregaService {
             .orElseThrow(() -> new IdNaoEncontradoException("Pedido não encontrado."));
     boolean motoboy =
         pedido.getEntregador() != null
-            && pedido.getEntregador().getUsuario().getId().equals(usuario.getId());
+            && pedido.getEntregador().getUsuario() != null
+            && usuario.getId().equals(pedido.getEntregador().getUsuario().getId());
+    boolean donoPedido =
+        pedido.getUsuarioId() != null && pedido.getUsuarioId().equals(usuario.getId());
     if (!motoboy
-        && !usuario.getId().equals(pedido.getUsuarioId())
+        && !donoPedido
         && usuario.getPapel() != Papel.ADMIN
         && !lojas.temAcessoALoja(usuario, pedido.getLoja().getId()))
       throw new AcessoNegadoException("Sem acesso ao destino.");

@@ -15,19 +15,9 @@ import org.springframework.web.bind.annotation.*;
 @RequestMapping("/api/v1")
 public class RepasseEntregadorController {
   private final RepasseEntregadorService service;
-  private final RepasseEntregadorRepository repasses;
-  private final PedidoRepository pedidos;
-  private final EntregadorService entregadores;
 
-  public RepasseEntregadorController(
-      RepasseEntregadorService service,
-      RepasseEntregadorRepository repasses,
-      PedidoRepository pedidos,
-      EntregadorService entregadores) {
+  public RepasseEntregadorController(RepasseEntregadorService service) {
     this.service = service;
-    this.repasses = repasses;
-    this.pedidos = pedidos;
-    this.entregadores = entregadores;
   }
 
   public record ApurarDTO(
@@ -38,43 +28,11 @@ public class RepasseEntregadorController {
       @NotNull @DecimalMin("0.01") @Digits(integer = 10, fraction = 2) BigDecimal valor,
       @NotNull Instant pagoEm) {}
 
-  public record ExtratoDTO(
-      String pedidoId,
-      BigDecimal freteCalculado,
-      BigDecimal valorDevido,
-      BigDecimal valorPago,
-      String status,
-      Instant apuradoEm,
-      Instant pagoEm,
-      String referencia) {
-    static ExtratoDTO de(Pedido p, RepasseEntregador r) {
-      return new ExtratoDTO(
-          p.getId(),
-          p.getTaxaFrete(),
-          r == null ? null : r.getValorDevido(),
-          r == null ? null : r.getValorPago(),
-          r == null ? "NAO_APURADO" : r.getPagoEm() == null ? "PENDENTE" : "PAGO",
-          r == null ? null : r.getApuradoEm(),
-          r == null ? null : r.getPagoEm(),
-          r == null ? null : r.getReferenciaPagamento());
-    }
-  }
-
   @GetMapping("/entregador/repasses")
   @PreAuthorize("hasRole('ENTREGADOR')")
-  @org.springframework.transaction.annotation.Transactional(readOnly = true)
-  public Page<ExtratoDTO> extrato(
+  public Page<ExtratoRepasseDTO> extrato(
       @AuthenticationPrincipal Usuario usuario, @RequestParam(defaultValue = "0") int page) {
-    var entregador = entregadores.buscarPorUsuario(usuario);
-    var historico =
-        pedidos.findHistoricoDoEntregador(
-            entregador.getId(), StatusPedido.ENTREGUE, PageRequest.of(Math.max(0, page), 20));
-    var registros =
-        repasses.findAllById(historico.stream().map(Pedido::getId).toList()).stream()
-            .collect(
-                java.util.stream.Collectors.toMap(
-                    RepasseEntregador::getPedidoId, java.util.function.Function.identity()));
-    return historico.map(p -> ExtratoDTO.de(p, registros.get(p.getId())));
+    return service.extrato(usuario, page);
   }
 
   @PutMapping("/suporte/repasses/{id}/apuracao")

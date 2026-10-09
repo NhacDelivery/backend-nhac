@@ -1,6 +1,11 @@
 #!/usr/bin/env bash
 set -Eeuo pipefail
 
+if [[ "${E2E_DB_MANAGED:-false}" == "true" && -z "${E2E_DB_PASSWORD:-}" ]]; then
+  echo "E2E_DB_PASSWORD é obrigatório para o banco gerenciado do workflow." >&2
+  exit 2
+fi
+
 # Ajusta apenas o helper de teste no checkout temporário do app. O backend
 # mantém a preparação do E2E sem alterar o código de produção do cliente.
 python3 "$BACKEND_DIR/.github/scripts/prepare-client-e2e.py" "$PWD"
