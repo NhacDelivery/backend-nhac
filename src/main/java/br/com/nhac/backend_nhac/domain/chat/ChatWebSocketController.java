@@ -1,14 +1,12 @@
 package br.com.nhac.backend_nhac.domain.chat;
 
 import br.com.nhac.backend_nhac.domain.chat.dto.ChatDTOs.EnviarMensagemDTO;
-import br.com.nhac.backend_nhac.domain.chat.dto.ChatDTOs.MensagemDTO;
 import br.com.nhac.backend_nhac.domain.usuario.Usuario;
 import br.com.nhac.backend_nhac.exceptions.NhacException;
 import br.com.nhac.backend_nhac.infra.websocket.WebSocketAutenticacaoException;
 import org.springframework.messaging.handler.annotation.DestinationVariable;
 import org.springframework.messaging.handler.annotation.MessageExceptionHandler;
 import org.springframework.messaging.handler.annotation.MessageMapping;
-import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.messaging.simp.annotation.SendToUser;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.stereotype.Controller;
@@ -32,18 +30,15 @@ import java.util.Map;
 public class ChatWebSocketController {
 
     private final ChatService chatService;
-    private final SimpMessagingTemplate messagingTemplate;
 
-    public ChatWebSocketController(ChatService chatService, SimpMessagingTemplate messagingTemplate) {
+    public ChatWebSocketController(ChatService chatService) {
         this.chatService = chatService;
-        this.messagingTemplate = messagingTemplate;
     }
 
     @MessageMapping("/conversas/{conversaId}/enviar")
     public void enviar(@DestinationVariable String conversaId, @jakarta.validation.Valid EnviarMensagemDTO dto, Principal principal) {
         Usuario remetente = extrairUsuario(principal);
-        MensagemDTO mensagem = chatService.enviarMensagem(conversaId, remetente, dto.conteudo(), dto.clientMessageId());
-        messagingTemplate.convertAndSend("/topic/conversas/" + conversaId, mensagem);
+        chatService.enviarMensagem(conversaId, remetente, dto.conteudo(), dto.clientMessageId());
     }
 
     @MessageExceptionHandler(NhacException.class)

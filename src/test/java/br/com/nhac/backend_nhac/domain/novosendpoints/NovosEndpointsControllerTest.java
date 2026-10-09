@@ -71,8 +71,6 @@ class NovosEndpointsControllerTest {
     @MockitoBean
     private ChatService chatService;
 
-    @MockitoBean
-    private org.springframework.messaging.simp.SimpMessagingTemplate messagingTemplate;
 
     @MockitoBean
     private br.com.nhac.backend_nhac.infra.security.TokenService tokenService;
@@ -98,7 +96,7 @@ void configurarAutenticacao() {
     }
 
     @Test
-    void clienteEnviaJsonEPublicaNoTopico() throws Exception {
+    void clienteEnviaJsonPeloService() throws Exception {
         MensagemDTO mensagem = new MensagemDTO("msg_1", "conv_1", RemetenteTipo.CLIENTE,
                 usuario.getId(), "Olá", Instant.now());
         when(chatService.enviarMensagem("conv_1", usuario, "Olá", null)).thenReturn(mensagem);
@@ -106,7 +104,17 @@ void configurarAutenticacao() {
                         .contentType("application/json").content("{\"conteudo\":\"Olá\"}"))
                 .andExpect(status().isOk()).andExpect(jsonPath("$.id").value("msg_1"));
         verify(chatService).validarConversaDoCliente("conv_1", usuario);
-        verify(messagingTemplate).convertAndSend("/topic/conversas/conv_1", mensagem);
+        verify(chatService).enviarMensagem("conv_1", usuario, "Olá", null);
+    }
+
+    @Test
+    void lojistaNaoChegaAoServiceDoChatDoCliente() throws Exception {
+        usuario.setPapel(br.com.nhac.backend_nhac.domain.usuario.Papel.LOJISTA);
+        SecurityContextHolder.getContext().setAuthentication(
+                new UsernamePasswordAuthenticationToken(usuario, null, usuario.getAuthorities()));
+        mockMvc.perform(get("/api/v1/conversas"))
+                .andExpect(status().isForbidden());
+        org.mockito.Mockito.verifyNoInteractions(chatService);
     }
 
     @Test
@@ -114,7 +122,7 @@ void configurarAutenticacao() {
         mockMvc.perform(post("/api/v1/conversas/conv_1/mensagens").with(csrf())
                         .contentType("application/json").content("{\"conteudo\":\"   \"}"))
                 .andExpect(status().isBadRequest());
-        org.mockito.Mockito.verifyNoInteractions(messagingTemplate, chatService);
+        org.mockito.Mockito.verifyNoInteractions(chatService);
     }
 
     @Test

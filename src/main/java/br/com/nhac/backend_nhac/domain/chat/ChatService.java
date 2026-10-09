@@ -3,6 +3,7 @@ package br.com.nhac.backend_nhac.domain.chat;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
 import org.springframework.dao.DataIntegrityViolationException;
@@ -10,6 +11,7 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -38,6 +40,8 @@ import br.com.nhac.backend_nhac.exceptions.RegraDeNegocioException;
 public class ChatService {
 
     private static final int PREVIEW_MAX_CHARS = 120;
+    private static final Pattern UUID_PATTERN = Pattern.compile(
+            "[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}");
 
     private final ConversaRepository conversaRepository;
     private final MensagemRepository mensagemRepository;
@@ -45,16 +49,19 @@ public class ChatService {
     private final UsuarioRepository usuarioRepository;
     private final LojaAccessService lojaAccessService;
     private final EntregadorService entregadorService;
+    private final ApplicationEventPublisher eventPublisher;
 
     public ChatService(ConversaRepository conversaRepository, MensagemRepository mensagemRepository,
                         LojaRepository lojaRepository, UsuarioRepository usuarioRepository,
-                        LojaAccessService lojaAccessService, EntregadorService entregadorService) {
+                        LojaAccessService lojaAccessService, EntregadorService entregadorService,
+                        ApplicationEventPublisher eventPublisher) {
         this.conversaRepository = conversaRepository;
         this.mensagemRepository = mensagemRepository;
         this.lojaRepository = lojaRepository;
         this.usuarioRepository = usuarioRepository;
         this.lojaAccessService = lojaAccessService;
         this.entregadorService = entregadorService;
+        this.eventPublisher = eventPublisher;
     }
 
     // ---------- Lado CLIENTE ----------
@@ -318,8 +325,7 @@ public class ChatService {
         if (conteudo == null || conteudo.isBlank() || conteudo.length() > 4000) {
             throw new RegraDeNegocioException("Mensagem deve conter de 1 a 4000 caracteres e não pode ser vazia.");
         }
-        if (clientMessageId != null && !clientMessageId.matches(
-                "[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}")) {
+        if (clientMessageId != null && !UUID_PATTERN.matcher(clientMessageId).matches()) {
             throw new RegraDeNegocioException("clientMessageId deve ser um UUID válido.");
         }
         Conversa conversa = conversaRepository.findLockedById(conversaId)
@@ -336,7 +342,9 @@ public class ChatService {
                     || !anterior.getConteudo().equals(conteudo)) {
                 throw new AcessoNegadoException("Identificador de mensagem já utilizado.");
             }
-            return new MensagemDTO(anterior);
+            MensagemDTO dto = new MensagemDTO(anterior);
+            eventPublisher.publishEvent(new MensagemEnviadaEvent(dto));
+            return dto;
         }
         Mensagem mensagem = new Mensagem(id, conversa, tipo, remetente.getId(), conteudo);
         mensagemRepository.save(mensagem);
@@ -344,7 +352,9 @@ public class ChatService {
         conversa.registrarNovaMensagem(tipo, remetente.getId(), truncarPreview(conteudo));
         conversaRepository.save(conversa);
 
-        return new MensagemDTO(mensagem);
+        MensagemDTO dto = new MensagemDTO(mensagem);
+        eventPublisher.publishEvent(new MensagemEnviadaEvent(dto));
+        return dto;
     }
 
     private RemetenteTipo resolverTipoRemetente(Conversa conversa, Usuario usuario) {

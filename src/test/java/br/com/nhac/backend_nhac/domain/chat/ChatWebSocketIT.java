@@ -173,7 +173,9 @@ public class ChatWebSocketIT extends AbstractIntegrationTest {
             session.subscribe("/topic/conversas/" + id, receptor(new LinkedBlockingQueue<>()));
             assertNotNull(erros.poll(TIMEOUT_SECONDS, TimeUnit.SECONDS), "Servidor deve recusar a assinatura com ERROR ou fechar conexão");
         } finally {
-            if (session.isConnected()) session.disconnect();
+            // O servidor fecha o transporte ao recusar SUBSCRIBE. isConnected()
+            // pode ficar verdadeiro até o callback chegar; não envie DISCONNECT
+            // nessa janela. stop() libera o cliente mesmo com a sessão já fechada.
             client.stop();
         }
     }

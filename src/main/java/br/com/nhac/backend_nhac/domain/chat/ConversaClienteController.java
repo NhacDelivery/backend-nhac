@@ -23,20 +23,19 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.Valid;
 import org.springframework.web.bind.annotation.RequestBody;
-import org.springframework.messaging.simp.SimpMessagingTemplate;
+import org.springframework.security.access.prepost.PreAuthorize;
 
 /** Caixa de conversas, abertura, envio REST, histórico e leitura do cliente. */
 @RestController
+@PreAuthorize("hasRole('CLIENTE')")
 @RequestMapping("/api/v1/conversas")
 @Tag(name = "Chat (cliente)", description = "Conversas com lojas e outros clientes, envio, histórico e leitura")
 public class ConversaClienteController {
 
     private final ChatService chatService;
-    private final SimpMessagingTemplate messagingTemplate;
 
-    public ConversaClienteController(ChatService chatService, SimpMessagingTemplate messagingTemplate) {
+    public ConversaClienteController(ChatService chatService) {
         this.chatService = chatService;
-        this.messagingTemplate = messagingTemplate;
     }
 
     @Operation(summary = "Listar conversas do cliente", description = "Conversas com lojas e outros clientes, mais recentes primeiro. Paginação limitada a 100 itens.")
@@ -63,7 +62,6 @@ public class ConversaClienteController {
         // Aplica as mesmas permissões do histórico antes de reutilizar o envio comum.
         chatService.validarConversaDoCliente(conversaId, usuario);
         MensagemDTO mensagem = chatService.enviarMensagem(conversaId, usuario, dto.conteudo(), dto.clientMessageId());
-        messagingTemplate.convertAndSend("/topic/conversas/" + conversaId, mensagem);
         return ResponseEntity.ok(mensagem);
     }
 

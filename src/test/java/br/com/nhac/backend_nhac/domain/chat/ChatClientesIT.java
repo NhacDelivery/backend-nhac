@@ -203,6 +203,11 @@ class ChatClientesIT extends AbstractIntegrationTest {
         lojaRepository.saveAndFlush(loja);
         service.obterOuCriarConversa(loja.getId(), a);
         abrir(a, b);
+        var pagina = conversas.listarDoParticipante(a.getId(), ParticipanteTipo.CLIENTE,
+                org.springframework.data.domain.PageRequest.of(0, 20));
+        pagina.stream().filter(c -> !c.isEntreClientes()).forEach(c ->
+                assertTrue(org.hibernate.Hibernate.isInitialized(c.getLoja()),
+                        "EntityGraph deve carregar a loja na consulta da página"));
         mockMvc.perform(get("/api/v1/conversas").header("Authorization", token(a)))
                 .andExpect(status().isOk()).andExpect(jsonPath("$.totalElements").value(2));
         mockMvc.perform(get("/api/v1/lojista/conversas").header("Authorization", token(lojista)))

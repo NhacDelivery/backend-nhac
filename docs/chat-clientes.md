@@ -78,7 +78,7 @@ Conectar em `/ws-native` (WebSocket nativo) ou `/ws` (SockJS), usando STOMP:
 3. SEND em `/app/conversas/{conversaId}/enviar` com o mesmo JSON de EnviarMensagemDTO.
 4. SUBSCRIBE em `/user/queue/erros` para erros de envio (`{"erro":"descrição"}`).
 
-REST e STOMP usam o mesmo armazenamento, permissões e identificadores. Apenas os dois clientes podem assinar ou enviar no tópico de um chat direto. Enviar por REST também transmite aos assinantes depois da transação de persistência.
+REST e STOMP usam o mesmo armazenamento, permissões e identificadores. O ChatService agenda um evento imutável e ChatMensagemPublisher transmite somente em AFTER_COMMIT da transação externa; rollback ou falha no commit não publicam. Falha do broker após commit é registrada no log e não altera a persistência já confirmada; o histórico REST permite recuperar a mensagem. Apenas os dois clientes podem assinar ou enviar no tópico de um chat direto. Enviar por REST também transmite aos assinantes depois da transação de persistência.
 
 ## Erros e persistência
 
@@ -90,3 +90,7 @@ REST e STOMP usam o mesmo armazenamento, permissões e identificadores. Apenas o
 V1014 mantém todas as conversas e mensagens anteriores. `loja_id` pode ser nulo somente em chats diretos, que possuem `segundo_cliente_id`. O serviço ordena os IDs e bloqueia os usuários nessa ordem ao abrir um chat, evitando criação duplicada em requisições simultâneas. Constraint de unicidade protege o par persistido. Mensagens e leitura do cliente bloqueiam a conversa durante a alteração para preservar contadores sob concorrência. Os campos antigos de não lidas são preservados: no chat direto, `nao_lidas_cliente` pertence ao primeiro ID e `nao_lidas_loja` ao segundo; a API sempre devolve `naoLidas` da perspectiva autenticada.
 
 Validação: ChatClientesIT (REST, autorização, idempotência, concorrência, paginação), ChatFlowIT (regressões loja/entregador), ChatWebSocketIT (STOMP nos dois sentidos, broadcast REST e recusa de terceiros) e ChatClientesMigrationIT (upgrade real de MariaDB com preservação e constraints). Rodar `./mvnw -B -ntp verify` com JDK 25 e Docker disponível.
+
+O controller REST do cliente exige ROLE_CLIENTE por @PreAuthorize, além das validações de domínio. O EntityGraph carrega as lojas junto da página, verificado pelo teste de inicialização da associação. ChatMensagemCommitIT cobre commit externo, rollback e falha do banco; ChatMensagemPublisherTest cobre falha do broker após commit.
+
+O runner E2E do backend prepara somente o helper de toque do checkout temporário do app, centralizando o alvo antes de validar hit-test e tocar. Todos os cenários e as três repetições continuam obrigatórios.
