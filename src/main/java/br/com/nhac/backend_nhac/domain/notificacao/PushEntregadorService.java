@@ -84,6 +84,7 @@ public class PushEntregadorService {
       auth.refreshIfExpired();
       Map<String, String> data = new HashMap<>();
       data.put("id", id);
+      data.put("usuarioId", aviso.getUsuarioId());
       data.put("tipo", aviso.getTipo());
       if (aviso.getPedidoId() != null) data.put("pedidoId", aviso.getPedidoId());
       if (aviso.getLojaId() != null) data.put("lojaId", aviso.getLojaId());

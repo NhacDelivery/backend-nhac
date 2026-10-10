@@ -37,6 +37,27 @@ class UsuarioServiceTest {
     @InjectMocks private UsuarioService usuarioService;
 
     @Test
+    void distinguePreferenciasAusentesDeEscolhaVazia() {
+        var usuario = new Usuario(); usuario.setId("cliente");
+        when(usuarioRepository.findById("cliente")).thenReturn(Optional.of(usuario));
+        assertNull(usuarioService.preferenciasComida("cliente").preferencias());
+        usuario.setPreferenciasComida("");
+        assertEquals(List.of(), usuarioService.preferenciasComida("cliente").preferencias());
+    }
+    @Test
+    void sincronizaPreferenciasSemDuplicatas() {
+        var usuario = new Usuario(); usuario.setId("cliente");
+        when(usuarioRepository.findLockedById("cliente")).thenReturn(Optional.of(usuario));
+        when(usuarioRepository.findById("cliente")).thenReturn(Optional.of(usuario));
+        var salvas = usuarioService.salvarPreferenciasComida("cliente", new UsuarioController.PreferenciasComidaDTO(List.of(" Pizza ", "Pizza", "Sushi")));
+        assertEquals(List.of("Pizza", "Sushi"), salvas.preferencias());
+    }
+    @Test
+    void rejeitaPreferenciasComQuebraDeLinha() {
+        assertThrows(RegraDeNegocioException.class, () -> usuarioService.salvarPreferenciasComida("cliente", new UsuarioController.PreferenciasComidaDTO(List.of("Pizza\nSushi"))));
+        verifyNoInteractions(usuarioRepository);
+    }
+    @Test
     void estatisticasContamCuponsRecebidosMesmoSemPedido() {
         when(usuarioRepository.existsById("cliente")).thenReturn(true);
         when(cupomRepository.countByUsuarioId("cliente")).thenReturn(2L);

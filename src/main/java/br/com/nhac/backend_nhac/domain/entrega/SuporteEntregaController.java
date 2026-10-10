@@ -33,6 +33,20 @@ public class SuporteEntregaController {
 
   public record RespostaDTO(@NotBlank @Size(min = 5, max = 2000) String resposta) {}
 
+  public record AcaoDTO(
+      @NotBlank @Pattern(regexp = "RETIRAR|TRANSFERIR") String acao,
+      @Size(max = 50) String novoUsuarioId,
+      boolean entregaFisicaConfirmada) {}
+
+  @PutMapping("/suporte/entregas/{id}/acao")
+  @PreAuthorize(
+      "hasRole('ADMIN') and principal.ativo and principal.papel.name() == 'ADMIN' and"
+          + " principal.lojaVinculadaId == null")
+  public SuporteEntregaResponseDTO executar(
+      @PathVariable String id, @RequestBody @Valid AcaoDTO dto) {
+    return SuporteEntregaResponseDTO.de(service.executar(id, dto));
+  }
+
   @PostMapping("/entregas/{pedidoId}/suporte")
   @PreAuthorize("hasRole('ENTREGADOR')")
   public SuporteEntregaResponseDTO abrir(

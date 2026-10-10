@@ -24,6 +24,18 @@ import jakarta.validation.Valid;
 @RequestMapping("/api/v1/usuarios")
 public class UsuarioController {
 
+    public record PreferenciasComidaDTO(java.util.List<@jakarta.validation.constraints.NotBlank @jakarta.validation.constraints.Size(max=80) String> preferencias) {}
+    @GetMapping("/{id}/preferencias-comida")
+    public PreferenciasComidaDTO preferenciasComida(@PathVariable String id, @AuthenticationPrincipal Usuario logado) {
+        if (logado == null || !id.equals(logado.getId())) throw new AcessoNegadoException("Preferências de outra conta.");
+        return usuarioService.preferenciasComida(id);
+    }
+    @PutMapping("/{id}/preferencias-comida")
+    public PreferenciasComidaDTO salvarPreferenciasComida(@PathVariable String id, @AuthenticationPrincipal Usuario logado,
+            @RequestBody @Valid PreferenciasComidaDTO dto) {
+        if (logado == null || !id.equals(logado.getId())) throw new AcessoNegadoException("Preferências de outra conta.");
+        return usuarioService.salvarPreferenciasComida(id, dto);
+    }
     private final UsuarioService usuarioService;
     private final UsuarioRepository usuarioRepository;
     private final TokenService tokenService;

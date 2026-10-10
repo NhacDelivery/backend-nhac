@@ -98,6 +98,9 @@ public class Usuario implements UserDetails {
     @Builder.Default
     private boolean notificarNovidades = false;
 
+    @Column(name="preferencias_comida", length=2000)
+    private String preferenciasComida;
+
     @Override
     public Collection<? extends GrantedAuthority> getAuthorities() {
         return List.of(new SimpleGrantedAuthority("ROLE_" + this.papel.name()));
