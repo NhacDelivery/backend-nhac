@@ -164,14 +164,24 @@ class UsuarioServiceTest {
         when(usuarioRepository.findById("user_1")).thenReturn(Optional.of(usuario));
 
         UsuarioAtualizarDTO dados = new UsuarioAtualizarDTO(
-                "Novo Nome", null, "11888887777", null, null, null
+                "Novo Nome", null, null, null, null, null
         );
 
         usuarioService.atualizarUsuarioParcial("user_1", dados);
 
         assertEquals("Novo Nome", usuario.getNome());
-        assertEquals("11888887777", usuario.getTelefone());
+        assertEquals("11999998888", usuario.getTelefone());
         verify(usuarioRepository).save(usuario);
+    }
+
+    @Test
+    void rejeitaTrocaDeTelefoneSemSms() {
+        Usuario usuario = usuarioPadrao("user_1");
+        when(usuarioRepository.findById("user_1")).thenReturn(Optional.of(usuario));
+        var dados = new UsuarioAtualizarDTO(null, null, "+5511888887777", null, null, null);
+        assertThrows(RegraDeNegocioException.class, () -> usuarioService.atualizarUsuarioParcial("user_1", dados));
+        assertEquals("11999998888", usuario.getTelefone());
+        verify(usuarioRepository, never()).save(any());
     }
 
     @Test

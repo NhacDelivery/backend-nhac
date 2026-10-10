@@ -244,7 +244,7 @@ class CodigoEntregaFlowIT extends AbstractIntegrationTest {
         u.setId(id);
         u.setNome(id);
         u.setEmail(id + "@nhac.local");
-        u.setTelefone("+5511999990001");
+        u.setTelefone(String.format("+55119999%05d", Math.floorMod(id.hashCode(), 100000)));
         u.setSenha("senha-fixture");
         u.setPapel(Papel.CLIENTE);
         u.setAtivo(true);

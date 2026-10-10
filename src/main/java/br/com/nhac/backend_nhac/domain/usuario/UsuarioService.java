@@ -56,11 +56,13 @@ public class UsuarioService {
         if (dto.email() != null && usuarioRepository.findByEmailIgnoreCase(dto.email()).isPresent()) {
             throw new RegraDeNegocioException("Este e-mail já está em uso.");
         }
-        if (dto.telefone() != null && usuarioRepository.findByTelefone(dto.telefone()).isPresent()) {
+        String telefone = TelefoneNormalizador.normalizar(dto.telefone());
+        if (telefone != null && usuarioRepository.findByTelefone(telefone).isPresent()) {
             throw new RegraDeNegocioException("Este telefone já está em uso.");
         }
 
         Usuario usuario = dto.toEntity();
+        usuario.setTelefone(telefone);
 
         if (dto.senha() != null && !dto.senha().isBlank()) {
             usuario.setSenha(passwordEncoder.encode(dto.senha()));
@@ -83,8 +85,14 @@ public class UsuarioService {
             }
             usuario.setEmail(dados.email());
         }
-        if(dados.telefone() != null)
-            usuario.setTelefone(dados.telefone());
+        if (dados.telefone() != null && !java.util.Objects.equals(TelefoneNormalizador.normalizar(dados.telefone()), TelefoneNormalizador.normalizar(usuario.getTelefone()))) {
+            throw new RegraDeNegocioException("Confirme o novo telefone por SMS antes de alterá-lo.");
+        }
+        if (dados.fcmToken() != null) {
+            if (dados.fcmToken().length()>255) throw new RegraDeNegocioException("Token do aparelho inválido.");
+            if (!dados.fcmToken().isBlank()) usuarioRepository.removerTokenDeOutrasContas(dados.fcmToken(),id);
+            usuario.setFcmToken(dados.fcmToken().isBlank() ? null : dados.fcmToken());
+        }
         if(dados.imagemUrl() != null)
             usuario.setImagemUrl(dados.imagemUrl());
 

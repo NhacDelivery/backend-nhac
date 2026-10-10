@@ -25,7 +25,11 @@ class ChatClientesMigrationIT {
             }
             Flyway flyway = Flyway.configure().dataSource(db.getJdbcUrl(), db.getUsername(), db.getPassword())
                     .locations("classpath:db/migration").load();
-            assertEquals(1, flyway.migrate().migrationsExecuted);
+            int pendentes = flyway.info().pending().length;
+            assertTrue(pendentes > 0, "O upgrade deve aplicar migrations posteriores à V1013");
+            assertEquals(pendentes, flyway.migrate().migrationsExecuted);
+            assertEquals(0, flyway.info().pending().length);
+            assertEquals(0, flyway.migrate().migrationsExecuted, "O upgrade deve ser idempotente");
             flyway.validate();
             try (var connection = DriverManager.getConnection(db.getJdbcUrl(), db.getUsername(), db.getPassword());
                  var s = connection.createStatement()) {

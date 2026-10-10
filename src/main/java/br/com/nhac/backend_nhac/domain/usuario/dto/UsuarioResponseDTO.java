@@ -24,9 +24,14 @@ public record UsuarioResponseDTO(
         br.com.nhac.backend_nhac.domain.usuario.Papel papel,
 
         @Schema(description = "Cargo do funcionário na loja", example = "Gerente")
-        String cargo
+        String cargo,
+        boolean temSenha
 ) {
 
+    public UsuarioResponseDTO(String id, String nome, String email, String telefone, String imagemUrl,
+            br.com.nhac.backend_nhac.domain.usuario.Papel papel, String cargo) {
+        this(id,nome,email,telefone,imagemUrl,papel,cargo,false);
+    }
     public UsuarioResponseDTO(Usuario usuario) {
         this(
                 usuario.getId(),
@@ -35,7 +40,8 @@ public record UsuarioResponseDTO(
                 usuario.getTelefone(),
                 usuario.getImagemUrl(),
                 usuario.getPapel(),
-                usuario.getCargo()
+                usuario.getCargo(),
+                usuario.getSenha() != null && !usuario.getSenha().isBlank()
         );
     }
 }

@@ -21,6 +21,7 @@ import br.com.nhac.backend_nhac.domain.chat.dto.ChatDTOs.ConversaClienteResumoDT
 import br.com.nhac.backend_nhac.domain.chat.dto.ChatDTOs.InterlocutorDTO;
 import br.com.nhac.backend_nhac.domain.chat.dto.ChatDTOs.TipoConversa;
 import br.com.nhac.backend_nhac.domain.entregador.EntregadorService;
+import br.com.nhac.backend_nhac.domain.notificacao.AvisoEntregadorEvent;
 import br.com.nhac.backend_nhac.domain.loja.Loja;
 import br.com.nhac.backend_nhac.domain.loja.LojaAccessService;
 import br.com.nhac.backend_nhac.domain.loja.LojaRepository;
@@ -352,6 +353,12 @@ public class ChatService {
         conversa.registrarNovaMensagem(tipo, remetente.getId(), truncarPreview(conteudo));
         conversaRepository.save(conversa);
 
+        if (tipo == RemetenteTipo.LOJA && conversa.getParticipanteTipo() == ParticipanteTipo.ENTREGADOR) {
+            eventPublisher.publishEvent(new AvisoEntregadorEvent(
+                    "mensagem_" + mensagem.getId(), conversa.getClienteId(), "MENSAGEM",
+                    "Você recebeu uma mensagem da loja.", null, conversa.getLoja().getId(),
+                    conversa.getLoja().getNome(), null));
+        }
         MensagemDTO dto = new MensagemDTO(mensagem);
         eventPublisher.publishEvent(new MensagemEnviadaEvent(dto));
         return dto;

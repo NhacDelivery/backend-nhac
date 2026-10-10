@@ -36,5 +36,14 @@ jobs:
           use-annotations: true
           # Upload Qodana results (SARIF, other artifacts, logs) as an artifact to the job
           upload-result: false
+          results-dir: ${{ runner.temp }}/qodana/results
           # quick-fixes available in Ultimate and Ultimate Plus plans
           push-fixes: 'none'
+      - name: Relatório detalhado de análise
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: qodana-sarif
+          path: ${{ runner.temp }}/qodana/results/qodana.sarif.json
+          if-no-files-found: warn
+          retention-days: 7

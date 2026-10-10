@@ -40,6 +40,9 @@ class MariaDbMigrationIT {
             try (var rs = statement.executeQuery("SELECT usuario_id FROM tb_lojas WHERE id='loja_0002'")) {
                 assertTrue(rs.next()); assertEquals(owner, rs.getString(1));
             }
+            try (var rs = statement.executeQuery("SELECT COUNT(*) FROM tb_usuarios WHERE id LIKE 'demo-%' AND (telefone IS NOT NULL OR telefone_verificado=TRUE)")) {
+                assertTrue(rs.next()); assertEquals(0, rs.getLong(1));
+            }
             try (var rs = statement.executeQuery("SELECT l.total_avaliacoes,l.avaliacao_media,u.papel FROM tb_lojas l JOIN tb_usuarios u ON u.id=l.usuario_id WHERE l.id='loja_0001'")) {
                 assertTrue(rs.next()); assertEquals(3, rs.getInt(1));
                 assertEquals(4.7, rs.getDouble(2), 0.01); assertEquals("LOJISTA", rs.getString(3));
@@ -82,6 +85,31 @@ class MariaDbMigrationIT {
                     "Executar novamente não deve reaplicar migrations");
             verificarCatalogoSocial(mariadb);
             verificarChavePrimariaAdicionais(mariadb);
+        }
+    }
+
+    @Test
+    void telefoneDuplicadoInterrompeAntesDeAlterarContasLegadas() throws java.sql.SQLException {
+        try (var db = new MariaDBContainer<>("mariadb:11")
+                .withDatabaseName("nhac_telefone").withUsername("nhac").withPassword("nhac_test")) {
+            db.start();
+            Flyway.configure().dataSource(db.getJdbcUrl(), db.getUsername(), db.getPassword())
+                    .locations("classpath:db/migration").target("1014").load().migrate();
+            try (var connection = java.sql.DriverManager.getConnection(db.getJdbcUrl(), db.getUsername(), db.getPassword());
+                    var statement = connection.createStatement()) {
+                statement.executeUpdate("INSERT INTO tb_usuarios (id,nome,email,telefone,senha,papel) VALUES "
+                        + "('dup-a','A','dup-a@teste.com','11912345678','hash','CLIENTE'),"
+                        + "('dup-b','B','dup-b@teste.com','+5511912345678','hash','CLIENTE')");
+                var flyway = Flyway.configure().dataSource(db.getJdbcUrl(), db.getUsername(), db.getPassword())
+                        .locations("classpath:db/migration").load();
+                var erro = org.junit.jupiter.api.Assertions.assertThrows(
+                        org.flywaydb.core.api.FlywayException.class, flyway::migrate);
+                assertTrue(erro.getMessage().contains("telefones duplicados apos normalizacao"));
+                try (var rows = statement.executeQuery("SELECT telefone FROM tb_usuarios WHERE id='dup-a'")) {
+                    assertTrue(rows.next());
+                    assertEquals("11912345678", rows.getString(1), "Não deve alterar contas antes de resolver posse");
+                }
+            }
         }
     }
 

@@ -12,6 +12,7 @@ import java.util.Optional;
 
 @Repository
 public interface CodigoVerificacaoRepository extends JpaRepository<CodigoVerificacao, Long> {
+    @org.springframework.data.jpa.repository.Lock(jakarta.persistence.LockModeType.PESSIMISTIC_WRITE)
     Optional<CodigoVerificacao> findTopByTelefoneAndUtilizadoFalseAndDataExpiracaoAfterOrderByCriadoEmDesc(
         String telefone,
         LocalDateTime agora

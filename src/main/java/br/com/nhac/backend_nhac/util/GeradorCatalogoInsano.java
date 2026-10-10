@@ -415,16 +415,16 @@ public class GeradorCatalogoInsano {
         // Donos existentes são preservados; só lojas sem dono recebem uma conta.
         sql.append("INSERT INTO tb_usuarios (id,nome,email,telefone,senha,papel,ativo,email_verificado,telefone_verificado) ")
                 .append("SELECT CONCAT('demo-lojista-',MD5(l.id)),CONCAT('Demo ',LEFT(l.nome,80)),")
-                .append("CONCAT(MD5(l.id),'@lojista.demo.invalid'),'11900000000',")
-                .append(sql(senhaHash)).append(",'LOJISTA',TRUE,TRUE,TRUE FROM tb_lojas l ")
+                .append("CONCAT(MD5(l.id),'@lojista.demo.invalid'),NULL,")
+                .append(sql(senhaHash)).append(",'LOJISTA',TRUE,TRUE,FALSE FROM tb_lojas l ")
                 .append("WHERE l.usuario_id IS NULL AND NOT EXISTS (SELECT 1 FROM tb_usuarios u WHERE u.id=CONCAT('demo-lojista-',MD5(l.id)));\n")
                 .append("UPDATE tb_lojas l JOIN tb_usuarios u ON u.id=CONCAT('demo-lojista-',MD5(l.id)) SET l.usuario_id=u.id WHERE l.usuario_id IS NULL;\n");
         for (int i = 1; i <= 3; i++) {
             String cliente = "demo-feed-cliente-" + i;
             sql.append("INSERT INTO tb_usuarios (id,nome,email,telefone,senha,papel,ativo,email_verificado,telefone_verificado) SELECT ")
                     .append(sql(cliente)).append(",").append(sql("Cliente demonstração " + i)).append(",")
-                    .append(sql(cliente + "@demo.invalid")).append(",'11900000000',").append(sql(senhaHash))
-                    .append(",'CLIENTE',TRUE,TRUE,TRUE WHERE NOT EXISTS (SELECT 1 FROM tb_usuarios WHERE id=")
+                    .append(sql(cliente + "@demo.invalid")).append(",NULL,").append(sql(senhaHash))
+                    .append(",'CLIENTE',TRUE,TRUE,FALSE WHERE NOT EXISTS (SELECT 1 FROM tb_usuarios WHERE id=")
                     .append(sql(cliente)).append(");\n");
             String pedidoExpr = "CONCAT('demo-pedido-" + i + "-',MD5(l.id))";
             sql.append("INSERT INTO tb_pedidos (id,usuario_id,loja_id,valor_total,taxa_frete,forma_pagamento,observacao,status) SELECT ")
