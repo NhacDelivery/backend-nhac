@@ -40,7 +40,7 @@ jobs:
           # quick-fixes available in Ultimate and Ultimate Plus plans
           push-fixes: 'none'
       - name: Relatório detalhado de análise
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         if: always()
         with:
           name: qodana-sarif
