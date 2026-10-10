@@ -113,18 +113,23 @@ public class FuncionarioFlowIT extends AbstractIntegrationTest {
                 .andReturn().getResponse().getContentAsString();
         String tokenFuncionario = objectMapper.readTree(loginResp).get("token").asText();
 
-        // 4. Funcionário consegue ver os produtos e pedidos da loja do dono
+        // 4. Atendente vê pedidos, mas catálogo exige Gerente ou Administrador
         mockMvc.perform(get("/api/v1/lojista/produtos").header("Authorization", "Bearer " + tokenFuncionario))
-                .andExpect(status().isOk());
+                .andExpect(status().isForbidden());
         mockMvc.perform(get("/api/v1/lojista/pedidos").header("Authorization", "Bearer " + tokenFuncionario))
                 .andExpect(status().isOk());
 
-        // 5. Funcionário consegue cadastrar produto na loja do dono
-        // (isso falhava antes do fix: @PreAuthorize em ProdutoController não incluía FUNCIONARIO,
-        //  mesmo o SecurityConfig e o ProdutoService já permitindo)
+        // 5. O dono promove para Gerente; o mesmo token recebe a permissão atualizada.
         String jsonProduto = """
                 {"nome":"Coxinha","descricao":"Salgado frito","preco":8.50,"imagemUrl":"https://example.com/coxinha.jpg","categoriaMenu":"Salgados"}
                 """;
+        mockMvc.perform(post("/api/v1/produtos").header("Authorization", "Bearer " + tokenFuncionario)
+                        .contentType(MediaType.APPLICATION_JSON).content(jsonProduto))
+                .andExpect(status().isForbidden());
+        mockMvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put("/api/v1/lojista/funcionarios/" + funcionarioId)
+                        .header("Authorization", "Bearer " + tokenDono).contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"nome\":\"Ana Gerente\",\"cargo\":\"Gerente\"}"))
+                .andExpect(status().isOk());
         String produtoResp = mockMvc.perform(post("/api/v1/produtos")
                         .header("Authorization", "Bearer " + tokenFuncionario)
                         .contentType(MediaType.APPLICATION_JSON)
