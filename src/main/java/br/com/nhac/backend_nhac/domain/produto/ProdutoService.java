@@ -65,6 +65,7 @@ public class ProdutoService {
     @Transactional
     @CacheEvict(cacheNames = {PRODUTOS, PRODUTO}, allEntries = true)
     public Produto cadastrarProduto(ProdutoCreateDTO dto, Usuario usuarioLogado) {
+        lojaAccessService.exigirCatalogo(usuarioLogado);
         // ADMIN tem bypass na checagem de ownership, mas ainda precisa de uma loja associada
         boolean isAdmin = usuarioLogado.getPapel().name().equals("ADMIN");
 
@@ -99,6 +100,7 @@ public class ProdutoService {
     @Transactional
     @CacheEvict(cacheNames = {PRODUTOS, PRODUTO}, allEntries = true)
     public ProdutoResumoDTO atualizarProduto(String id, br.com.nhac.backend_nhac.domain.produto.dto.ProdutoUpdateDTO dto, Usuario usuarioLogado) {
+        lojaAccessService.exigirCatalogo(usuarioLogado);
         Produto produto = produtoRepository.findById(id)
                 .orElseThrow(() -> new IdNaoEncontradoException("O produto com o id: " + id + " não foi encontrado."));
 
@@ -133,6 +135,7 @@ public class ProdutoService {
     @Transactional
     @CacheEvict(cacheNames = {PRODUTOS, PRODUTO}, allEntries = true)
     public void desativarProduto(String id, Usuario usuarioLogado) {
+        lojaAccessService.exigirCatalogo(usuarioLogado);
         Produto produto = produtoRepository.findById(id)
                 .orElseThrow(() -> new IdNaoEncontradoException("O produto com o id: " + id + " não foi encontrado."));
 
@@ -153,6 +156,7 @@ public class ProdutoService {
     @Transactional
     @CacheEvict(cacheNames = {PRODUTOS, PRODUTO}, allEntries = true)
     public ProdutoResumoDTO ativarProduto(String id, Usuario usuarioLogado) {
+        lojaAccessService.exigirCatalogo(usuarioLogado);
         Produto produto = produtoRepository.findById(id)
                 .orElseThrow(() -> new IdNaoEncontradoException("O produto com o id: " + id + " não foi encontrado."));
 
@@ -172,6 +176,7 @@ public class ProdutoService {
 
     @Transactional
     public ProdutoResumoDTO atualizarEstoque(String id, Integer novoEstoque, Usuario usuarioLogado) {
+        lojaAccessService.exigirCatalogo(usuarioLogado);
         Produto produto = produtoRepository.findById(id)
                 .orElseThrow(() -> new IdNaoEncontradoException("O produto com o id: " + id + " não foi encontrado."));
 

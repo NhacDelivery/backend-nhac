@@ -22,7 +22,7 @@ import br.com.nhac.backend_nhac.exceptions.RegraDeNegocioException;
 /**
  * CRUD de funcionários (Round 20 / item 5.2). Decisões de produto já tomadas:
  *  - funcionário loga com conta própria (é um Usuario comum, papel=FUNCIONARIO);
- *  - cargo é só rótulo, sem RBAC real por enquanto;
+ *  - cargo determina acesso ao catálogo/painel/financeiro em LojaAccessService;
  *  - o LOJISTA (dono) define a senha inicial no cadastro, sem convite por e-mail.
  *
  * Gestão de funcionários (criar/editar/desativar) é restrita ao DONO da loja —
@@ -45,7 +45,7 @@ public class FuncionarioService {
 
     @Transactional(readOnly = true)
     public Page<FuncionarioResponseDTO> listar(Usuario usuarioLogado, Pageable pageable) {
-        Loja loja = lojaAccessService.obterLojaAcessivel(usuarioLogado);
+        Loja loja = exigirDono(usuarioLogado);
         return usuarioRepository.findByLojaVinculadaIdOrderByCriadoEmDesc(loja.getId(), pageable)
                 .map(FuncionarioResponseDTO::new);
     }

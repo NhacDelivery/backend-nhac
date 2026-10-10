@@ -51,6 +51,7 @@ public class PainelService {
 
     @Transactional(readOnly = true)
     public PainelResumoDTO obterResumo(Usuario usuarioLogado) {
+        lojaAccessService.exigirCatalogo(usuarioLogado);
         Loja loja = lojaAccessService.obterLojaAcessivel(usuarioLogado);
         String lojaId = loja.getId();
 

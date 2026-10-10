@@ -116,9 +116,7 @@ public class LojaService {
     @Transactional
     @CacheEvict(cacheNames = {LOJAS, LOJA, PRODUTOS, PRODUTO}, allEntries = true)
     public LojaDetalhesDTO atualizarLoja(String id, LojaCreateDTO dto, Usuario usuarioLogado) {
-    if (usuarioLogado == null) {
-        throw new AcessoNegadoException("É necessário estar autenticado para atualizar a loja.");
-    }
+        lojaAccessService.exigirPapelDonoOuAdmin(usuarioLogado);
 
     Loja loja = lojaRepository.findById(id)
             .orElseThrow(() -> new br.com.nhac.backend_nhac.exceptions.LojaNaoEncontradaException(id));
@@ -150,9 +148,7 @@ public class LojaService {
     @Transactional
     @CacheEvict(cacheNames = {LOJAS, LOJA}, allEntries = true)
     public LojaDetalhesDTO atualizarLocalizacao(String id, AtualizarLocalizacaoLojaDTO dto, Usuario usuarioLogado) {
-        if (usuarioLogado == null) {
-            throw new AcessoNegadoException("É necessário estar autenticado para atualizar a loja.");
-        }
+        lojaAccessService.exigirPapelDonoOuAdmin(usuarioLogado);
         Loja loja = lojaRepository.findById(id)
                 .orElseThrow(() -> new br.com.nhac.backend_nhac.exceptions.LojaNaoEncontradaException(id));
         if (usuarioLogado.getPapel() != Papel.ADMIN
@@ -186,9 +182,7 @@ public class LojaService {
     @Transactional
     @CacheEvict(cacheNames = {LOJAS, LOJA, PRODUTOS, PRODUTO}, allEntries = true)
     public LojaDetalhesDTO atualizarAbertura(String id, Boolean isAberto, Usuario usuarioLogado) {
-    if (usuarioLogado == null) {
-        throw new AcessoNegadoException("É necessário estar autenticado para atualizar a loja.");
-    }
+        lojaAccessService.exigirCatalogo(usuarioLogado);
 
     if (isAberto == null) {
         throw new RegraDeNegocioException("O status de abertura (isAberto) deve ser informado.");

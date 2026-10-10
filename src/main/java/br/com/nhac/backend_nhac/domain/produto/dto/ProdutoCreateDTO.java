@@ -46,14 +46,25 @@ public record ProdutoCreateDTO(
 
         @Schema(description = "Quantidade em estoque. Se não informado, o produto nasce com o valor padrão do sistema (100).", example = "50")
         @PositiveOrZero(message = "O estoque não pode ser negativo.")
-        Integer estoque
+        Integer estoque,
+
+        @Schema(description = "Disponibilidade inicial. Omitido = ativo.")
+        @com.fasterxml.jackson.annotation.JsonAlias("ativo")
+        @com.fasterxml.jackson.annotation.JsonProperty("isAtivo")
+        Boolean ativo
 ) {
+
+        public ProdutoCreateDTO(String nome, String descricao, BigDecimal preco, String categoriaMenu,
+                String imagemUrl, String peso, Integer percentualDesconto, List<GrupoAdicionalDTO> adicionais, Integer estoque) {
+                this(nome, descricao, preco, categoriaMenu, imagemUrl, peso, percentualDesconto, adicionais, estoque, null);
+        }
 
         public Produto toEntity(Loja lojaDaBaseDeDados, ProdutoRepository produtoRepository) {
                 String novoId = "prod_" + UUID.randomUUID();
 
                 Produto produto = new Produto(this, lojaDaBaseDeDados);
                 produto.setId(novoId);
+                produto.setAtivo(ativo == null || ativo);
                 if (this.estoque() != null) {
                         produto.setEstoque(this.estoque());
                 }

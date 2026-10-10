@@ -8,8 +8,8 @@ import jakarta.validation.constraints.Size;
 /**
  * Cadastro de funcionário pelo lojista. Decisão do produto: o próprio lojista
  * define a senha inicial aqui (sem fluxo de convite por e-mail). "cargo" é só
- * um rótulo exibido na UI (Administrador/Gerente/Atendente) — não concede nem
- * restringe permissões nesta fase.
+ * um cargo do painel (Administrador/Gerente/Atendente), avaliado por
+ * LojaAccessService. Gestão da equipe continua restrita ao dono.
  */
 public record FuncionarioCreateDTO(
         @NotBlank String nome,
