@@ -12,7 +12,7 @@ import static org.mockito.Mockito.*;
 class RepasseEntregadorServiceTest {
     private final RepasseEntregadorRepository repository = mock(RepasseEntregadorRepository.class);
     private final PedidoRepository pedidos = mock(PedidoRepository.class);
-    private final RepasseEntregadorService service = new RepasseEntregadorService(repository, pedidos);
+    private final RepasseEntregadorService service = new RepasseEntregadorService(repository, pedidos, mock(EntregadorService.class));
     private final BigDecimal devido = new BigDecimal("12.50");
 
     private RepasseEntregador pendente() {

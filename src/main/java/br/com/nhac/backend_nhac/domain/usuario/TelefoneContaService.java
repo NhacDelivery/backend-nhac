@@ -3,6 +3,7 @@ package br.com.nhac.backend_nhac.domain.usuario;
 import br.com.nhac.backend_nhac.domain.auth.VerificacaoTelefoneService;
 import br.com.nhac.backend_nhac.domain.auth.dto.ValidarCodigoSmsDTO;
 import br.com.nhac.backend_nhac.exceptions.RegraDeNegocioException;
+import br.com.nhac.backend_nhac.exceptions.CodigoSmsRejeitadoException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -14,7 +15,8 @@ public class TelefoneContaService {
         this.repository = repository;
         this.verificacao = verificacao;
     }
-    @Transactional(noRollbackFor = RegraDeNegocioException.class)
+    // Apenas rejeições de SMS persistem tentativas; os demais erros desfazem toda a atualização.
+    @Transactional(noRollbackFor = CodigoSmsRejeitadoException.class)
     public void atualizar(String id, ValidarCodigoSmsDTO dto) {
         Usuario usuario = repository.findLockedById(id).orElseThrow();
         String telefone = dto.telefone().trim();

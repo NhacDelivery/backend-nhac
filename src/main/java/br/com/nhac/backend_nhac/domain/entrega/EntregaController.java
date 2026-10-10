@@ -24,8 +24,7 @@ import java.util.List;
 @Tag(name = "Entregas e Despacho", description = "Endpoints de despacho, ofertas para motoboys, ciclo de vida da corrida e rotas no mapa")
 public class EntregaController {
 
-    @org.springframework.beans.factory.annotation.Autowired
-    private CoordenadasEntregaService coordenadasService;
+    private final CoordenadasEntregaService coordenadasService;
     private final DespachoService despachoService;
     private final RotaService rotaService;
     private final PedidoRepository pedidoRepository;
@@ -35,8 +34,10 @@ public class EntregaController {
             DespachoService despachoService,
             RotaService rotaService,
             PedidoRepository pedidoRepository,
-            LojaAccessService lojaAccessService
+            LojaAccessService lojaAccessService,
+            CoordenadasEntregaService coordenadasService
     ) {
+        this.coordenadasService = coordenadasService;
         this.despachoService = despachoService;
         this.rotaService = rotaService;
         this.pedidoRepository = pedidoRepository;
@@ -143,6 +144,7 @@ public class EntregaController {
         @jakarta.validation.constraints.NotNull @jakarta.validation.constraints.DecimalMin("-90") @jakarta.validation.constraints.DecimalMax("90") Double latitude,
         @jakarta.validation.constraints.NotNull @jakarta.validation.constraints.DecimalMin("-180") @jakarta.validation.constraints.DecimalMax("180") Double longitude) {}
     @PutMapping("/{pedidoId}/coordenadas-destino")
+    @PreAuthorize("isAuthenticated()")
     public ResponseEntity<Void> corrigirDestino(@PathVariable String pedidoId, @AuthenticationPrincipal Usuario usuario,
             @RequestBody @jakarta.validation.Valid CoordenadasDestinoDTO dto) {
         coordenadasService.corrigir(pedidoId, usuario, dto.latitude(), dto.longitude());

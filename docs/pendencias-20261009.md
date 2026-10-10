@@ -6,13 +6,13 @@ Novas correções: preferências de comida por conta com diferença entre nunca 
 
 ## Atualização do banco
 
-As migrations de motoboy foram renumeradas para V1016–V1019 porque V1012–V1014 já pertenciam ao feed/adicionais/chat. V1020 adiciona preferências e V1021 dados da ação de suporte. Não existem versões repetidas na branch integrada.
+As migrations V1015–V1018 do PR #138 são preservadas integralmente, com as mesmas versões e checksums da main. V1020 adiciona preferências e V1021 dados da ação de suporte. As cópias antigas e renumeradas de telefone, suporte, avisos e repasses foram removidas; não existem versões repetidas na branch integrada.
 
 Antes do deploy, verificar o histórico Flyway e duplicatas de telefone após normalização. A criação do índice único exige resolver números que pertençam a mais de uma conta; a migration não escolhe silenciosamente uma conta. Se um banco já aplicou as versões da branch isolada de contratos do motoboy, não aplicar a branch integrada automaticamente: fazer backup e alinhar o histórico com os scripts realmente aplicados antes de migrar. Não executar repair indiscriminadamente.
 
 ## Atendimento de corrida
 
-Somente ADMIN pode usar `PUT /api/v1/suporte/entregas/{protocolo}/acao`.
+Somente ADMIN ativo e sem vínculo com loja pode usar `PUT /api/v1/suporte/entregas/{protocolo}/acao`.
 
 - Retirada antes da coleta: `{"acao":"RETIRAR","entregaFisicaConfirmada":false}`. Libera o entregador, invalida ofertas antigas e reabre o despacho; a resposta confirma que a loja acompanha a busca de outro responsável.
 - Transferência: `{"acao":"TRANSFERIR","novoUsuarioId":"ID_DO_ENTREGADOR","entregaFisicaConfirmada":true}`. O novo entregador precisa estar ativo, online e sem corrida. Após coleta, a confirmação da entrega física é obrigatória. O protocolo registra o novo responsável.
@@ -24,4 +24,4 @@ Configurar `NHAC_ANDROID_SHA256_CERTIFICATES` e `NHAC_IOS_TEAM_ID` para links HT
 
 ## Testes
 
-472 testes executados por Maven test passaram, incluindo preferências e regras de transferência/retirada. Maven verify, excluindo apenas os testes que exigem Docker, passou com outros 77 testes de integração, quatro casos ignorados por configuração externa e as verificações de cobertura. A integração também exigiu corrigir telefones duplicados nas fixtures do chat de clientes. A verificação adicional com Flyway/MariaDB depende de Docker. Validar essas migrations no CI e em uma cópia do banco antes de atualizar o servidor usado pelos APKs. Subir código nesta branch não altera automaticamente o serviço em produção.
+A integração preserva as correções e os testes do PR #138, incluindo credenciais temporárias do E2E, autorização administrativa, DTOs, credenciais de push reutilizadas e atomicidade da alteração de telefone. A matriz de autorização cobre também a nova ação de suporte. Os checks e resultados da validação desta integração estão registrados no PR #145.
