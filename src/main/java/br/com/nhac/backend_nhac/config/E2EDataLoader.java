@@ -51,6 +51,7 @@ public class E2EDataLoader implements CommandLineRunner {
     private final ProdutoRepository produtoRepository;
     private final PedidoRepository pedidoRepository;
     private final PasswordEncoder passwordEncoder;
+    private final String fixturePassword;
 
     public E2EDataLoader(
             JdbcTemplate jdbcTemplate,
@@ -59,8 +60,13 @@ public class E2EDataLoader implements CommandLineRunner {
             LojaRepository lojaRepository,
             ProdutoRepository produtoRepository,
             PedidoRepository pedidoRepository,
-            PasswordEncoder passwordEncoder
+            PasswordEncoder passwordEncoder,
+            @org.springframework.beans.factory.annotation.Value("${E2E_PASSWORD:}") String fixturePassword
     ) {
+        if (fixturePassword == null || fixturePassword.length() < 12) {
+            throw new IllegalArgumentException("E2E_PASSWORD temporária de ao menos 12 caracteres é obrigatória.");
+        }
+        this.fixturePassword = fixturePassword;
         this.jdbcTemplate = jdbcTemplate;
         this.usuarioRepository = usuarioRepository;
         this.enderecoRepository = enderecoRepository;
@@ -80,7 +86,7 @@ public class E2EDataLoader implements CommandLineRunner {
         cliente.setEmail("e2e.cliente@nhac.local");
         cliente.setTelefone("+5511999990001");
         cliente.setImagemUrl("");
-        cliente.setSenha(passwordEncoder.encode("NhacE2E#123"));
+        cliente.setSenha(passwordEncoder.encode(fixturePassword));
         cliente.setEnderecos(new ArrayList<>());
         cliente.setPapel(Papel.CLIENTE);
         cliente.setTelefoneVerificado(true);
@@ -205,7 +211,7 @@ public class E2EDataLoader implements CommandLineRunner {
         usuario.setEmail(email);
         usuario.setTelefone(telefone);
         usuario.setImagemUrl("");
-        usuario.setSenha(passwordEncoder.encode("NhacE2E#123"));
+        usuario.setSenha(passwordEncoder.encode(fixturePassword));
         usuario.setEnderecos(new ArrayList<>());
         usuario.setPapel(papel);
         usuario.setTelefoneVerificado(true);
