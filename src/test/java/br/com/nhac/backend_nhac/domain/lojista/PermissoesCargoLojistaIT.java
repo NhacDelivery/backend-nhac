@@ -112,6 +112,14 @@ class PermissoesCargoLojistaIT extends AbstractIntegrationTest {
                 .andExpect(status().isOk());
         mockMvc.perform(get("/api/v1/produtos/" + id)).andExpect(status().isOk());
     }
+    @Test void aliasAtivoTambemCriaProdutoInativo() throws Exception {
+        String body = mockMvc.perform(post("/api/v1/produtos").header("Authorization", "Bearer " + tokens.gerarToken(dono))
+                .contentType("application/json").content(payload(false).replace("isAtivo", "ativo")))
+                .andExpect(status().isCreated()).andReturn().getResponse().getContentAsString();
+        String id = objectMapper.readTree(body).get("id").asText();
+        assertFalse(produtos.findById(id).orElseThrow().isAtivo());
+        mockMvc.perform(get("/api/v1/produtos/" + id)).andExpect(status().isNotFound());
+    }
     @Test void criacaoAntigaSemDisponibilidadeMantemProdutoAtivo() throws Exception {
         String body = mockMvc.perform(post("/api/v1/produtos").header("Authorization", "Bearer " + tokens.gerarToken(dono))
                 .contentType("application/json").content(payload(null)))

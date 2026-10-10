@@ -50,7 +50,8 @@ public record ProdutoCreateDTO(
 
         @Schema(description = "Disponibilidade inicial. Omitido = ativo.")
         @com.fasterxml.jackson.annotation.JsonAlias("ativo")
-        Boolean isAtivo
+        @com.fasterxml.jackson.annotation.JsonProperty("isAtivo")
+        Boolean ativo
 ) {
 
         public ProdutoCreateDTO(String nome, String descricao, BigDecimal preco, String categoriaMenu,
@@ -63,7 +64,7 @@ public record ProdutoCreateDTO(
 
                 Produto produto = new Produto(this, lojaDaBaseDeDados);
                 produto.setId(novoId);
-                produto.setAtivo(isAtivo == null || isAtivo);
+                produto.setAtivo(ativo == null || ativo);
                 if (this.estoque() != null) {
                         produto.setEstoque(this.estoque());
                 }

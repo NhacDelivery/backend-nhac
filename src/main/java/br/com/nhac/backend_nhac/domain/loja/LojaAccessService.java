@@ -1,9 +1,13 @@
 package br.com.nhac.backend_nhac.domain.loja;
 
+import java.util.Set;
+
 import org.springframework.stereotype.Service;
 
+import br.com.nhac.backend_nhac.domain.usuario.Cargo;
 import br.com.nhac.backend_nhac.domain.usuario.Papel;
 import br.com.nhac.backend_nhac.domain.usuario.Usuario;
+import br.com.nhac.backend_nhac.exceptions.AcessoNegadoException;
 import br.com.nhac.backend_nhac.exceptions.LojaNaoEncontradaException;
 
 /**
@@ -21,6 +25,9 @@ import br.com.nhac.backend_nhac.exceptions.LojaNaoEncontradaException;
 @Service
 public class LojaAccessService {
 
+    private static final Set<Cargo> CARGOS_CATALOGO = Set.of(Cargo.GERENTE, Cargo.ADMINISTRADOR);
+    private static final Set<Cargo> CARGOS_FINANCEIRO = Set.of(Cargo.ADMINISTRADOR);
+
     private final LojaRepository lojaRepository;
 
     public LojaAccessService(LojaRepository lojaRepository) {
@@ -29,30 +36,30 @@ public class LojaAccessService {
 
     /** Permissões do painel, avaliadas sobre o usuário atual carregado do banco. */
     public void exigirCatalogo(Usuario usuario) {
-        exigirCargo(usuario, "gerente", "administrador");
+        exigirCargo(usuario, CARGOS_CATALOGO);
     }
 
     public void exigirFinanceiro(Usuario usuario) {
-        exigirCargo(usuario, "administrador");
+        exigirCargo(usuario, CARGOS_FINANCEIRO);
     }
 
-    public void exigirDono(Usuario usuario) {
+    /** Valida apenas o papel; o acesso à loja deve ser conferido separadamente. */
+    public void exigirPapelDonoOuAdmin(Usuario usuario) {
         if (usuario == null || !usuario.isAtivo()
                 || (usuario.getPapel() != Papel.LOJISTA && usuario.getPapel() != Papel.ADMIN)) {
-            throw new br.com.nhac.backend_nhac.exceptions.AcessoNegadoException(
+            throw new AcessoNegadoException(
                     "Apenas o dono da loja pode alterar estas configurações.");
         }
     }
 
-    private void exigirCargo(Usuario usuario, String... cargos) {
+    private void exigirCargo(Usuario usuario, Set<Cargo> cargos) {
         if (usuario != null && usuario.isAtivo()) {
             if (usuario.getPapel() == Papel.LOJISTA || usuario.getPapel() == Papel.ADMIN) return;
             if (usuario.getPapel() == Papel.FUNCIONARIO && usuario.getLojaVinculadaId() != null) {
-                String cargo = usuario.getCargo() == null ? "" : usuario.getCargo().trim().toLowerCase(java.util.Locale.ROOT);
-                if (java.util.Arrays.asList(cargos).contains(cargo)) return;
+                if (Cargo.fromDescricao(usuario.getCargo()).filter(cargos::contains).isPresent()) return;
             }
         }
-        throw new br.com.nhac.backend_nhac.exceptions.AcessoNegadoException(
+        throw new AcessoNegadoException(
                 "Seu cargo não permite acessar esta área da loja.");
     }
 
