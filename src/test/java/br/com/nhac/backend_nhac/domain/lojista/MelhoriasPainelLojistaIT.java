@@ -98,6 +98,8 @@ loja.setFormasPagamento(new FormasPagamento(
         loja = lojaRepository.saveAndFlush(loja);
 
         funcionario = criarUsuario("func.melhorias@teste.com", Papel.FUNCIONARIO, loja.getId());
+        funcionario.setCargo("Gerente");
+        funcionario = usuarioRepository.saveAndFlush(funcionario);
 
         produtoInativo = new Produto();
         produtoInativo.setId(UUID.randomUUID().toString());

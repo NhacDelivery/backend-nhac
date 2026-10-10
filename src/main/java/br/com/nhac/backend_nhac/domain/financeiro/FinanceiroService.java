@@ -53,6 +53,7 @@ public class FinanceiroService {
 
     @Transactional(readOnly = true)
     public FinanceiroDTO obterFinanceiro(Usuario usuarioLogado, PeriodoFinanceiro periodo) {
+        lojaAccessService.exigirFinanceiro(usuarioLogado);
         Loja loja = lojaAccessService.obterLojaAcessivel(usuarioLogado);
         String lojaId = loja.getId();
 

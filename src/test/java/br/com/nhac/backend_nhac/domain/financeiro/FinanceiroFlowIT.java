@@ -163,7 +163,7 @@ public class FinanceiroFlowIT extends AbstractIntegrationTest {
     }
 
     @Test
-    void funcionarioDeveVerOMesmoFinanceiroQueODono() throws Exception {
+    void administradorDaLojaDeveVerOMesmoFinanceiroQueODono() throws Exception {
         criarPedidoPago(1); // 40.00
 
         Usuario funcionario = new Usuario();
@@ -174,7 +174,7 @@ public class FinanceiroFlowIT extends AbstractIntegrationTest {
         funcionario.setTelefone("11977770000");
         funcionario.setPapel(Papel.FUNCIONARIO);
         funcionario.setLojaVinculadaId(loja.getId());
-        funcionario.setCargo("Gerente");
+        funcionario.setCargo("Administrador");
         usuarioRepository.save(funcionario);
         String tokenFuncionario = tokenService.gerarToken(funcionario);
 

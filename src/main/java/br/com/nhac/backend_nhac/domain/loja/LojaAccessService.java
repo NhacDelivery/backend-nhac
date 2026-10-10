@@ -27,6 +27,35 @@ public class LojaAccessService {
         this.lojaRepository = lojaRepository;
     }
 
+    /** Permissões do painel, avaliadas sobre o usuário atual carregado do banco. */
+    public void exigirCatalogo(Usuario usuario) {
+        exigirCargo(usuario, "gerente", "administrador");
+    }
+
+    public void exigirFinanceiro(Usuario usuario) {
+        exigirCargo(usuario, "administrador");
+    }
+
+    public void exigirDono(Usuario usuario) {
+        if (usuario == null || !usuario.isAtivo()
+                || (usuario.getPapel() != Papel.LOJISTA && usuario.getPapel() != Papel.ADMIN)) {
+            throw new br.com.nhac.backend_nhac.exceptions.AcessoNegadoException(
+                    "Apenas o dono da loja pode alterar estas configurações.");
+        }
+    }
+
+    private void exigirCargo(Usuario usuario, String... cargos) {
+        if (usuario != null && usuario.isAtivo()) {
+            if (usuario.getPapel() == Papel.LOJISTA || usuario.getPapel() == Papel.ADMIN) return;
+            if (usuario.getPapel() == Papel.FUNCIONARIO && usuario.getLojaVinculadaId() != null) {
+                String cargo = usuario.getCargo() == null ? "" : usuario.getCargo().trim().toLowerCase(java.util.Locale.ROOT);
+                if (java.util.Arrays.asList(cargos).contains(cargo)) return;
+            }
+        }
+        throw new br.com.nhac.backend_nhac.exceptions.AcessoNegadoException(
+                "Seu cargo não permite acessar esta área da loja.");
+    }
+
     /**
      * Retorna a loja que o usuário logado (dono ou funcionário) pode gerenciar.
      * Lança LojaNaoEncontradaException se ele não tiver loja associada de

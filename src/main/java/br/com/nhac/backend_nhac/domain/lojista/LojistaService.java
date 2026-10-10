@@ -38,6 +38,7 @@ public class LojistaService {
 
     @Transactional(readOnly = true)
     public Page<ProdutoLojistaDTO> listarProdutos(Usuario usuarioLogado, String categoriaMenu, String nome, Pageable pageable) {
+        lojaAccessService.exigirCatalogo(usuarioLogado);
         Loja loja = lojaAccessService.obterLojaAcessivel(usuarioLogado);
         String categoriaFiltro = StringUtils.hasText(categoriaMenu) ? categoriaMenu : null;
         String nomeFiltro = StringUtils.hasText(nome) ? nome : null;
@@ -52,6 +53,7 @@ public class LojistaService {
      */
     @Transactional(readOnly = true)
     public ProdutoLojistaDTO buscarProdutoPorId(Usuario usuarioLogado, String produtoId) {
+        lojaAccessService.exigirCatalogo(usuarioLogado);
         Loja loja = lojaAccessService.obterLojaAcessivel(usuarioLogado);
         Produto produto = produtoRepository.findByIdAndLojaId(produtoId, loja.getId())
                 .orElseThrow(() -> new br.com.nhac.backend_nhac.exceptions.ProdutoNaoEncontradoException(produtoId));
