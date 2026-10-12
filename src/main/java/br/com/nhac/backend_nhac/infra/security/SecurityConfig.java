@@ -130,6 +130,7 @@ public CorsConfigurationSource corsConfigurationSource() {
     CorsConfiguration configuration = new CorsConfiguration();
     
     configuration.setAllowedOrigins(List.of(
+        "https://nhac-lojista-web.vercel.app",
         "https://supreme-pancake-g49w55w959xh94pv-3000.app.github.dev",
         "https://github.dev",
         "http://localhost:3000"
