@@ -27,8 +27,9 @@ public record PedidoCreateDTO(
     String lojaId,
 
 
-    @Schema(description = "Forma de pagamento escolhida (ex: PIX, CARTAO_CREDITO)", example = "PIX")
+    @Schema(description = "Forma de pagamento: DINHEIRO, PIX, CARTAO, STRIPE ou GOOGLE_PAY", example = "PIX")
     @JsonProperty(required = false)
+    @NotBlank(message = "Escolha uma forma de pagamento.")
     String formaPagamento,
 
     @Schema(description = "Observação ou instrução especial do cliente", example = "Tirar a cebola do lanche.")
@@ -38,6 +39,7 @@ public record PedidoCreateDTO(
 
     @Schema(description = "Valor em dinheiro para calcular o troco (apenas quando formaPagamento = Dinheiro)", example = "50.00")
     @JsonProperty(required = false)
+    @DecimalMin(value = "0.01", message = "O valor para troco deve ser positivo.")
     BigDecimal trocoPara,
 
     @Schema(description = "CPF do pagador, obrigatório quando formaPagamento = PIX (necessário para criar o cliente no Asaas)", example = "12345678901")
@@ -60,6 +62,25 @@ public record PedidoCreateDTO(
     @Valid
     List<ItemPedidoDTO> itens
 ) {
+
+        public PedidoCreateDTO {
+                formaPagamento = formaPagamento == null ? null
+                        : formaPagamento.trim().toUpperCase(java.util.Locale.ROOT);
+        }
+
+        @AssertTrue(message = "Forma de pagamento inválida. Escolha dinheiro, PIX ou cartão.")
+        @com.fasterxml.jackson.annotation.JsonIgnore
+        public boolean isFormaPagamentoValida() {
+                return formaPagamento != null && java.util.Set.of(
+                        "DINHEIRO", "PIX", "CARTAO", "STRIPE", "GOOGLE_PAY").contains(formaPagamento);
+        }
+
+        @AssertTrue(message = "Informe troco somente para pagamento em dinheiro, com valor positivo.")
+        @com.fasterxml.jackson.annotation.JsonIgnore
+        public boolean isTrocoCompativel() {
+                return trocoPara == null || ("DINHEIRO".equals(formaPagamento)
+                        && trocoPara.compareTo(new BigDecimal("0.01")) >= 0);
+        }
 
         public Pedido toEntity(Loja lojaDaBaseDeDados) {
                 Pedido pedido = new Pedido();

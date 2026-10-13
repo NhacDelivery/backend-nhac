@@ -14,8 +14,13 @@ public record PedidoResumoDTO(
         @Schema(description = "Nome da loja") String lojaNome,
         @Schema(description = "Valor total do pedido") BigDecimal valorTotal,
         @Schema(description = "Status atual") StatusPedido status,
-        @Schema(description = "Data de criação") Instant criadoEm
+        @Schema(description = "Data de criação") Instant criadoEm,
+        @Schema(description = "Forma de pagamento") String formaPagamento
 ) {
+    public PedidoResumoDTO(String id, String lojaId, String lojaNome, BigDecimal valorTotal,
+            StatusPedido status, Instant criadoEm) {
+        this(id, lojaId, lojaNome, valorTotal, status, criadoEm, null);
+    }
     public PedidoResumoDTO(Pedido pedido) {
         this(
                 pedido.getId(),
@@ -23,7 +28,8 @@ public record PedidoResumoDTO(
                 pedido.getLoja() != null ? pedido.getLoja().getNome() : null,
                 pedido.getValorTotal(),
                 pedido.getStatus(),
-                pedido.getCriadoEm()
+                pedido.getCriadoEm(),
+                pedido.getFormaPagamento()
         );
     }
 }

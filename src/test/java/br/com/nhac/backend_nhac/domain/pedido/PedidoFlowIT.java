@@ -36,6 +36,65 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 public class PedidoFlowIT extends AbstractIntegrationTest {
 
+    @org.junit.jupiter.params.ParameterizedTest
+    @org.junit.jupiter.params.provider.NullAndEmptySource
+    @org.junit.jupiter.params.provider.ValueSource(strings = {" ", "BOLETO", "CARTAO_CREDITO", "PIX_TESTE"})
+    void pagamentoInvalidoNaoReservaPedidoNemEstoque(String forma) throws Exception {
+        int estoque = produtoRepository.findById(produto.getId()).orElseThrow().getEstoque();
+        var dto = pedidoComPagamento(forma, null, null);
+        mockMvc.perform(post("/api/v1/pedidos").header("Authorization", "Bearer " + token)
+                .contentType(MediaType.APPLICATION_JSON).content(objectMapper.writeValueAsString(dto)))
+                .andExpect(status().isBadRequest());
+        assertEquals(0, pedidoRepository.countByUsuarioId(usuario.getId()));
+        assertEquals(estoque, produtoRepository.findById(produto.getId()).orElseThrow().getEstoque());
+        Mockito.verify(stripePaymentService, Mockito.never()).criarPaymentIntentCartao(Mockito.any());
+    }
+
+    @org.junit.jupiter.params.ParameterizedTest
+    @org.junit.jupiter.params.provider.CsvSource({"DINHEIRO,-1", "DINHEIRO,0", "PIX,50", "CARTAO,50"})
+    void trocoIncompativelNaoCriaPedido(String forma, BigDecimal troco) throws Exception {
+        var dto = pedidoComPagamento(forma, troco, null);
+        mockMvc.perform(post("/api/v1/pedidos").header("Authorization", "Bearer " + token)
+                .contentType(MediaType.APPLICATION_JSON).content(objectMapper.writeValueAsString(dto)))
+                .andExpect(status().isBadRequest());
+        assertEquals(0, pedidoRepository.countByUsuarioId(usuario.getId()));
+    }
+
+    @Test
+    void trocoAbaixoDoTotalDevolveEstoqueECupomNaRejeicao() throws Exception {
+        int estoque = produtoRepository.findById(produto.getId()).orElseThrow().getEstoque();
+        var cupom = cupomService.ganharBoasVindas(usuario.getId());
+        var dto = pedidoComPagamento("DINHEIRO", new BigDecimal("39.99"), cupom.id());
+        mockMvc.perform(post("/api/v1/pedidos").header("Authorization", "Bearer " + token)
+                .contentType(MediaType.APPLICATION_JSON).content(objectMapper.writeValueAsString(dto)))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.message").value("O valor para troco deve ser maior ou igual ao total do pedido."));
+        assertEquals(0, pedidoRepository.countByUsuarioId(usuario.getId()));
+        assertEquals(estoque, produtoRepository.findById(produto.getId()).orElseThrow().getEstoque());
+        assertEquals("DISPONIVEL", cupomService.listar(usuario.getId()).getFirst().status());
+    }
+
+    @Test
+    void aceitaTrocoIgualAoTotalComCupomENormalizaPagamentoNoHistorico() throws Exception {
+        var cupom = cupomService.ganharBoasVindas(usuario.getId());
+        var dto = pedidoComPagamento(" dinheiro ", new BigDecimal("40.00"), cupom.id());
+        var response = mockMvc.perform(post("/api/v1/pedidos").header("Authorization", "Bearer " + token)
+                .contentType(MediaType.APPLICATION_JSON).content(objectMapper.writeValueAsString(dto)))
+                .andExpect(status().isCreated()).andReturn();
+        String id = objectMapper.readTree(response.getResponse().getContentAsString()).get("pedidoId").asText();
+        var pedido = pedidoRepository.findById(id).orElseThrow();
+        assertEquals("DINHEIRO", pedido.getFormaPagamento());
+        assertEquals(0, pedido.getValorTotal().compareTo(new BigDecimal("40.00")));
+        mockMvc.perform(get("/api/v1/pedidos").header("Authorization", "Bearer " + token))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.content[0].formaPagamento").value("DINHEIRO"));
+    }
+
+    private PedidoCreateDTO pedidoComPagamento(String forma, BigDecimal troco, String cupomId) {
+        var original = criarPedidoDTO(1);
+        return new PedidoCreateDTO(original.lojaId(), forma, original.observacao(), troco,
+                "52998224725", original.enderecoEntrega(), cupomId, original.itens());
+    }
+
     @Autowired
     private UsuarioRepository usuarioRepository;
 

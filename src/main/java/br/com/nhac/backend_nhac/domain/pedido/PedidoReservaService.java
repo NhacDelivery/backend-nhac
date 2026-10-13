@@ -25,6 +25,10 @@ public class PedidoReservaService {
     public record ReservaPedido(Pedido pedido, boolean replay) {}
     @Transactional
     public ReservaPedido reservar(PedidoCreateDTO dto, Usuario usuarioLogado, String idempotencyKey) {
+        if (!dto.isFormaPagamentoValida())
+            throw new RegraDeNegocioException("Forma de pagamento inválida. Escolha dinheiro, PIX ou cartão.");
+        if (!dto.isTrocoCompativel())
+            throw new RegraDeNegocioException("Informe troco somente para pagamento em dinheiro, com valor positivo.");
         if ("PIX".equalsIgnoreCase(dto.formaPagamento()) &&
                 (dto.cpfPagador() == null || dto.cpfPagador().isBlank()))
             throw new RegraDeNegocioException("O CPF do pagador é obrigatório para pagamento via PIX.");
@@ -145,6 +149,9 @@ public class PedidoReservaService {
         }
         pedido.setDesconto(desconto);
         pedido.setValorTotal(valorTotalItens.subtract(desconto).add(taxaFrete));
+
+        if (dto.trocoPara() != null && dto.trocoPara().compareTo(pedido.getValorTotal()) < 0)
+            throw new RegraDeNegocioException("O valor para troco deve ser maior ou igual ao total do pedido.");
 
         Pedido pedidoSalvo = pedidoRepository.save(pedido);
 
