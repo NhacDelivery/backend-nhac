@@ -22,6 +22,7 @@ public class VerificacaoEmailService {
     private static final int TEMPO_EXPIRACAO_MINUTOS = 15;
     private static final int MAX_TENTATIVAS = 3;
     private static final int TEMPO_VALIDACAO_CADASTRO_MINUTOS = 30;
+    private static final String URL_LOGO_NHAC = "https://raw.githubusercontent.com/NhacDelivery/backend-nhac/main/nhac-logo.png";
 
     @Transactional
     public void enviarCodigoCadastro(String email) {
@@ -88,8 +89,7 @@ public class VerificacaoEmailService {
                 <table role="presentation" class="email-container" width="600" cellpadding="0" cellspacing="0" border="0" style="width:600px; max-width:600px; text-align: left;">
                 <tr>
                 <td class="header" style="background-color:#FFE7E5; padding:25px 30px;">
-                  <!-- Você pode usar cid:logo se for anexar a imagem ou colocar uma URL pública -->
-                  <img src="cid:logo" alt="Nhac" style="max-height:50px; display:block;" />
+                  <img src="%s" alt="Nhac" style="max-height:50px; display:block;" />
                 </td>
                 </tr>
                 <tr>
@@ -104,7 +104,7 @@ public class VerificacaoEmailService {
                   </div>
                   
                   <div style="margin-bottom:20px;">
-                    Para validarmos o acesso ao seu aplicativo com segurança, <strong>use o código abaixo diretamente no seu app do <span class="highlight" style="background-color:#FCDABB; padding:2px 4px; border-radius:4px;">Nhac</span>.</strong>
+                    Para validarmos o acesso ao seu aplicativo com segurança, <strong>use o código abaixo diretamente no seu app do <span class="highlight" style="background-color:#FCDABB; padding:2px 4px; border-radius:4px; font-weight:bold;">Nhac</span></strong>.
                   </div>
                   
                   <div class="code-box" style="text-align:center; margin:40px 0;">
@@ -122,30 +122,31 @@ public class VerificacaoEmailService {
                 </table>
                 </body>
                 </html>
-                """.formatted(codigo, TEMPO_EXPIRACAO_MINUTOS);
+                """.formatted(URL_LOGO_NHAC, codigo, TEMPO_EXPIRACAO_MINUTOS);
         emailService.enviarEmailHtml(email, assunto, htmlConteudo);
     }
-@Transactional
-public void verificarCodigoCadastro(String email, String codigoDigitado) {
-    String emailFormatado = email.trim().toLowerCase();
-    LocalDateTime agora = LocalDateTime.now();
 
-    CodigoVerificacaoEmail codigoBanco = codigoRepository
-        .findTopByEmailAndTipoAndUtilizadoFalseAndDataExpiracaoAfterOrderByCriadoEmDesc(
-            emailFormatado, 
-            CodigoVerificacaoEmail.TipoCodigo.CADASTRO, 
-            agora
-        )
-        .orElseThrow(() -> new RegraDeNegocioException("Código de verificação inválido ou expirado."));
+    @Transactional
+    public void verificarCodigoCadastro(String email, String codigoDigitado) {
+        String emailFormatado = email.trim().toLowerCase();
+        LocalDateTime agora = LocalDateTime.now();
 
-    if (!codigoBanco.getCodigo().equals(codigoDigitado.trim())) {
-        // Incrementa tentativas se tiver essa lógica, ou barra direto:
-        throw new RegraDeNegocioException("Código de verificação inválido ou expirado.");
+        CodigoVerificacaoEmail codigoBanco = codigoRepository
+            .findTopByEmailAndTipoAndUtilizadoFalseAndDataExpiracaoAfterOrderByCriadoEmDesc(
+                emailFormatado, 
+                CodigoVerificacaoEmail.TipoCodigo.CADASTRO, 
+                agora
+            )
+            .orElseThrow(() -> new RegraDeNegocioException("Código de verificação inválido ou expirado."));
+
+        if (!codigoBanco.getCodigo().equals(codigoDigitado.trim())) {
+            // Incrementa tentativas se tiver essa lógica, ou barra direto:
+            throw new RegraDeNegocioException("Código de verificação inválido ou expirado.");
+        }
+
+        codigoBanco.setUtilizado(true);
+        codigoRepository.save(codigoBanco);
     }
-
-    codigoBanco.setUtilizado(true);
-    codigoRepository.save(codigoBanco);
-}
 
 
     @Transactional(noRollbackFor = RegraDeNegocioException.class)
@@ -245,8 +246,7 @@ public void verificarCodigoCadastro(String email, String codigoDigitado) {
                 <table role="presentation" class="email-container" width="600" cellpadding="0" cellspacing="0" border="0" style="width:600px; max-width:600px; text-align: left;">
                 <tr>
                 <td class="header" style="background-color:#FFE7E5; padding:25px 30px;">
-                  <!-- Você pode usar cid:logo se for anexar a imagem ou colocar uma URL pública -->
-                  <img src="cid:logo" alt="Nhac" style="max-height:50px; display:block;" />
+                  <img src="%s" alt="Nhac" style="max-height:50px; display:block;" />
                 </td>
                 </tr>
                 <tr>
@@ -259,15 +259,15 @@ public void verificarCodigoCadastro(String email, String codigoDigitado) {
                   <div class="greeting" style="font-size:18px; font-weight:700; color:#FF6961; margin-bottom:25px;">
                     Olá, %s!
                   </div>
-                  
+
                   <div style="margin-bottom:20px;">
-                    Para validarmos o acesso ao seu aplicativo com segurança, <strong>use o código abaixo diretamente no seu app do <span class="highlight" style="background-color:#FCDABB; padding:2px 4px; border-radius:4px;">Nhac</span>.</strong>
+                    Para validarmos o acesso ao seu aplicativo com segurança, <strong>use o código abaixo diretamente no seu app do <span class="highlight" style="background-color:#FCDABB; padding:2px 4px; border-radius:4px; font-weight:bold;">Nhac</span></strong>.
                   </div>
-                  
+
                   <div class="code-box" style="text-align:center; margin:40px 0;">
                     <span class="code" style="font-size:44px; font-weight:700; color:#FF6961; letter-spacing:4px;">%s</span>
                   </div>
-                  
+
                   <div style="margin-bottom:20px; text-align: center; color: #8A8A8A; font-size: 14px;">
                     Este código expira em <strong>%d minutos</strong>.
                   </div>
@@ -279,7 +279,7 @@ public void verificarCodigoCadastro(String email, String codigoDigitado) {
                 </table>
                 </body>
                 </html>
-                """.formatted(nomeUsuario, codigo, TEMPO_EXPIRACAO_MINUTOS);
+                """.formatted(URL_LOGO_NHAC, nomeUsuario, codigo, TEMPO_EXPIRACAO_MINUTOS);
         emailService.enviarEmailHtml(email, assunto, htmlConteudo);
     }
 }
