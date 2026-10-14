@@ -6,9 +6,8 @@ if [[ "${E2E_DB_MANAGED:-false}" == "true" && -z "${E2E_DB_PASSWORD:-}" ]]; then
   exit 2
 fi
 
-# Ajusta apenas o helper de teste no checkout temporário do app. O backend
-# mantém a preparação do E2E sem alterar o código de produção do cliente.
-python3 "$BACKEND_DIR/.github/scripts/prepare-client-e2e.py" "$PWD"
+# Executa o checkout do cliente sem modificar os helpers ou o código testado.
+# A revisão exata é registrada pelo workflow antes da preparação do ambiente.
 
 # Capture Android startup errors even when flutter test produces no test output.
 # The workflow uploads this directory after the emulator runner exits.
