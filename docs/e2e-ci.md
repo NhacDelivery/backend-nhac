@@ -19,5 +19,23 @@ reinicia o backend no perfil `e2e`, restaurando a fixture. O smoke e os detalhes
 da orquestração estão documentados em `Nhac/docs/e2e-ci.md`.
 
 E2E Android é uma validação isolada, com provedores externos simulados no perfil
-`e2e`; não acessa Render nem confirma pagamentos reais. As novas jornadas de
-PIX/cartão e entrega completa serão acrescentadas na próxima etapa.
+`e2e`; não acessa Render nem confirma pagamentos reais. O runner do cliente acrescenta entrega completa e retomada de PIX/cartão:
+loja e entregador usam APIs autenticadas, e o cliente valida sua interface real.
+O entregador é cadastrado durante o cenário usando a conta secundária existente;
+nenhuma rota especial de alteração de status ou reset foi adicionada.
+
+O teste de cartão envia eventos assinados ao webhook, exige efeito PAGO no banco
+e cobre assinatura inválida, falha recuperável, repetição e evento de falha
+posterior ao sucesso. Os testes de controller também usam HMAC real e a versão
+de API do SDK, sem mock estático da verificação de assinatura.
+
+Asserções de entrega incluem código errado/correto, retries de coleta/conclusão,
+cliente sem pedidos ativos, entregador ONLINE, histórico e ganhos únicos,
+estoque reservado uma vez e avaliação do cliente persistida. PIX retoma a mesma
+cobrança/código/prazo e confirma com a simulação existente no perfil E2E.
+
+Não há homologação do PaymentSheet ou dos provedores externos, UI de loja ou
+motoboy, expiração ou reinício real de processo. A retomada abre uma tela nova
+pelo histórico dentro do mesmo cenário. Consulte a matriz e os próximos casos
+em `Nhac/docs/e2e-ci.md`. Integrar o cliente #34 primeiro disponibiliza estes
+seis alvos para o workflow do backend #150.

@@ -77,34 +77,39 @@ public class StripeWebhookControllerTest {
     @Test
     @DisplayName("Deve retornar 200 OK para webhook payment_intent.succeeded valido")
     void deveRetornar200ParaWebhookValido() throws Exception {
-        String payload = "{\"type\": \"payment_intent.succeeded\"}";
-        String signature = "t=123,v1=assinatura_valida";
-
-        com.stripe.model.Event mockEvent = org.mockito.Mockito.mock(com.stripe.model.Event.class);
-        org.mockito.Mockito.when(mockEvent.getType()).thenReturn("payment_intent.succeeded");
-
-        com.stripe.model.PaymentIntent mockPaymentIntent = new com.stripe.model.PaymentIntent();
-        mockPaymentIntent.setId("pi_12345");
-
-        com.stripe.model.EventDataObjectDeserializer mockDeserializer = org.mockito.Mockito.mock(com.stripe.model.EventDataObjectDeserializer.class);
-        org.mockito.Mockito.when(mockDeserializer.getObject()).thenReturn(java.util.Optional.of(mockPaymentIntent));
-        
-        org.mockito.Mockito.when(mockEvent.getDataObjectDeserializer()).thenReturn(mockDeserializer);
-
-        try (org.mockito.MockedStatic<com.stripe.net.Webhook> webhookMock = org.mockito.Mockito.mockStatic(com.stripe.net.Webhook.class)) {
-            webhookMock.when(() -> com.stripe.net.Webhook.constructEvent(
-                    org.mockito.ArgumentMatchers.eq(payload), 
-                    org.mockito.ArgumentMatchers.eq(signature), 
-                    org.mockito.ArgumentMatchers.anyString()))
-                    .thenReturn(mockEvent);
-
-            mockMvc.perform(post("/api/v1/webhooks/stripe")
-                    .header("Stripe-Signature", signature)
-                    .content(payload))
-                    .andExpect(status().isOk());
-                    
-            org.mockito.Mockito.verify(pedidoService).marcarComoPagoPorPaymentIntentId("pi_12345");
-        }
+        String payload = eventoAssinado("payment_intent.succeeded");
+        mockMvc.perform(post("/api/v1/webhooks/stripe")
+                .header("Stripe-Signature", assinatura(payload))
+                .content(payload))
+                .andExpect(status().isOk());
+        org.mockito.Mockito.verify(pedidoService).marcarComoPagoPorPaymentIntentId("pi_12345");
     }
 
+    @Test
+    @DisplayName("Falha assinada permite nova tentativa sem marcar o pedido como pago")
+    void falhaAssinadaNaoConfirmaPagamento() throws Exception {
+        String payload = eventoAssinado("payment_intent.payment_failed");
+        mockMvc.perform(post("/api/v1/webhooks/stripe")
+                .header("Stripe-Signature", assinatura(payload))
+                .content(payload))
+                .andExpect(status().isOk());
+        org.mockito.Mockito.verifyNoInteractions(pedidoService);
+    }
+
+    private String eventoAssinado(String tipo) {
+        return """
+                {"id":"evt_e2e","object":"event","api_version":"%s", "type":"%s",
+                 "data":{"object":{"id":"pi_12345","object":"payment_intent"}}}
+                """.formatted(com.stripe.Stripe.API_VERSION, tipo);
+    }
+
+    private String assinatura(String payload) throws Exception {
+        long timestamp = java.time.Instant.now().getEpochSecond();
+        javax.crypto.Mac mac = javax.crypto.Mac.getInstance("HmacSHA256");
+        mac.init(new javax.crypto.spec.SecretKeySpec(
+                "whsec_test_secret_aqui".getBytes(java.nio.charset.StandardCharsets.UTF_8), "HmacSHA256"));
+        byte[] signature = mac.doFinal((timestamp + "." + payload)
+                .getBytes(java.nio.charset.StandardCharsets.UTF_8));
+        return "t=" + timestamp + ",v1=" + java.util.HexFormat.of().formatHex(signature);
+    }
 }
