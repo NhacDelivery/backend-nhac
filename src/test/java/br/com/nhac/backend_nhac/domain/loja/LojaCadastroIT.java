@@ -91,6 +91,8 @@ class LojaCadastroIT extends AbstractIntegrationTest {
 
         Usuario usuario = usuarioRepository.findById(usuarioId).orElseThrow();
         assertEquals(Papel.LOJISTA, usuario.getPapel());
+        assertEquals(lojas.get(0).getId(), usuario.getLojaVinculadaId());
+        assertEquals("ADMINISTRADOR", usuario.getCargo());
 
         mockMvc.perform(post("/api/v1/auth/login")
                         .contentType(MediaType.APPLICATION_JSON)
@@ -244,6 +246,88 @@ class LojaCadastroIT extends AbstractIntegrationTest {
                         .content(jsonCriacaoLoja("qualquer")))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.id").value(lojaId));
+    }
+
+    @Test
+    void devePersistirCpfNormalizadoEVinculoNoPerfilComMesmoTokenDoCadastro() throws Exception {
+        String jwt = registrarConta("cpf.dono@nhac.com.br", "11977770001");
+        Usuario conta = usuarioRepository.findByEmailIgnoreCase("cpf.dono@nhac.com.br").orElseThrow();
+        String resposta = mockMvc.perform(post("/api/v1/lojas")
+                        .header("Authorization", "Bearer " + jwt)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(jsonComCpf("529.982.247-25")))
+                .andExpect(status().isCreated()).andReturn().getResponse().getContentAsString();
+        String lojaId = objectMapper.readTree(resposta).get("id").asText();
+        Usuario salvo = usuarioRepository.findById(conta.getId()).orElseThrow();
+        assertEquals("52998224725", salvo.getCpf());
+        assertEquals(lojaId, salvo.getLojaVinculadaId());
+        assertEquals("ADMINISTRADOR", salvo.getCargo());
+        assertEquals(Papel.LOJISTA, salvo.getPapel());
+        assertEquals(conta.getId(), lojaRepository.findById(lojaId).orElseThrow().getUsuarioId());
+        mockMvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get("/api/v1/usuarios/" + conta.getId())
+                        .header("Authorization", "Bearer " + jwt))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.lojaVinculadaId").value(lojaId))
+                .andExpect(jsonPath("$.cargo").value("ADMINISTRADOR"))
+                .andExpect(jsonPath("$.cpf").doesNotExist());
+        mockMvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get("/api/v1/lojas/minha-loja")
+                        .header("Authorization", "Bearer " + jwt))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.id").value(lojaId));
+    }
+
+    @Test
+    void cpfInvalidoNaoCriaLojaNemPromoveConta() throws Exception {
+        String jwt = registrarConta("cpf.invalido@nhac.com.br", "11977770002");
+        mockMvc.perform(post("/api/v1/lojas").header("Authorization", "Bearer " + jwt)
+                        .contentType(MediaType.APPLICATION_JSON).content(jsonComCpf("11111111111")))
+                .andExpect(status().isBadRequest());
+        assertEquals(0, lojaRepository.count());
+        assertEquals(Papel.CLIENTE, usuarioRepository.findByEmailIgnoreCase("cpf.invalido@nhac.com.br").orElseThrow().getPapel());
+    }
+
+    @Test
+    void cpfDuplicadoNaoCriaLojaNemAlteraDonoDoDocumento() throws Exception {
+        String primeiro = registrarConta("cpf.primeiro@nhac.com.br", "11977770003");
+        mockMvc.perform(post("/api/v1/lojas").header("Authorization", "Bearer " + primeiro)
+                        .contentType(MediaType.APPLICATION_JSON).content(jsonComCpf("52998224725")))
+                .andExpect(status().isCreated());
+        String segundo = registrarConta("cpf.segundo@nhac.com.br", "11977770004");
+        mockMvc.perform(post("/api/v1/lojas").header("Authorization", "Bearer " + segundo)
+                        .contentType(MediaType.APPLICATION_JSON).content(jsonComCpf("529.982.247-25")))
+                .andExpect(status().isBadRequest());
+        assertEquals(1, lojaRepository.count());
+        Usuario recusado = usuarioRepository.findByEmailIgnoreCase("cpf.segundo@nhac.com.br").orElseThrow();
+        assertEquals(Papel.CLIENTE, recusado.getPapel());
+        org.junit.jupiter.api.Assertions.assertNull(recusado.getLojaVinculadaId());
+        org.junit.jupiter.api.Assertions.assertNull(recusado.getCpf());
+    }
+
+    @Test
+    void funcionarioNaoPodeTrocarSeuVinculoCriandoOutraLoja() throws Exception {
+        String jwt = registrarConta("cpf.funcionario@nhac.com.br", "11977770005");
+        Usuario funcionario = usuarioRepository.findByEmailIgnoreCase("cpf.funcionario@nhac.com.br").orElseThrow();
+        funcionario.setPapel(Papel.FUNCIONARIO);
+        funcionario.setCargo("Atendente");
+        funcionario.setLojaVinculadaId("loja-original");
+        usuarioRepository.save(funcionario);
+        mockMvc.perform(post("/api/v1/lojas").header("Authorization", "Bearer " + jwt)
+                        .contentType(MediaType.APPLICATION_JSON).content(jsonComCpf("52998224725")))
+                .andExpect(status().isForbidden());
+        assertEquals(0, lojaRepository.count());
+        assertEquals("loja-original", usuarioRepository.findById(funcionario.getId()).orElseThrow().getLojaVinculadaId());
+    }
+
+    private String registrarConta(String email, String telefone) throws Exception {
+        criarCodigoVerificadoPara(email);
+        var registro = new RegistroRequestDTO(UUID.randomUUID().toString(), "Responsável Teste", email, telefone, "Teste12345");
+        String resposta = mockMvc.perform(post("/api/v1/auth/registrar").contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(registro)))
+                .andExpect(status().isCreated()).andReturn().getResponse().getContentAsString();
+        return objectMapper.readTree(resposta).get("token").asText();
+    }
+
+    private String jsonComCpf(String cpf) {
+        return jsonCriacaoLoja("usuario-forjado").replace("\"nome\":", "\"cpfResponsavel\": \"" + cpf + "\", \"nome\":");
     }
 
     private String jsonCriacaoLoja(String usuarioIdForjado) {

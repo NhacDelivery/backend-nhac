@@ -47,8 +47,20 @@ public record LojaCreateDTO(
         HorariosDTO horarios,
 
         @Schema(description = "Formas de pagamento aceitas pela loja (se nulo, usa defaults: todas exceto VA/VR)")
-        FormasPagamentoDTO formasPagamento
+        FormasPagamentoDTO formasPagamento,
+
+        @org.hibernate.validator.constraints.br.CPF(message = "CPF inválido.")
+        @jakarta.validation.constraints.Pattern(regexp = "\\d{11}|\\d{3}\\.\\d{3}\\.\\d{3}-\\d{2}", message = "CPF inválido.")
+        @Schema(description = "CPF do responsável, salvo no usuário autenticado apenas na criação. Opcional para clientes antigos.")
+        String cpfResponsavel
 ) {
+    public LojaCreateDTO(String nome, String descricao, String categoria, String imagemUrl,
+            Boolean isAberto, DadosOperacionaisDTO dadosOperacionais, EnderecoDTO endereco,
+            HorariosDTO horarios, FormasPagamentoDTO formasPagamento) {
+        this(nome, descricao, categoria, imagemUrl, isAberto, dadosOperacionais, endereco,
+                horarios, formasPagamento, null);
+    }
+
     @Schema(description = "Dados de operação logística da loja")
     public record DadosOperacionaisDTO(
             @NotNull(message = "A taxa de entrega base é obrigatória.")
