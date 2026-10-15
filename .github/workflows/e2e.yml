@@ -2,9 +2,29 @@ name: E2E cliente
 
 on:
   workflow_dispatch:
+    inputs:
+      app_ref:
+        description: 'Ref do Nhac (vazio usa a revisão padrão deste workflow)'
+        required: false
+        type: string
+      backend_ref:
+        description: 'Ref do backend (vazio usa a revisão padrão deste workflow)'
+        required: false
+        type: string
+  push:
+    branches: [main]
   pull_request:
     paths:
       - 'src/main/java/br/com/nhac/backend_nhac/config/E2EDataLoader.java'
+      - 'src/main/java/br/com/nhac/backend_nhac/domain/chat/**'
+      - 'src/main/java/br/com/nhac/backend_nhac/domain/feed/**'
+      - 'src/main/java/br/com/nhac/backend_nhac/domain/cupom/**'
+      - 'src/main/java/br/com/nhac/backend_nhac/domain/avaliacao/**'
+      - 'src/main/java/br/com/nhac/backend_nhac/domain/avaliacao_produto/**'
+      - 'src/main/java/br/com/nhac/backend_nhac/domain/avaliacao_entregador/**'
+      - 'src/main/java/br/com/nhac/backend_nhac/domain/upload/**'
+      - 'src/main/java/br/com/nhac/backend_nhac/domain/favorito/**'
+      - 'src/main/java/br/com/nhac/backend_nhac/domain/entregador/**'
       - 'src/main/java/br/com/nhac/backend_nhac/domain/auth/**'
       - 'src/main/java/br/com/nhac/backend_nhac/domain/entrega/**'
       - 'src/main/java/br/com/nhac/backend_nhac/domain/loja/**'
@@ -15,6 +35,8 @@ on:
       - 'src/main/resources/application-e2e.properties'
       - 'src/main/resources/db/migration/**'
       - '.github/workflows/e2e.yml'
+      - '.github/scripts/run-client-e2e.sh'
+      - 'pom.xml'
 
 concurrency:
   group: e2e-cliente-${{ github.ref }}
@@ -27,18 +49,47 @@ env:
   FLUTTER_VERSION: '3.44.7'
 
 jobs:
-  e2e:
-    name: E2E-001 a E2E-004 (3x)
+  resolve-revisions:
+    name: Resolver par de revisões E2E
     runs-on: ubuntu-24.04
-    timeout-minutes: 45
+    timeout-minutes: 5
+    outputs:
+      app_sha: ${{ steps.revisions.outputs.app_sha }}
+      backend_sha: ${{ steps.revisions.outputs.backend_sha }}
+    steps:
+      - name: Resolver revisão do app
+        uses: actions/checkout@v4
+        with:
+          repository: NhacDelivery/Nhac
+          ref: ${{ inputs.app_ref || 'eu-e-tu' }}
+          path: Nhac
+          persist-credentials: false
+      - name: Resolver revisão do backend
+        uses: actions/checkout@v4
+        with:
+          repository: NhacDelivery/backend-nhac
+          ref: ${{ inputs.backend_ref || github.sha }}
+          path: backend-nhac
+          persist-credentials: false
+      - name: Fixar commits para todos os devices
+        id: revisions
+        run: |
+          echo "app_sha=$(git -C Nhac rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+          echo "backend_sha=$(git -C backend-nhac rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+
+  e2e:
+    needs: resolve-revisions
+    name: Contratos e fluxos do cliente
+    runs-on: ubuntu-24.04
+    timeout-minutes: 110
     services:
       mariadb:
         image: mariadb:11.4
         env:
           MARIADB_DATABASE: nhac_e2e
           MARIADB_USER: nhac_e2e
-          MARIADB_PASSWORD: nhac_e2e
-          MARIADB_ROOT_PASSWORD: nhac_e2e_root
+          MARIADB_PASSWORD: ${{ github.run_id }}-${{ github.run_attempt }}-nhac-db
+          MARIADB_RANDOM_ROOT_PASSWORD: 'true'
         ports:
           - 3307:3306
         options: >-
@@ -51,15 +102,51 @@ jobs:
       - name: Checkout backend
         uses: actions/checkout@v4
         with:
+          ref: ${{ needs.resolve-revisions.outputs.backend_sha }}
+          persist-credentials: false
           path: backend-nhac
 
       - name: Checkout app E2E
         uses: actions/checkout@v4
         with:
           repository: NhacDelivery/Nhac
-          # Integra o backend com a branch do cliente que utiliza estes contratos.
-          ref: feature/feed-api
+          persist-credentials: false
+          ref: ${{ needs.resolve-revisions.outputs.app_sha }}
           path: Nhac
+
+      - name: Registrar revisões efetivamente testadas
+        env:
+          EXPECTED_APP_SHA: ${{ needs.resolve-revisions.outputs.app_sha }}
+          EXPECTED_BACKEND_SHA: ${{ needs.resolve-revisions.outputs.backend_sha }}
+          APP_REF: ${{ inputs.app_ref || 'eu-e-tu' }}
+          BACKEND_REF: ${{ inputs.backend_ref || github.sha }}
+        run: |
+          python3 - <<'PYTHON'
+          import json, os, subprocess
+          from pathlib import Path
+          app_sha = subprocess.check_output(['git', '-C', 'Nhac', 'rev-parse', 'HEAD'], text=True).strip()
+          backend_sha = subprocess.check_output(['git', '-C', 'backend-nhac', 'rev-parse', 'HEAD'], text=True).strip()
+          if app_sha != os.environ['EXPECTED_APP_SHA'] or backend_sha != os.environ['EXPECTED_BACKEND_SHA']:
+              raise SystemExit('Checkout divergiu das revisões resolvidas; E2E interrompido.')
+          metadata = {
+              'run_id': os.environ['GITHUB_RUN_ID'],
+              'run_attempt': os.environ['GITHUB_RUN_ATTEMPT'],
+              'event': os.environ['GITHUB_EVENT_NAME'],
+              'trigger_ref': os.environ['GITHUB_REF'],
+              'workflow_repository': os.environ['GITHUB_REPOSITORY'],
+              'app': {'repository': 'NhacDelivery/Nhac', 'ref': os.environ['APP_REF'], 'sha': app_sha},
+              'backend': {'repository': 'NhacDelivery/backend-nhac', 'ref': os.environ['BACKEND_REF'], 'sha': backend_sha},
+          }
+          output = Path('e2e-metadata')
+          output.mkdir(exist_ok=True)
+          (output / 'revisions.json').write_text(json.dumps(metadata, indent=2) + '\n')
+          summary = '## Revisões E2E\n\n| Repositório | Ref solicitada | SHA testado |\n|---|---|---|\n'
+          for item in (metadata['app'], metadata['backend']):
+              summary += f"| {item['repository']} | {item['ref']} | `{item['sha']}` |\n"
+          (output / 'revisions.md').write_text(summary)
+          with open(os.environ['GITHUB_STEP_SUMMARY'], 'a') as file:
+              file.write(summary)
+          PYTHON
 
       - name: Preparar ambiente do app E2E
         run: |
@@ -72,6 +159,10 @@ jobs:
           E2E_MODE=true
           API_BASE_URL=http://127.0.0.1:8080/api/v1
           EOF
+
+      - name: Testar preflight e orquestração do cliente
+        working-directory: Nhac
+        run: python3 -m unittest discover -s tool -p 'test_*.py' -v
 
       - name: Setup Java 25
         uses: actions/setup-java@v4
@@ -123,14 +214,15 @@ jobs:
           ls -l /dev/kvm
           test -r /dev/kvm && test -w /dev/kvm
 
-      - name: Run isolated Android E2E three times
+      - name: Run isolated Android E2E
         uses: ReactiveCircus/android-emulator-runner@v2
+        timeout-minutes: 95
         env:
           RUN_E2E: 'true'
           E2E_DB_MANAGED: 'true'
-          # Mesma senha do serviço MariaDB isolado; impede geração aleatória no runner.
-          E2E_DB_PASSWORD: 'nhac_e2e'
-          E2E_REPEAT: '3'
+          E2E_DB_PASSWORD: ${{ github.run_id }}-${{ github.run_attempt }}-nhac-db
+          E2E_DB_CONTAINER: ${{ job.services.mariadb.id }}
+          E2E_REPEAT: ${{ github.event_name == 'workflow_dispatch' && '3' || '1' }}
           E2E_DEVICE_ID: emulator-5554
           BACKEND_DIR: ${{ github.workspace }}/backend-nhac
           BACKEND_JAVA_HOME: ${{ steps.backend-java.outputs.home }}
@@ -138,10 +230,10 @@ jobs:
           api-level: 34
           arch: x86_64
           profile: pixel_2
-          cores: 2
-          ram-size: 2048M
-          heap-size: 512M
-          disk-size: 4096M
+          cores: 3
+          ram-size: 4096M
+          heap-size: 1024M
+          disk-size: 6144M
           disable-animations: true
           disable-linux-hw-accel: false
           working-directory: Nhac
@@ -152,6 +244,8 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: e2e-logs-${{ github.run_number }}
-          path: Nhac/e2e-logs
+          path: |
+            e2e-metadata
+            Nhac/e2e-logs
           if-no-files-found: warn
           retention-days: 14
