@@ -11,6 +11,7 @@ import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
 class PagamentoExpiracaoServiceTest {
+    @Mock PagamentoMetricas metricas;
     @Mock PedidoRepository repository;
     @Mock PedidoService pedidoService;
     @Mock AsaasPaymentService asaas;

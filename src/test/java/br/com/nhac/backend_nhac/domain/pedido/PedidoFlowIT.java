@@ -89,6 +89,46 @@ public class PedidoFlowIT extends AbstractIntegrationTest {
                 .andExpect(status().isOk()).andExpect(jsonPath("$.content[0].formaPagamento").value("DINHEIRO"));
     }
 
+    @Test
+    void estornoCancelaUmaVezDevolveEstoqueECupomEPersisteSolicitacao() throws Exception {
+        var cupom = cupomService.ganharBoasVindas(usuario.getId());
+        var dto = pedidoComPagamento("DINHEIRO", null, cupom.id());
+        var response = mockMvc.perform(post("/api/v1/pedidos").header("Authorization", "Bearer " + token)
+                .contentType(MediaType.APPLICATION_JSON).content(objectMapper.writeValueAsString(dto)))
+                .andExpect(status().isCreated()).andReturn();
+        String id = objectMapper.readTree(response.getResponse().getContentAsString()).get("pedidoId").asText();
+        var pedido = pedidoRepository.findById(id).orElseThrow();
+        pedido.setStatus(StatusPedido.PAGO); pedido.setFormaPagamento("CARTAO");
+        pedido.setStripePaymentIntentId("pi-estorno"); pedido.setPagamentoCriacaoIncerta(false);
+        pedidoRepository.saveAndFlush(pedido);
+        int antes = produtoRepository.findById(produto.getId()).orElseThrow().getEstoque();
+        for (int i = 0; i < 2; i++) {
+            mockMvc.perform(post("/api/v1/pedidos/" + id + "/estorno").header("Authorization", "Bearer " + token))
+                    .andExpect(status().isAccepted());
+        }
+        assertEquals(antes + 1, produtoRepository.findById(produto.getId()).orElseThrow().getEstoque());
+        assertEquals("DISPONIVEL", cupomService.listar(usuario.getId()).getFirst().status());
+        var salvo = pedidoRepository.findById(id).orElseThrow();
+        assertEquals(StatusPedido.CANCELADO, salvo.getStatus());
+        assertEquals(StatusEstorno.SOLICITADO, salvo.getEstornoStatus());
+        assertNotNull(salvo.getEstornoAtualizadoEm());
+        mockMvc.perform(get("/api/v1/pedidos/" + id + "/operacao-pagamento").header("Authorization", "Bearer " + token))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.estado").value("ESTORNO_SOLICITADO"))
+                .andExpect(jsonPath("$.podeSolicitarEstorno").value(false))
+                .andExpect(jsonPath("$.stripePaymentIntentId").doesNotExist());
+        assertEquals(1, pedidoRepository.transicionarEstorno(id, StatusEstorno.SOLICITADO, StatusEstorno.ENVIANDO, java.time.Instant.now()));
+        assertEquals(0, pedidoRepository.transicionarEstorno(id, StatusEstorno.SOLICITADO, StatusEstorno.ENVIANDO, java.time.Instant.now()));
+        Mockito.verify(stripePaymentService, Mockito.never()).estornar(Mockito.any());
+    }
+
+    @Test
+    void clienteNaoAcessaFilaOuMetricasOuDisparoOperacional() throws Exception {
+        for (String endpoint : List.of("/api/v1/operacao/pagamentos", "/api/v1/operacao/pagamentos/metricas"))
+            mockMvc.perform(get(endpoint).header("Authorization", "Bearer " + token)).andExpect(status().isForbidden());
+        mockMvc.perform(post("/api/v1/operacao/pagamentos/processar").header("Authorization", "Bearer " + token))
+                .andExpect(status().isForbidden());
+    }
+
     private PedidoCreateDTO pedidoComPagamento(String forma, BigDecimal troco, String cupomId) {
         var original = criarPedidoDTO(1);
         return new PedidoCreateDTO(original.lojaId(), forma, original.observacao(), troco,

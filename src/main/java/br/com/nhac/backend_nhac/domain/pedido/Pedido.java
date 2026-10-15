@@ -113,6 +113,13 @@ public class Pedido {
     @Column(name = "pagamento_criacao_incerta", nullable = false)
     private boolean pagamentoCriacaoIncerta;
 
+    @Enumerated(EnumType.STRING)
+    @Column(name = "estorno_status", length = 20)
+    private StatusEstorno estornoStatus;
+
+    @Column(name = "estorno_atualizado_em")
+    private Instant estornoAtualizadoEm;
+
     public void adicionarItem(ItemPedido item) {
         itens.add(item);
         item.setPedido(this);

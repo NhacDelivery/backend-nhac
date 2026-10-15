@@ -46,6 +46,7 @@ import static org.mockito.Mockito.*;
 @ExtendWith(MockitoExtension.class)
 class PedidoServiceTest {
 
+    @Mock PagamentoMetricas metricas;
     @Mock private PedidoRepository pedidoRepository;
     @Mock private ProdutoRepository produtoRepository;
     @Mock private LojaRepository lojaRepository;
@@ -86,6 +87,32 @@ class PedidoServiceTest {
         usuario.setEmail("teste@nhac.com");
         usuario.setTelefone("11999999999");
         return usuario;
+    }
+
+    @Test
+    void estornoDeOutroClienteNaoAlteraPedidoMesmoEmReplay() {
+        Pedido p = new Pedido(); p.setId("p"); p.setUsuarioId("dono");
+        p.setEstornoStatus(StatusEstorno.SOLICITADO);
+        when(pedidoRepository.findLockedById("p")).thenReturn(Optional.of(p));
+        assertThrows(AcessoNegadoException.class, () -> pedidoService.solicitarEstorno("p", "outro"));
+        verify(pedidoRepository, never()).save(any());
+    }
+
+    @org.junit.jupiter.params.ParameterizedTest
+    @org.junit.jupiter.params.provider.EnumSource(value = StatusPedido.class, names = {"PENDENTE", "PREPARANDO", "SAIU_ENTREGA", "ENTREGUE", "CANCELADO"})
+    void estornoAutomaticoNaoAceitaFasesForaDePago(StatusPedido status) {
+        Pedido p = new Pedido(); p.setId("p"); p.setUsuarioId("dono"); p.setStatus(status);
+        when(pedidoRepository.findLockedById("p")).thenReturn(Optional.of(p));
+        assertThrows(RegraDeNegocioException.class, () -> pedidoService.solicitarEstorno("p", "dono"));
+        verify(pedidoRepository, never()).save(any());
+    }
+
+    @Test
+    void confirmacaoAtrasadaNaoReabrePedidoComEstorno() {
+        Pedido p = new Pedido(); p.setStatus(StatusPedido.CANCELADO); p.setEstornoStatus(StatusEstorno.PROCESSANDO);
+        when(pedidoRepository.findByStripePaymentIntentId("pi")).thenReturn(Optional.of(p));
+        pedidoService.marcarComoPagoPorPaymentIntentId("pi");
+        assertEquals(StatusPedido.CANCELADO, p.getStatus()); verify(pedidoRepository, never()).save(any());
     }
 
     @Test

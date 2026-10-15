@@ -64,6 +64,7 @@ public class PedidoService {
 
     private final Environment environment;
     private final PedidoReservaService reservaService;
+    private final PagamentoMetricas metricas;
 
     private final br.com.nhac.backend_nhac.domain.cupom.CupomService cupomService;
     private final PedidoRepository pedidoRepository;
@@ -86,7 +87,8 @@ public class PedidoService {
                           br.com.nhac.backend_nhac.domain.cupom.CupomService cupomService,
                           Environment environment,
                           br.com.nhac.backend_nhac.domain.avaliacao_entregador.AvaliacaoEntregadorService avaliacaoEntregadorService,
-                          PedidoReservaService reservaService) {
+                          PedidoReservaService reservaService, PagamentoMetricas metricas) {
+        this.metricas = metricas;
         this.reservaService = reservaService;
         this.cupomService = cupomService;
         this.pedidoRepository = pedidoRepository;
@@ -119,6 +121,7 @@ public class PedidoService {
                 return new ResultadoCriacaoPedido(stripePaymentService.criarPaymentIntentCartao(pedido), false);
             return new ResultadoCriacaoPedido(new PedidoCriadoDTO(pedido.getId(), null, null, null), false);
         } catch (Exception e) {
+            metricas.registrar("criacao", "falha");
             throw new PagamentoIndisponivelException(
                     "O pedido foi reservado. Consulte o pagamento antes de tentar novamente.", pedido.getId());
         }
@@ -167,6 +170,7 @@ public class PedidoService {
                 // Não registra CPF, token ou corpo da resposta do provedor.
                 Integer status = e instanceof org.springframework.web.client.RestClientResponseException http
                         ? http.getStatusCode().value() : null;
+                metricas.registrar("consulta_pix", "falha");
                 log.warn("PIX indisponível pedido={} etapa={} asaasStatus={} causa={}",
                         pedidoId, pedido.getAsaasPaymentId() == null ? "recuperar-cobranca" : "codigo-pix",
                         status, e.getClass().getSimpleName());
@@ -240,6 +244,7 @@ public class PedidoService {
         Pedido pedido = pedidoRepository.findByStripePaymentIntentId(paymentIntentId)
                 .orElseThrow(() -> new IdNaoEncontradoException("Pedido com PaymentIntent " + paymentIntentId + " não encontrado."));
         
+        if (pedido.getEstornoStatus() != null) return; // confirmação atrasada não reabre pedido estornado
         if (pedido.getStatus() == StatusPedido.PAGO
                 || pedido.getStatus() == StatusPedido.PREPARANDO
                 || pedido.getStatus() == StatusPedido.SAIU_ENTREGA
@@ -257,6 +262,7 @@ public class PedidoService {
         Pedido pedido = pedidoRepository.findByAsaasPaymentId(asaasPaymentId)
                 .orElseThrow(() -> new IdNaoEncontradoException("Pedido com Asaas Payment ID " + asaasPaymentId + " não encontrado."));
         
+        if (pedido.getEstornoStatus() != null) return; // confirmação atrasada não reabre pedido estornado
         if (pedido.getStatus() == StatusPedido.PAGO
                 || pedido.getStatus() == StatusPedido.PREPARANDO
                 || pedido.getStatus() == StatusPedido.SAIU_ENTREGA
@@ -388,6 +394,24 @@ public class PedidoService {
         // e permitirmos um novo pedido. Se o provedor falhar, mantenha ativo.
         cancelarCobrancaSePendente(pedido);
 
+        cancelarInternamente(pedido);
+    }
+
+    /** Cancela o pedido e registra o estorno na mesma transação. Nenhuma chamada externa sob lock. */
+    @Transactional
+    public void solicitarEstorno(String pedidoId, String usuarioId) {
+        Pedido pedido = pedidoRepository.findLockedById(pedidoId)
+                .orElseThrow(() -> new IdNaoEncontradoException("Pedido não encontrado."));
+        if (!pedido.getUsuarioId().equals(usuarioId))
+            throw new AcessoNegadoException("Este pedido pertence a outro usuário.");
+        if (pedido.getEstornoStatus() != null) return; // replay autorizado
+        if (pedido.getStatus() != StatusPedido.PAGO)
+            throw new RegraDeNegocioException("O estorno automático está disponível somente antes do preparo.");
+        if (pedido.isPagamentoCriacaoIncerta()
+                || (pedido.getAsaasPaymentId() == null && pedido.getStripePaymentIntentId() == null))
+            throw new RegraDeNegocioException("Este pagamento precisa de análise antes do estorno.");
+        pedido.setEstornoStatus(StatusEstorno.SOLICITADO);
+        pedido.setEstornoAtualizadoEm(Instant.now());
         cancelarInternamente(pedido);
     }
 

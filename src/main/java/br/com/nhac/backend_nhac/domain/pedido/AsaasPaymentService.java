@@ -190,6 +190,30 @@ public class AsaasPaymentService {
                 HttpMethod.DELETE, new HttpEntity<>(cabecalhos()), String.class);
     }
 
+    public StatusEstorno estornar(Pedido pedido) {
+        if (mockMode) return StatusEstorno.CONCLUIDO;
+        // Verifica estorno prévio/manual antes de enviar qualquer débito.
+        String status = consultarStatus(pedido.getAsaasPaymentId());
+        if ("REFUNDED".equals(status)) return StatusEstorno.CONCLUIDO;
+        if (!"RECEIVED".equals(status) && !"CONFIRMED".equals(status)) return StatusEstorno.REVISAO;
+        HttpHeaders headers = cabecalhos(); headers.setContentType(MediaType.APPLICATION_JSON);
+        JsonObject body = new JsonObject();
+        body.addProperty("value", pedido.getValorTotal());
+        body.addProperty("description", "Cancelamento do pedido " + pedido.getId());
+        restTemplate.postForEntity(asaasApiUrl + "/payments/" + pedido.getAsaasPaymentId() + "/refund",
+                new HttpEntity<>(body.toString(), headers), String.class);
+        return consultarEstorno(pedido);
+    }
+
+    public StatusEstorno consultarEstorno(Pedido pedido) {
+        if (mockMode) return StatusEstorno.CONCLUIDO;
+        return switch (consultarStatus(pedido.getAsaasPaymentId())) {
+            case "REFUNDED" -> StatusEstorno.CONCLUIDO;
+            case "REFUND_REQUESTED", "REFUND_IN_PROGRESS" -> StatusEstorno.PROCESSANDO;
+            default -> StatusEstorno.REVISAO;
+        };
+    }
+
     private JsonObject buscar(String path) {
         ResponseEntity<String> resposta = restTemplate.exchange(asaasApiUrl + path,
                 HttpMethod.GET, new HttpEntity<>(cabecalhos()), String.class);
