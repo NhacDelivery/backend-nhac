@@ -81,6 +81,18 @@ public interface PedidoRepository extends JpaRepository<Pedido, String> {
             Pageable pageable
     );
 
+    @Modifying(clearAutomatically = true)
+    @org.springframework.transaction.annotation.Transactional
+    @Query("UPDATE Pedido p SET p.estornoStatus = :novo, p.estornoAtualizadoEm = :agora, p.version = p.version + 1 WHERE p.id = :id AND p.estornoStatus = :anterior")
+    int transicionarEstorno(@Param("id") String id, @Param("anterior") StatusEstorno anterior,
+            @Param("novo") StatusEstorno novo, @Param("agora") Instant agora);
+
+    List<Pedido> findTop50ByEstornoStatusInAndEstornoAtualizadoEmBeforeOrderByEstornoAtualizadoEmAsc(
+            List<StatusEstorno> estados, Instant antes);
+
+    @Query("SELECT p FROM Pedido p WHERE (p.status = br.com.nhac.backend_nhac.domain.pedido.StatusPedido.PENDENTE AND p.formaPagamento IN ('PIX', 'CARTAO', 'STRIPE', 'GOOGLE_PAY') AND (p.pagamentoCriacaoIncerta = true OR p.pagamentoExpiraEm <= :agora)) OR (p.estornoStatus IS NOT NULL AND p.estornoStatus <> br.com.nhac.backend_nhac.domain.pedido.StatusEstorno.CONCLUIDO)")
+    Page<Pedido> filaOperacao(@Param("agora") Instant agora, Pageable pageable);
+
     long countByUsuarioId(String usuarioId);
     long countByUsuarioIdAndCupomIdIsNotNull(String usuarioId);
 

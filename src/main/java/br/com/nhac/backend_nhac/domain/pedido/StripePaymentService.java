@@ -114,6 +114,44 @@ public class StripePaymentService {
         }
     }
 
+    public StatusEstorno estornar(Pedido pedido) {
+        if (mockMode) return StatusEstorno.CONCLUIDO;
+        try {
+            var anteriores = com.stripe.model.Refund.list(com.stripe.param.RefundListParams.builder()
+                    .setPaymentIntent(pedido.getStripePaymentIntentId()).setLimit(1L).build());
+            if (!anteriores.getData().isEmpty()) return consultarEstorno(pedido);
+            var params = com.stripe.param.RefundCreateParams.builder()
+                    .setPaymentIntent(pedido.getStripePaymentIntentId())
+                    .setAmount(pedido.getValorTotal().movePointRight(2).longValueExact())
+                    .setReason(com.stripe.param.RefundCreateParams.Reason.REQUESTED_BY_CUSTOMER)
+                    .putMetadata("pedidoId", pedido.getId()).build();
+            var refund = com.stripe.model.Refund.create(params, com.stripe.net.RequestOptions.builder()
+                    .setIdempotencyKey("nhac-estorno-" + pedido.getId()).build());
+            return estadoEstorno(refund, pedido);
+        } catch (StripeException e) { throw new IllegalStateException("Falha ao solicitar estorno com cartão.", e); }
+    }
+
+    public StatusEstorno consultarEstorno(Pedido pedido) {
+        if (mockMode) return StatusEstorno.CONCLUIDO;
+        try {
+            var refunds = com.stripe.model.Refund.list(com.stripe.param.RefundListParams.builder()
+                    .setPaymentIntent(pedido.getStripePaymentIntentId()).setLimit(2L).build());
+            // Parcial/múltiplo precisa de revisão; não afirmar devolução integral.
+            if (refunds.getData().size() != 1 || Boolean.TRUE.equals(refunds.getHasMore())) return StatusEstorno.REVISAO;
+            return estadoEstorno(refunds.getData().getFirst(), pedido);
+        } catch (StripeException e) { throw new IllegalStateException("Falha ao consultar estorno com cartão.", e); }
+    }
+    private StatusEstorno estadoEstorno(com.stripe.model.Refund refund, Pedido pedido) {
+        if (!pedido.getStripePaymentIntentId().equals(refund.getPaymentIntent())
+                || !"brl".equals(refund.getCurrency()) || refund.getAmount() == null
+                || refund.getAmount() != pedido.getValorTotal().movePointRight(2).longValueExact()) return StatusEstorno.REVISAO;
+        return switch (refund.getStatus() == null ? "" : refund.getStatus()) {
+            case "succeeded" -> StatusEstorno.CONCLUIDO;
+            case "pending", "requires_action" -> StatusEstorno.PROCESSANDO;
+            default -> StatusEstorno.REVISAO;
+        };
+    }
+
     public void cancelarPaymentIntent(String paymentIntentId) {
         if (mockMode) return;
         try {

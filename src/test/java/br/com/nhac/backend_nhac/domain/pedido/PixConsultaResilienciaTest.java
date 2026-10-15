@@ -15,6 +15,7 @@ import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
 class PixConsultaResilienciaTest {
+    @Mock PagamentoMetricas metricas;
     @Mock PedidoRepository repository;
     @Mock AsaasPaymentService asaas;
     @InjectMocks PedidoService service;

@@ -18,13 +18,15 @@ public class PagamentoExpiracaoService {
     private final PedidoService pedidoService;
     private final AsaasPaymentService asaas;
     private final StripePaymentService stripe;
+    private final PagamentoMetricas metricas;
 
     public PagamentoExpiracaoService(PedidoRepository repository, PedidoService pedidoService,
-            AsaasPaymentService asaas, StripePaymentService stripe) {
+            AsaasPaymentService asaas, StripePaymentService stripe, PagamentoMetricas metricas) {
         this.repository = repository;
         this.pedidoService = pedidoService;
         this.asaas = asaas;
         this.stripe = stripe;
+        this.metricas = metricas;
     }
 
     @Scheduled(fixedDelay = 5000)
@@ -33,10 +35,12 @@ public class PagamentoExpiracaoService {
             if (falhasRecentes.getIfPresent(pedido.getId()) != null) continue;
             try {
                 reconciliar(pedido);
+                metricas.registrar("conciliacao", "consultado");
                 falhasRecentes.invalidate(pedido.getId());
             } catch (Exception e) {
                 // Sem confirmação do provedor, o pedido permanece ativo para outra tentativa.
                 falhasRecentes.put(pedido.getId(), true);
+                metricas.registrar("conciliacao", "falha");
                 log.warn("Não foi possível conciliar o pagamento vencido do pedido {}", pedido.getId(), e);
             }
         }
