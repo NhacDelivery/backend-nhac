@@ -52,11 +52,43 @@ class MariaDbMigrationIT {
 
 
     @Test
+    void migracaoVinculaApenasDonoInequivocoSemInventarCpf() throws Exception {
+        try (var db = new MariaDBContainer<>("mariadb:11")
+                .withDatabaseName("nhac_vinculos").withUsername("nhac").withPassword(java.util.UUID.randomUUID().toString())) {
+            db.start();
+            try (var c = java.sql.DriverManager.getConnection(db.getJdbcUrl(), db.getUsername(), db.getPassword());
+                    var st = c.createStatement()) {
+                st.execute("CREATE TABLE tb_usuarios (id VARCHAR(50) PRIMARY KEY, papel VARCHAR(30), cargo VARCHAR(30), loja_vinculada_id VARCHAR(50), cpf VARCHAR(14))");
+                st.execute("CREATE TABLE tb_lojas (id VARCHAR(50) PRIMARY KEY, usuario_id VARCHAR(50))");
+                st.execute("INSERT INTO tb_usuarios (id,papel,loja_vinculada_id) VALUES ('dono','CLIENTE',NULL),('admin','ADMIN',NULL),('func','FUNCIONARIO','original'),('ambiguo','LOJISTA',NULL),('conflito','LOJISTA','outra')");
+                st.execute("INSERT INTO tb_lojas VALUES ('loja-dono','dono'),('loja-admin','admin'),('loja-func','func'),('loja-a','ambiguo'),('loja-b','ambiguo'),('loja-conflito','conflito'),('orfao',NULL)");
+                String sql = new org.springframework.core.io.ClassPathResource("db/migration/V1022__vinculo_dono_loja.sql")
+                        .getContentAsString(java.nio.charset.StandardCharsets.UTF_8);
+                st.execute(sql);
+                st.execute(sql);
+                try (var rs = st.executeQuery("SELECT papel,cargo,loja_vinculada_id,cpf FROM tb_usuarios WHERE id='dono'")) {
+                    assertTrue(rs.next());
+                    assertEquals("LOJISTA", rs.getString(1));
+                    assertEquals("ADMINISTRADOR", rs.getString(2));
+                    assertEquals("loja-dono", rs.getString(3));
+                    org.junit.jupiter.api.Assertions.assertNull(rs.getString(4));
+                }
+                try (var rs = st.executeQuery("SELECT papel FROM tb_usuarios WHERE id='admin'")) {
+                    assertTrue(rs.next()); assertEquals("ADMIN", rs.getString(1));
+                }
+                try (var rs = st.executeQuery("SELECT COUNT(*) FROM tb_usuarios WHERE (id='func' AND papel='FUNCIONARIO' AND loja_vinculada_id='original') OR (id='ambiguo' AND loja_vinculada_id IS NULL) OR (id='conflito' AND loja_vinculada_id='outra')")) {
+                    assertTrue(rs.next()); assertEquals(3, rs.getInt(1));
+                }
+            }
+        }
+    }
+
+    @Test
     void deveAplicarTodasAsMigrationsEmMariaDbLimpo() throws java.sql.SQLException {
         try (MariaDBContainer<?> mariadb = new MariaDBContainer<>("mariadb:11")
                 .withDatabaseName("nhac_migrations")
                 .withUsername("nhac")
-                .withPassword("nhac_test")) {
+                .withPassword(java.util.UUID.randomUUID().toString())) {
 
             mariadb.start();
 
@@ -91,7 +123,7 @@ class MariaDbMigrationIT {
     @Test
     void telefoneDuplicadoInterrompeAntesDeAlterarContasLegadas() throws java.sql.SQLException {
         try (var db = new MariaDBContainer<>("mariadb:11")
-                .withDatabaseName("nhac_telefone").withUsername("nhac").withPassword("nhac_test")) {
+                .withDatabaseName("nhac_telefone").withUsername("nhac").withPassword(java.util.UUID.randomUUID().toString())) {
             db.start();
             Flyway.configure().dataSource(db.getJdbcUrl(), db.getUsername(), db.getPassword())
                     .locations("classpath:db/migration").target("1014").load().migrate();

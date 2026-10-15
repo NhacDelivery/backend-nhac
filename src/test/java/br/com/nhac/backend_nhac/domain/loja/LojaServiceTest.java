@@ -205,6 +205,8 @@ class LojaServiceTest {
 
         assertTrue(resumo.id().startsWith("loja_"));
         assertEquals(Papel.LOJISTA, cliente.getPapel());
+        assertEquals(resumo.id(), cliente.getLojaVinculadaId());
+        assertEquals("ADMINISTRADOR", cliente.getCargo());
         verify(usuarioRepository).save(cliente);
         verify(lojaRepository).save(argThat(loja ->
                 "user_lojista".equals(loja.getUsuarioId())
@@ -224,7 +226,9 @@ class LojaServiceTest {
         lojaService.criarLoja(construirDtoCriacao(), admin);
 
         assertEquals(Papel.ADMIN, admin.getPapel());
-        verify(usuarioRepository, never()).save(any());
+        assertEquals("ADMINISTRADOR", admin.getCargo());
+        assertTrue(admin.getLojaVinculadaId().startsWith("loja_"));
+        verify(usuarioRepository).save(admin);
         verify(lojaRepository).save(argThat(loja -> "user_admin".equals(loja.getUsuarioId())));
     }
 

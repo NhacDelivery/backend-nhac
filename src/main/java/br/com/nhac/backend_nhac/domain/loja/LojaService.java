@@ -16,6 +16,7 @@ import br.com.nhac.backend_nhac.domain.loja.dto.AtualizarLocalizacaoLojaDTO;
 import br.com.nhac.backend_nhac.domain.loja.dto.LojaDetalhesDTO;
 import br.com.nhac.backend_nhac.domain.loja.dto.LojaResumoDTO;
 import br.com.nhac.backend_nhac.domain.usuario.Papel;
+import br.com.nhac.backend_nhac.domain.usuario.Cargo;
 import br.com.nhac.backend_nhac.domain.usuario.Usuario;
 import br.com.nhac.backend_nhac.domain.usuario.UsuarioRepository;
 import br.com.nhac.backend_nhac.exceptions.AcessoNegadoException;
@@ -75,8 +76,18 @@ public class LojaService {
             throw new AcessoNegadoException("É necessário estar autenticado para cadastrar uma loja.");
         }
 
+        if (usuarioLogado.getPapel() != Papel.CLIENTE && usuarioLogado.getPapel() != Papel.LOJISTA
+                && usuarioLogado.getPapel() != Papel.ADMIN) {
+            throw new AcessoNegadoException("Esta conta já possui outro vínculo e não pode cadastrar uma loja.");
+        }
+
         if (lojaRepository.findByUsuarioId(usuarioLogado.getId()).isPresent()) {
             throw new RegraDeNegocioException("Você já possui uma loja cadastrada.");
+        }
+
+        String cpf = dto.cpfResponsavel() == null ? null : dto.cpfResponsavel().replaceAll("\\D", "");
+        if (cpf != null && usuarioRepository.existsByCpfAndIdNot(cpf, usuarioLogado.getId())) {
+            throw new RegraDeNegocioException("Este CPF já está em uso por outra conta.");
         }
 
         String novoId = "loja_" + UUID.randomUUID();
@@ -87,10 +98,13 @@ public class LojaService {
 
         if (usuarioLogado.getPapel() == Papel.CLIENTE) {
             usuarioLogado.setPapel(Papel.LOJISTA);
-            usuarioRepository.save(usuarioLogado);
         }
+        usuarioLogado.setLojaVinculadaId(novoId);
+        usuarioLogado.setCargo(Cargo.ADMINISTRADOR.name());
+        if (cpf != null) usuarioLogado.setCpf(cpf);
 
         Loja lojaSalva = lojaRepository.save(novaLoja);
+        usuarioRepository.save(usuarioLogado);
         return new LojaResumoDTO(lojaSalva);
     }
 
