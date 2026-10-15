@@ -11,6 +11,10 @@ public record PagamentoOperacaoDTO(String pedidoId, String estado, Instant atual
                         ? "CONCILIACAO" : "REGULAR") : "ESTORNO_" + p.getEstornoStatus().name();
         return new PagamentoOperacaoDTO(p.getId(), estado, p.getEstornoAtualizadoEm(),
                 p.getStatus() == StatusPedido.PAGO && p.getEstornoStatus() == null && !p.isPagamentoCriacaoIncerta()
-                && (p.getAsaasPaymentId() != null || p.getStripePaymentIntentId() != null));
+                && switch (p.getFormaPagamento() == null ? "" : p.getFormaPagamento().toUpperCase(java.util.Locale.ROOT)) {
+                    case "PIX" -> p.getAsaasPaymentId() != null && p.getStripePaymentIntentId() == null;
+                    case "CARTAO", "STRIPE", "GOOGLE_PAY" -> p.getStripePaymentIntentId() != null && p.getAsaasPaymentId() == null;
+                    default -> false;
+                });
     }
 }

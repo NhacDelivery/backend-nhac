@@ -407,8 +407,7 @@ public class PedidoService {
         if (pedido.getEstornoStatus() != null) return; // replay autorizado
         if (pedido.getStatus() != StatusPedido.PAGO)
             throw new RegraDeNegocioException("O estorno automático está disponível somente antes do preparo.");
-        if (pedido.isPagamentoCriacaoIncerta()
-                || (pedido.getAsaasPaymentId() == null && pedido.getStripePaymentIntentId() == null))
+        if (!PagamentoOperacaoDTO.de(pedido).podeSolicitarEstorno())
             throw new RegraDeNegocioException("Este pagamento precisa de análise antes do estorno.");
         pedido.setEstornoStatus(StatusEstorno.SOLICITADO);
         pedido.setEstornoAtualizadoEm(Instant.now());
