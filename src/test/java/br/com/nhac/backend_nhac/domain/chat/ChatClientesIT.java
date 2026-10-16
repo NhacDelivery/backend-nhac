@@ -77,7 +77,10 @@ class ChatClientesIT extends AbstractIntegrationTest {
     void filtroAplicaAntesDaPaginacaoComTotaisCorretosESemVazarOutroUsuario() throws Exception {
         var loja = new br.com.nhac.backend_nhac.domain.loja.Loja();
         loja.setId("loja-filtro"); loja.setNome("Loja"); loja.setAberto(true);
+        loja.setUsuarioId(lojista.getId());
         loja.setDadosOperacionais(new br.com.nhac.backend_nhac.domain.loja.DadosOperacionais());
+        loja.setEndereco(new br.com.nhac.backend_nhac.domain.loja.EnderecoLoja(
+                "Rua Teste", "123", "Cidade", "SP", "00000-000", "Bairro", null));
         lojas.saveAndFlush(loja);
         var comLoja = new Conversa("conv-loja", loja, a.getId(), ParticipanteTipo.CLIENTE);
         comLoja.setUltimaMensagemEm(java.time.Instant.now().plusSeconds(60)); conversas.saveAndFlush(comLoja);
@@ -237,7 +240,10 @@ class ChatClientesIT extends AbstractIntegrationTest {
         var loja = new br.com.nhac.backend_nhac.domain.loja.Loja();
         loja.setId("loja-mista"); loja.setNome("Loja Mista"); loja.setUsuarioId(lojista.getId());
         loja.setEndereco(new br.com.nhac.backend_nhac.domain.loja.EnderecoLoja("Rua", "1", "Cidade", "SP", "00000-000", "Bairro", null));
+        loja.setUsuarioId(lojista.getId());
         loja.setDadosOperacionais(new br.com.nhac.backend_nhac.domain.loja.DadosOperacionais());
+        loja.setEndereco(new br.com.nhac.backend_nhac.domain.loja.EnderecoLoja(
+                "Rua Teste", "123", "Cidade", "SP", "00000-000", "Bairro", null));
         lojaRepository.saveAndFlush(loja);
         service.obterOuCriarConversa(loja.getId(), a);
         abrir(a, b);
