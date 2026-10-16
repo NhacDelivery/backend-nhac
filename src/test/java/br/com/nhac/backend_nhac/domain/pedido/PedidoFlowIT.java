@@ -43,6 +43,7 @@ public class PedidoFlowIT extends AbstractIntegrationTest {
         dados.setTaxaEntregaBase("PADRAO".equals(taxa) ? null : new BigDecimal(taxa));
         loja.setDadosOperacionais(dados); lojaRepository.saveAndFlush(loja);
         var estimativa = mockMvc.perform(post("/api/v1/lojas/" + loja.getId() + "/calcular-frete")
+                .header("Authorization", "Bearer " + token)
                 .contentType(MediaType.APPLICATION_JSON).content("{\"lat\":-23.5,\"lng\":-46.7}"))
                 .andExpect(status().isOk()).andReturn();
         BigDecimal esperado = objectMapper.readTree(estimativa.getResponse().getContentAsString()).get("valor").decimalValue();
