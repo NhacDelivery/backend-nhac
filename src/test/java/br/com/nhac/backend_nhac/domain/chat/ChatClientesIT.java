@@ -76,7 +76,9 @@ class ChatClientesIT extends AbstractIntegrationTest {
     @Test
     void filtroAplicaAntesDaPaginacaoComTotaisCorretosESemVazarOutroUsuario() throws Exception {
         var loja = new br.com.nhac.backend_nhac.domain.loja.Loja();
-        loja.setId("loja-filtro"); loja.setNome("Loja"); loja.setAberto(true); lojas.saveAndFlush(loja);
+        loja.setId("loja-filtro"); loja.setNome("Loja"); loja.setAberto(true);
+        loja.setDadosOperacionais(new br.com.nhac.backend_nhac.domain.loja.DadosOperacionais());
+        lojas.saveAndFlush(loja);
         var comLoja = new Conversa("conv-loja", loja, a.getId(), ParticipanteTipo.CLIENTE);
         comLoja.setUltimaMensagemEm(java.time.Instant.now().plusSeconds(60)); conversas.saveAndFlush(comLoja);
         // Terceiro aparece como o segundo participante e também precisa ser encontrado.
