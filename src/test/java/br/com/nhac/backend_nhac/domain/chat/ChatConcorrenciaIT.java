@@ -124,7 +124,6 @@ public class ChatConcorrenciaIT extends AbstractIntegrationTest {
         assertEquals(2, mensagemRepository.countByConversaId(conversa.getId()));
     }
 
-    // ---- helpers ----
 
     private Usuario criarUsuario(String email, Papel papel) {
         Usuario u = new Usuario();

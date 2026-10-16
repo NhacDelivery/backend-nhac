@@ -20,18 +20,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 
-/**
- * GET /lojista/painel — resumo enxuto pra tela inicial do painel (item 3.1 da spec).
- *
- * Decisão assumida (pergunta em aberto #6 da spec, sem resposta ainda): "hoje"
- * é calculado no fuso America/Sao_Paulo, não no fuso do servidor nem do
- * usuário — mais simples de implementar agora e correto pra a esmagadora
- * maioria dos lojistas. Se isso precisar variar por loja/usuário no futuro,
- * é só trocar ZONA_PADRAO por um valor vindo da Loja ou do Usuario.
- *
- * Consulta sem cache: totais financeiros e pedidos precisam refletir as
- * alterações atuais. O cache público de catálogo não participa desta consulta.
- */
+/** Resumo do painel sem cache; datas calculadas no fuso America/Sao_Paulo. */
 @Service
 public class PainelService {
 

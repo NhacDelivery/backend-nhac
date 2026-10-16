@@ -119,10 +119,6 @@ public class LojaService {
     if (usuarioLogado == null) {
         throw new AcessoNegadoException("É necessário estar autenticado para consultar a loja.");
     }
-    // Antes só olhava loja.usuarioId (o dono) — um funcionário logado
-    // (papel=FUNCIONARIO) nunca é o dono, então caía sempre em
-    // LOJA_NAO_ENCONTRADA e o frontend mandava ele pro onboarding de
-    // "criar loja nova". LojaAccessService resolve dono OU funcionário.
     Loja loja = lojaAccessService.obterLojaAcessivel(usuarioLogado);
     return new LojaDetalhesDTO(loja);
 }

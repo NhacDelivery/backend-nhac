@@ -109,7 +109,6 @@ public interface PedidoRepository extends JpaRepository<Pedido, String> {
 
     Optional<Pedido> findFirstByEntregadorIdAndStatusIn(String entregadorId, java.util.List<StatusPedido> status);
 
-    // ---------- Entregador (V039) ----------
 
     /**
      * Histórico de corridas do entregador. COALESCE(entregueEm, criadoEm)

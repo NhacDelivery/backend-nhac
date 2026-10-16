@@ -109,8 +109,7 @@ class AuthControllerTest {
 
         when(smsAuthService.autenticarComSms(requisicao)).thenReturn(respostaEsperada);
 
-        // O controller agora rebusca o usuário pelo id devolvido pelo login
-        // social/SMS para checar a origem do app (header X-App-Origin).
+        // Rebusca o usuário para checar a origem do app (header X-App-Origin).
         Usuario usuarioAutenticado = new Usuario();
         usuarioAutenticado.setId("user_novo");
         usuarioAutenticado.setNome("Novo Usuário");

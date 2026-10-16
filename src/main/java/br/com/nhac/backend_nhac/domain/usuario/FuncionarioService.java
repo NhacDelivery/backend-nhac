@@ -19,17 +19,7 @@ import br.com.nhac.backend_nhac.exceptions.AcessoNegadoException;
 import br.com.nhac.backend_nhac.exceptions.IdNaoEncontradoException;
 import br.com.nhac.backend_nhac.exceptions.RegraDeNegocioException;
 
-/**
- * CRUD de funcionários (Round 20 / item 5.2). Decisões de produto já tomadas:
- *  - funcionário loga com conta própria (é um Usuario comum, papel=FUNCIONARIO);
- *  - cargo determina acesso ao catálogo/painel/financeiro em LojaAccessService;
- *  - o LOJISTA (dono) define a senha inicial no cadastro, sem convite por e-mail.
- *
- * Gestão de funcionários (criar/editar/desativar) é restrita ao DONO da loja —
- * um funcionário não pode cadastrar ou remover outro funcionário nesta fase
- * (ver pergunta em aberto #10 da spec: se isso mudar, é só trocar a checagem
- * de exigirDono() por lojaAccessService.temAcessoALoja()).
- */
+/** Gestão de funcionários restrita ao dono; acesso ao painel conforme LojaAccessService. */
 @Service
 public class FuncionarioService {
 
@@ -100,10 +90,7 @@ usuarioRepository.save(funcionario);
         Loja loja = exigirDono(usuarioLogado);
         Usuario funcionario = buscarFuncionarioDaLoja(funcionarioId, loja.getId());
 
-        // Usuario.isEnabled() (Spring Security / UserDetails) já retorna this.ativo,
-        // então isso bloqueia login automaticamente — não precisa de nenhuma
-        // lógica extra de revogação de token (ver pergunta em aberto #12 da spec
-        // sobre tokens já emitidos e ainda válidos).
+        // Usuario.isEnabled() reflete o campo ativo.
         funcionario.setAtivo(false);
         usuarioRepository.save(funcionario);
     }

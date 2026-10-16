@@ -24,17 +24,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 
-/**
- * GET /lojista/financeiro (item 4.1 da spec). Tudo calculado em cima de
- * tb_pedidos/tb_itens_pedido — nenhuma tabela nova.
- *
- * Decisão assumida (pergunta em aberto #8 da spec, sem resposta ainda):
- * pedidos com status PENDENTE/PAGO/PREPARANDO/SAIU_ENTREGA (ainda não
- * entregues) ENTRAM no faturamento do período — só CANCELADO é excluído.
- * Se a decisão for "só ENTREGUE conta como faturamento", é só trocar o
- * filtro `p.getStatus() != CANCELADO` por `p.getStatus() == ENTREGUE` nos
- * pontos marcados abaixo.
- */
+/** Faturamento calculado a partir dos pedidos, excluindo apenas CANCELADO. */
 @Service
 public class FinanceiroService {
 

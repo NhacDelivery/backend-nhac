@@ -65,7 +65,6 @@ public class ChatService {
         this.eventPublisher = eventPublisher;
     }
 
-    // ---------- Lado CLIENTE ----------
 
     private void exigirCliente(Usuario usuario) {
         if (usuario == null || !usuario.isAtivo() || usuario.getPapel() != Papel.CLIENTE) {
@@ -180,7 +179,6 @@ public class ChatService {
         conversaRepository.save(conversa);
     }
 
-    // ---------- Lado ENTREGADOR (V039) ----------
 
     /**
      * Espelha obterOuCriarConversa, mas pro app do motoboy: uma conversa por
@@ -244,7 +242,6 @@ public class ChatService {
         return conversa;
     }
 
-    // ---------- Lado LOJA (lojista / funcionário) ----------
 
     @Transactional(readOnly = true)
     public Page<ConversaResumoDTO> listarConversasDaLoja(Usuario usuarioLogado, Pageable pageable) {
@@ -283,7 +280,6 @@ public class ChatService {
         conversaRepository.save(conversa);
     }
 
-    // ---------- Consulta usada pelo interceptor WebSocket ----------
 
     /**
      * Verifica se o usuário autenticado pode acessar a conversa, tanto pra
@@ -311,7 +307,6 @@ public class ChatService {
                 .orElseThrow(() -> new IdNaoEncontradoException("Conversa não encontrada."));
     }
 
-    // ---------- Envio (usado pelo controller WebSocket) ----------
 
     /**
      * Envia uma mensagem em nome de quem estiver autenticado na sessão WS.

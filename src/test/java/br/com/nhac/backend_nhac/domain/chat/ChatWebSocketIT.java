@@ -78,9 +78,6 @@ public class ChatWebSocketIT extends AbstractIntegrationTest {
                         ParticipanteTipo.CLIENTE));
     }
 
-    // ============================================================
-    // 1) CONNECT válido + SUBSCRIBE + SEND + RECEBE
-    // ============================================================
     @Test
     @DisplayName("Cliente conecta com token válido, assina sua conversa e envia mensagem — broadcast chega")
     void clienteEnviaMensagemEOutroRecebe() throws Exception {
@@ -116,9 +113,6 @@ public class ChatWebSocketIT extends AbstractIntegrationTest {
         session.disconnect();
     }
 
-    // ============================================================
-    // 2) CONNECT sem token é recusado
-    // ============================================================
     @Test
     void chatEntreClientesEntregaNosDoisSentidosERestPublicaNoMesmoTopico() throws Exception {
         String id = chatService.obterOuCriarConversaEntreClientes(clienteB.getId(), clienteA).getId();
@@ -207,9 +201,6 @@ public class ChatWebSocketIT extends AbstractIntegrationTest {
         assertTrue(recusado, "Esperava que o servidor recusasse o CONNECT sem token");
     }
 
-    // ============================================================
-    // 3) SUBSCRIBE em conversa alheia é bloqueado
-    // ============================================================
     @Test
     @DisplayName("Assinar /topic/conversas/{id} de conversa alheia é recusado (correção de segurança)")
     void subscribeEmConversaAlheiaFalha() throws Exception {
@@ -239,9 +230,6 @@ public class ChatWebSocketIT extends AbstractIntegrationTest {
         try { session.disconnect(); } catch (Exception ignored) {}
     }
 
-    // ============================================================
-    // Helpers
-    // ============================================================
 
     private WebSocketStompClient criarClienteStomp() {
         WebSocketStompClient client = new WebSocketStompClient(new StandardWebSocketClient());

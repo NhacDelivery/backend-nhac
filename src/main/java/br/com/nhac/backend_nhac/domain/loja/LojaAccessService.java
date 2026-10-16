@@ -10,18 +10,7 @@ import br.com.nhac.backend_nhac.domain.usuario.Usuario;
 import br.com.nhac.backend_nhac.exceptions.AcessoNegadoException;
 import br.com.nhac.backend_nhac.exceptions.LojaNaoEncontradaException;
 
-/**
- * Único ponto de resolução de "qual loja este usuário logado pode gerenciar".
- * Antes desta classe, cada service comparava produto.getLoja().getUsuarioId()
- * diretamente com o id do usuário logado — o que só funciona para o DONO da
- * loja. Com a introdução de funcionários (Papel.FUNCIONARIO), passamos a ter
- * dois jeitos de estar autorizado a mexer numa loja:
- *   - ser o dono (tb_lojas.usuario_id == usuario.id)
- *   - ser funcionário vinculado a ela (usuario.lojaVinculadaId == loja.id)
- *
- * ADMIN não passa por aqui: cada service continua tratando o bypass de ADMIN
- * separadamente, como já fazia antes desta mudança.
- */
+/** Resolve a loja acessível ao dono ou funcionário vinculado. ADMIN é tratado pelos services. */
 @Service
 public class LojaAccessService {
 

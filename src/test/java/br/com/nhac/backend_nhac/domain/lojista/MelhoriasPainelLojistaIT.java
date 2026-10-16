@@ -30,11 +30,7 @@ import br.com.nhac.backend_nhac.domain.usuario.Papel;
 import br.com.nhac.backend_nhac.domain.usuario.Usuario;
 import br.com.nhac.backend_nhac.domain.usuario.UsuarioRepository;
 import br.com.nhac.backend_nhac.infra.security.TokenService;
-/**
- * Cobre as peças que faltavam no commit mais recente e foram adicionadas nesta rodada:
- * abrir/fechar loja (PATCH .../abertura), reposição de estoque, edição de produto
- * desativado, upload de imagem (em modo mock) e preferências de notificação.
- */
+/** Testes de abertura da loja, estoque, produto inativo, upload e preferências. */
 public class MelhoriasPainelLojistaIT extends AbstractIntegrationTest {
 
     @Autowired private UsuarioRepository usuarioRepository;
@@ -148,7 +144,6 @@ loja.setFormasPagamento(new FormasPagamento(
 
 }
 
-    // ---------- Abrir/fechar loja ----------
 
   @Test
 void deveAbrirEFecharLoja() throws Exception {
@@ -178,7 +173,6 @@ void deveAbrirEFecharLoja() throws Exception {
                 .andExpect(status().isForbidden());
     }
 
-    // ---------- Produto inativo (edição) ----------
 
     @Test
     void deveBuscarProdutoInativoParaEdicao() throws Exception {
@@ -204,7 +198,6 @@ void deveAbrirEFecharLoja() throws Exception {
                 .andExpect(result -> assertTrue(result.getResponse().getStatus() >= 400));
     }
 
-    // ---------- Estoque ----------
 
     @Test
     void deveAtualizarEstoqueRapidamente() throws Exception {
@@ -230,7 +223,6 @@ void deveAbrirEFecharLoja() throws Exception {
                 .andExpect(status().isBadRequest());
     }
 
-    // ---------- Upload de imagem (modo mock) ----------
 
     @Test
     void deveAceitarUploadDeImagemValidaEmModoMock() throws Exception {
@@ -267,7 +259,6 @@ void deveAbrirEFecharLoja() throws Exception {
                 .andExpect(result -> assertTrue(result.getResponse().getStatus() == 401 || result.getResponse().getStatus() == 403));
     }
 
-    // ---------- Preferências de notificação ----------
 
     @Test
     void deveLerEAtualizarPreferenciasDeNotificacao() throws Exception {
@@ -302,7 +293,6 @@ void deveAbrirEFecharLoja() throws Exception {
                 .andExpect(status().isForbidden());
     }
 
-    // ---------- E-mail duplicado ----------
 
     @Test
     void naoDeveTrocarParaEmailJaExistente() throws Exception {

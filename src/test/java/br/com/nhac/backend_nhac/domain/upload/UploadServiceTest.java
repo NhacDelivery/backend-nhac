@@ -81,7 +81,6 @@ class UploadServiceTest {
         assertTrue(url.startsWith("https://firebasestorage.googleapis.com"));
     }
 
-    // ==================== Pastas novas (usuarios / funcionarios) ====================
 
     @Test
     @DisplayName("Deve aceitar a pasta 'usuarios' e delegar ao storage com essa pasta")

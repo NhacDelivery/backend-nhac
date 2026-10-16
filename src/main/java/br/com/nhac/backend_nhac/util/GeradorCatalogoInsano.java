@@ -13,8 +13,7 @@ public class GeradorCatalogoInsano {
 
     private static final Random random = new Random(42);
 
-    // ========== QUANTIDADES ==========
-    // ATENÇÃO: tb_lojas.usuario_id tem UNIQUE (V027) -> 1 lojista por loja
+    // tb_lojas.usuario_id é UNIQUE: um lojista por loja.
     private static final int QUANTIDADE_LOJAS        = 1000;
     private static final int QUANTIDADE_LOJISTAS     = QUANTIDADE_LOJAS; // 1:1
     private static final int QUANTIDADE_CLIENTES     = 500;
@@ -26,7 +25,6 @@ public class GeradorCatalogoInsano {
     private static final String SENHA_HASH =
             "$2a$10$N9qo8uLOickgx2ZMRZoMyeIjZAgcfl7p92ldGxad68LJZdL17lhWy";
 
-    // ========== CATEGORIAS ==========
     private static final String[] CATEGORIAS_LOJA = {
             "Lanches", "Pizza", "Japonesa", "Brasileira", "Italiana",
             "Saudável", "Doces", "Árabe", "Chinesa", "Mexicana",
@@ -43,7 +41,6 @@ public class GeradorCatalogoInsano {
             "Entregador", "Caixa", "Garçom", "Chapeiro"
     };
 
-    // ========== NOMES ==========
     private static final String[] PREFIXOS_LOJA = {
             "Cantina", "Restaurante", "Sabor", "Delícias", "Tempero",
             "Casa", "Point", "Espaço", "Bistrô", "Boteco", "Empório",
@@ -76,7 +73,6 @@ public class GeradorCatalogoInsano {
             "Fernandes", "Vieira", "Monteiro", "Ramos", "Castro", "Pinto"
     };
 
-    // ========== LOCALIZAÇÃO ==========
     private static final String[][] CIDADES_UF = {
             {"São Paulo", "SP"}, {"Rio de Janeiro", "RJ"}, {"Belo Horizonte", "MG"},
             {"Salvador", "BA"}, {"Brasília", "DF"}, {"Fortaleza", "CE"},
@@ -110,7 +106,6 @@ public class GeradorCatalogoInsano {
             "Bessa", "Manaíra", "Centro Histórico", "Cidade Baixa", "Vila Madalena"
     };
 
-    // ========== PRODUTOS ==========
     private static final String[] NOMES_PRODUTOS = {
             "Feijoada Completa", "Moqueca de Peixe", "Frango à Parmegiana",
             "Picanha na Brasa", "Strogonoff de Frango", "Lasanha à Bolonhesa",
@@ -152,16 +147,12 @@ public class GeradorCatalogoInsano {
             "molho branco", "molho de tomate caseiro", "parmesão ralado"
     };
 
-    // ========== HORÁRIOS ==========
     private static final String[] HORARIOS_PADRAO = {
             "08:00-18:00", "09:00-19:00", "10:00-22:00", "11:00-23:00",
             "11:00-00:00", "12:00-22:00", "18:00-23:59"
     };
     private static final String HORARIO_FECHADO = "Fechado";
 
-    // ==========================================================
-    // MAIN
-    // ==========================================================
     public static void main(String[] args) {
         if (args.length > 0 && args[0].equals("--lojas-existentes")) {
             String hash = System.getenv("NHAC_SEED_SENHA_HASH");
@@ -222,9 +213,6 @@ public class GeradorCatalogoInsano {
         System.out.println("🚀 Arquivo SQL gerado em " + (tempoFim - tempoInicio) + "ms!");
     }
 
-    // ==========================================================
-    // 1) LOJISTAS
-    // ==========================================================
     private static void gerarLojistas(BufferedWriter writer, List<String> lojistasIds) throws IOException {
         String insertPrefix = "INSERT INTO tb_usuarios " +
                 "(id, nome, email, telefone, imagem_url, senha, papel, telefone_verificado, email_verificado, ativo, loja_vinculada_id, cargo) VALUES \n";
@@ -254,9 +242,6 @@ public class GeradorCatalogoInsano {
         }
     }
 
-    // ==========================================================
-    // 2) CLIENTES + ADMIN
-    // ==========================================================
     private static void gerarClientesEAdmin(BufferedWriter writer) throws IOException {
         String insertPrefix = "INSERT INTO tb_usuarios " +
                 "(id, nome, email, telefone, imagem_url, senha, papel, telefone_verificado, email_verificado, ativo, loja_vinculada_id, cargo) VALUES \n";
@@ -297,9 +282,6 @@ public class GeradorCatalogoInsano {
         lote.setLength(0);
     }
 
-    // ==========================================================
-    // 3) LOJAS — cada uma vinculada ao lojista de mesmo índice
-    // ==========================================================
     private static List<String> gerarLojas(BufferedWriter writer, List<String> lojistasIds) throws IOException {
         List<String> lojasGeradas = new ArrayList<>(QUANTIDADE_LOJAS);
 
@@ -340,9 +322,6 @@ public class GeradorCatalogoInsano {
         return lojasGeradas;
     }
 
-    // ==========================================================
-    // 4) FUNCIONÁRIOS — vinculados a lojas já existentes
-    // ==========================================================
     private static void gerarFuncionarios(BufferedWriter writer, List<String> lojasGeradas) throws IOException {
         String insertPrefix = "INSERT INTO tb_usuarios " +
                 "(id, nome, email, telefone, imagem_url, senha, papel, telefone_verificado, email_verificado, ativo, loja_vinculada_id, cargo) VALUES \n";
@@ -373,9 +352,6 @@ public class GeradorCatalogoInsano {
         }
     }
 
-    // ==========================================================
-    // 5) PRODUTOS
-    // ==========================================================
     private static int gerarProdutos(BufferedWriter writer, List<String> lojasGeradas) throws IOException {
         String insertPrefix = "INSERT INTO tb_produtos " +
                 "(id, loja_id, nome, descricao, preco, categoria_menu, imagem_url, is_ativo, peso, percentual_desconto, estoque) VALUES \n";
@@ -460,9 +436,6 @@ public class GeradorCatalogoInsano {
         return sql.toString();
     }
 
-    // ==========================================================
-    // FORMATAÇÃO DE USUÁRIO
-    // ==========================================================
     private static String formatarUsuario(String id, String papel, int index, String tipo,
                                           String lojaVinculada, String cargo) {
         String nome = nomePessoa();
@@ -512,9 +485,6 @@ public class GeradorCatalogoInsano {
         return String.format("(%d) %d-%04d", ddd, p1, p2);
     }
 
-    // ==========================================================
-    // FORMATAÇÃO DE LOJA
-    // ==========================================================
     private static String formatarValoresLoja(String id, String lojistaId) {
         String nome = nomeLoja();
         String descricao = descricaoLoja();
@@ -607,9 +577,6 @@ public class GeradorCatalogoInsano {
         return String.format(tpl, cat);
     }
 
-    // ==========================================================
-    // FORMATAÇÃO DE PRODUTO
-    // ==========================================================
     private static String formatarValoresProduto(String lojaId, int p) {
         String prodId = String.format("prod_%s_%02d", lojaId, p);
         String nome = NOMES_PRODUTOS[random.nextInt(NOMES_PRODUTOS.length)];
@@ -658,9 +625,6 @@ public class GeradorCatalogoInsano {
         return String.format(templates[random.nextInt(templates.length)], nomeBase, ing1, ing2, ing3);
     }
 
-    // ==========================================================
-    // UTIL
-    // ==========================================================
     private static String sql(String value) {
         if (value == null) return "NULL";
         return "'" + value.replace("'", "''") + "'";

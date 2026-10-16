@@ -354,20 +354,8 @@ public class PedidoService {
         pedidoRepository.save(pedido);
         publicarStatus(pedido);
 
-        // Despacho automático: quando a loja aceita o pedido e começa a
-        // preparar, os motoboys próximos já recebem a oferta. Antes disso,
-        // despacharPedido() existia no backend mas nenhum caller chamava —
-        // nenhuma oferta era gerada em produção, e o app do motoboy ficava
-        // eternamente "procurando chamadas".
-        //
-        // Publicado como evento (consumido em AFTER_COMMIT pelo
-        // DespachoEventListener) em vez de chamada direta ao DespachoService,
-        // por dois motivos:
-        //   1. se o despacho falhasse dentro desta mesma transação (loja sem
-        //      coordenadas, nenhum entregador online), o interceptor do Spring
-        //      marcaria a transação como rollback-only e a mudança de status
-        //      seria perdida no commit — mesmo com try/catch aqui;
-        //   2. a oferta referencia um pedido que precisa já estar commitado.
+        // O despacho roda em AFTER_COMMIT: a oferta exige o pedido persistido e
+        // falhas no despacho não devem reverter a atualização de status.
         if (novoStatus == StatusPedido.PREPARANDO && pedido.getEntregador() == null) {
             eventPublisher.publishEvent(new PedidoPreparandoEvent(pedido.getId()));
         }

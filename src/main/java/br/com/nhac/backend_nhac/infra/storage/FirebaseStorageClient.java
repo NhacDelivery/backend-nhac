@@ -19,14 +19,8 @@ import java.util.Base64;
 import java.util.Map;
 import java.util.UUID;
 
-/**
- * Cliente para upload de arquivos no Firebase Storage (que é, por baixo dos panos, um bucket do
- * Google Cloud Storage). Segue o mesmo padrão de mock-mode já usado em EmailService/TwilioSmsService:
- * O modo mock é explícito para testes; sem credenciais reais, o modo normal falha ao iniciar.
- *
- * IMPORTANTE: esta integração ainda não foi testada contra um bucket real (sem credenciais disponíveis
- * no ambiente em que foi escrita). Antes de usar em produção, configure as credenciais reais, rode
- * localmente com nhac.storage.mock-mode=false e valide um upload de ponta a ponta.
+/** Upload no Firebase Storage com modo mock explícito para testes.
+ * O modo normal exige credenciais reais; validar uploads antes de usar em produção.
  */
 @Component
 @EnableConfigurationProperties(StorageProperties.class)

@@ -101,13 +101,7 @@ public record LojaDetalhesDTO(
         );
     }
 
-    // ================================================================
-    // Mapeadores null-safe. Loja pode existir com apenas parte dos
-    // embedded preenchidos (ex.: loja recém-criada via service, ou
-    // loja antiga que veio de migration sem os campos novos). Antes
-    // disso, acessar getHorariosFuncionamento().getDomingo() dava NPE
-    // quando a loja vinha sem horários.
-    // ================================================================
+    // Embedded de lojas antigas ou recém-criadas podem estar nulos.
 
     private static DadosOperacionaisDTO mapearDadosOperacionais(Loja loja) {
         var d = loja.getDadosOperacionais();
