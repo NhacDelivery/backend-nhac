@@ -24,6 +24,14 @@ public interface ConversaRepository extends JpaRepository<Conversa, String> {
     Page<Conversa> listarDoParticipante(@Param("usuarioId") String usuarioId,
             @Param("tipo") ParticipanteTipo tipo, Pageable pageable);
 
+    @org.springframework.data.jpa.repository.EntityGraph(attributePaths = "loja")
+    @Query("SELECT c FROM Conversa c WHERE c.participanteTipo = :tipo "
+            + "AND (c.clienteId = :usuarioId OR c.segundoClienteId = :usuarioId) "
+            + "AND ((:entreClientes = true AND c.segundoClienteId IS NOT NULL) "
+            + "OR (:entreClientes = false AND c.segundoClienteId IS NULL))")
+    Page<Conversa> listarDoParticipantePorCanal(@Param("usuarioId") String usuarioId,
+            @Param("tipo") ParticipanteTipo tipo, @Param("entreClientes") boolean entreClientes, Pageable pageable);
+
     Optional<Conversa> findByLojaIdAndClienteIdAndParticipanteTipo(
             String lojaId, String clienteId, ParticipanteTipo participanteTipo);
 

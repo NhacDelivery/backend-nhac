@@ -1,0 +1,144 @@
+{
+  "measured_at_utc": "2026-10-16T01:05:11.707437+00:00",
+  "origin": "https://backend-nhac.cloud.run",
+  "deployed_revision": "not_verified",
+  "concurrency": 1,
+  "note": "First observation is not proof of a cold start. Subsequent observations do not prove cache hits. Small network sample, not a load test or SLA. Payload measured without HTTP compression. No cache changes.",
+  "endpoints": {
+    "health": {
+      "path": "/actuator/health",
+      "first_observation": {
+        "ms": 5006.9,
+        "bytes": 0,
+        "status": 0,
+        "ok": false
+      },
+      "subsequent_samples": [
+        {
+          "ms": 2069.82,
+          "bytes": 49,
+          "status": 200,
+          "ok": true
+        },
+        {
+          "ms": 5005.9,
+          "bytes": 0,
+          "status": 0,
+          "ok": false
+        },
+        {
+          "ms": 2197.12,
+          "bytes": 49,
+          "status": 200,
+          "ok": true
+        },
+        {
+          "ms": 5005.72,
+          "bytes": 0,
+          "status": 0,
+          "ok": false
+        },
+        {
+          "ms": 2277.04,
+          "bytes": 49,
+          "status": 200,
+          "ok": true
+        }
+      ],
+      "p50_ms": 2197.12,
+      "p95_ms": 2277.04,
+      "median_payload_bytes": 49,
+      "errors": 3
+    },
+    "catalogo_50": {
+      "path": "/api/v1/produtos/cards?size=50&page=0&sort=id,asc",
+      "first_observation": {
+        "ms": 5005.55,
+        "bytes": 0,
+        "status": 0,
+        "ok": false
+      },
+      "subsequent_samples": [
+        {
+          "ms": 3172.39,
+          "bytes": 27871,
+          "status": 200,
+          "ok": true
+        },
+        {
+          "ms": 5005.65,
+          "bytes": 0,
+          "status": 0,
+          "ok": false
+        },
+        {
+          "ms": 2081.64,
+          "bytes": 27871,
+          "status": 200,
+          "ok": true
+        },
+        {
+          "ms": 5005.74,
+          "bytes": 0,
+          "status": 0,
+          "ok": false
+        },
+        {
+          "ms": 1944.88,
+          "bytes": 27871,
+          "status": 200,
+          "ok": true
+        }
+      ],
+      "p50_ms": 2081.64,
+      "p95_ms": 3172.39,
+      "median_payload_bytes": 27871,
+      "errors": 3
+    },
+    "categorias": {
+      "path": "/api/v1/produtos/categorias",
+      "first_observation": {
+        "ms": 5005.57,
+        "bytes": 0,
+        "status": 0,
+        "ok": false
+      },
+      "subsequent_samples": [
+        {
+          "ms": 2500.37,
+          "bytes": 126,
+          "status": 200,
+          "ok": true
+        },
+        {
+          "ms": 5005.75,
+          "bytes": 0,
+          "status": 0,
+          "ok": false
+        },
+        {
+          "ms": 2528.54,
+          "bytes": 126,
+          "status": 200,
+          "ok": true
+        },
+        {
+          "ms": 5005.67,
+          "bytes": 0,
+          "status": 0,
+          "ok": false
+        },
+        {
+          "ms": 2659.71,
+          "bytes": 126,
+          "status": 200,
+          "ok": true
+        }
+      ],
+      "p50_ms": 2528.54,
+      "p95_ms": 2659.71,
+      "median_payload_bytes": 126,
+      "errors": 3
+    }
+  }
+}

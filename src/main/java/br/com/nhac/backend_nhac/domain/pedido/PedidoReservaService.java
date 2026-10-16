@@ -17,10 +17,11 @@ public class PedidoReservaService {
     private final ProdutoRepository produtoRepository;
     private final UsuarioRepository usuarioRepository;
     private final CupomService cupomService;
+    private final FreteService freteService;
     public PedidoReservaService(PedidoRepository pedidos, LojaRepository lojas,
-            ProdutoRepository produtos, UsuarioRepository usuarios, CupomService cupons) {
+            ProdutoRepository produtos, UsuarioRepository usuarios, CupomService cupons, FreteService freteService) {
         this.pedidoRepository = pedidos; this.lojaRepository = lojas;
-        this.produtoRepository = produtos; this.usuarioRepository = usuarios; this.cupomService = cupons;
+        this.produtoRepository = produtos; this.usuarioRepository = usuarios; this.cupomService = cupons; this.freteService = freteService;
     }
     public record ReservaPedido(Pedido pedido, boolean replay) {}
     @Transactional
@@ -136,10 +137,7 @@ public class PedidoReservaService {
             throw new CampoObrigatorioFaltandoException("enderecoEntrega");
         }
 
-        BigDecimal taxaFrete = loja.getDadosOperacionais() != null
-                && loja.getDadosOperacionais().getTaxaEntregaBase() != null
-                ? loja.getDadosOperacionais().getTaxaEntregaBase()
-                : new BigDecimal("5.00");
+        BigDecimal taxaFrete = freteService.calcularTaxa(loja);
         pedido.setTaxaFrete(taxaFrete);
         BigDecimal desconto = BigDecimal.ZERO;
         if (dto.cupomId() != null && !dto.cupomId().isBlank()) {

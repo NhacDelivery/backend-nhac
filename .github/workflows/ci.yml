@@ -41,6 +41,9 @@ jobs:
           distribution: ${{ env.JAVA_DISTRIBUTION }}
           cache: maven
 
+      - name: Validar medidor de latência sem rede externa
+        run: python3 -m unittest discover -s tools -p 'test_measure_latency.py' -v
+
       - name: 🔍 Validar POM
         run: mvn -B validate
 

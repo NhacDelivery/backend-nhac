@@ -100,22 +100,29 @@ public class ChatService {
 
     @Transactional(readOnly = true)
     public Page<ConversaClienteResumoDTO> listarConversasDoCliente(Usuario usuario, Pageable pageable) {
+        return listarConversasDoCliente(usuario, null, pageable);
+    }
+
+    @Transactional(readOnly = true)
+    public Page<ConversaClienteResumoDTO> listarConversasDoCliente(Usuario usuario, TipoConversa filtro, Pageable pageable) {
         exigirCliente(usuario);
-        return listarConversasDoParticipante(usuario, ParticipanteTipo.CLIENTE, pageable);
+        return listarConversasDoParticipante(usuario, ParticipanteTipo.CLIENTE, filtro, pageable);
     }
 
     @Transactional(readOnly = true)
     public Page<ConversaClienteResumoDTO> listarConversasDoEntregador(Usuario usuario, Pageable pageable) {
         if (usuario == null) throw new AcessoNegadoException("É necessário estar autenticado.");
         entregadorService.buscarPorUsuario(usuario);
-        return listarConversasDoParticipante(usuario, ParticipanteTipo.ENTREGADOR, pageable);
+        return listarConversasDoParticipante(usuario, ParticipanteTipo.ENTREGADOR, null, pageable);
     }
 
     private Page<ConversaClienteResumoDTO> listarConversasDoParticipante(
-            Usuario usuario, ParticipanteTipo tipo, Pageable pageable) {
+            Usuario usuario, ParticipanteTipo tipo, TipoConversa filtro, Pageable pageable) {
         Pageable ordenada = PageRequest.of(pageable.getPageNumber(), Math.min(pageable.getPageSize(), 100),
                 Sort.by(Sort.Order.desc("ultimaMensagemEm"), Sort.Order.desc("id")));
-        Page<Conversa> pagina = conversaRepository.listarDoParticipante(usuario.getId(), tipo, ordenada);
+        Page<Conversa> pagina = filtro == null
+                ? conversaRepository.listarDoParticipante(usuario.getId(), tipo, ordenada)
+                : conversaRepository.listarDoParticipantePorCanal(usuario.getId(), tipo, filtro == TipoConversa.CLIENTE, ordenada);
         List<String> ids = pagina.stream().filter(Conversa::isEntreClientes)
                 .map(c -> c.getClienteId().equals(usuario.getId()) ? c.getSegundoClienteId() : c.getClienteId())
                 .distinct().toList();

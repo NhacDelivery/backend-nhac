@@ -66,7 +66,7 @@ class PedidoServiceTest {
     @BeforeEach
     void configurarAcessoDaLoja() {
         org.springframework.test.util.ReflectionTestUtils.setField(pedidoService, "reservaService",
-                new PedidoReservaService(pedidoRepository, lojaRepository, produtoRepository, usuarioRepository, null));
+                new PedidoReservaService(pedidoRepository, lojaRepository, produtoRepository, usuarioRepository, null, freteService));
         lenient().when(usuarioRepository.findLockedById(anyString()))
                 .thenAnswer(invocation -> {
                     Usuario usuario = usuarioPadrao();
