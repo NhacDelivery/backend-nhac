@@ -7,6 +7,8 @@ import org.springframework.data.web.PageableDefault;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.RequestParam;
+import br.com.nhac.backend_nhac.domain.chat.dto.ChatDTOs.TipoConversa;
 import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -38,12 +40,13 @@ public class ConversaClienteController {
         this.chatService = chatService;
     }
 
-    @Operation(summary = "Listar conversas do cliente", description = "Conversas com lojas e outros clientes, mais recentes primeiro. Paginação limitada a 100 itens.")
+    @Operation(summary = "Listar conversas do cliente", description = "Filtro opcional tipo=LOJA ou CLIENTE aplicado antes da paginação. Sem filtro mantém a caixa mista. Mais recentes primeiro; limite de 100 itens.")
     @GetMapping
     public ResponseEntity<Page<ConversaClienteResumoDTO>> listar(
             @AuthenticationPrincipal Usuario usuario,
-            @PageableDefault(size = 20) Pageable pageable) {
-        return ResponseEntity.ok(chatService.listarConversasDoCliente(usuario, pageable));
+            @PageableDefault(size = 20) Pageable pageable,
+            @RequestParam(required = false) TipoConversa tipo) {
+        return ResponseEntity.ok(chatService.listarConversasDoCliente(usuario, tipo, pageable));
     }
 
     @Operation(summary = "Abrir ou obter conversa entre clientes", description = "Uma conversa por par, independentemente de quem iniciou. Apenas clientes ativos; não permite conversar consigo mesmo.")

@@ -37,6 +37,23 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 public class PedidoFlowIT extends AbstractIntegrationTest {
 
     @org.junit.jupiter.params.ParameterizedTest
+    @org.junit.jupiter.params.provider.ValueSource(strings = {"0.00", "7.35", "PADRAO"})
+    void reservaCobraExatamenteOFreteDaEstimativaPublica(String taxa) throws Exception {
+        var dados = new br.com.nhac.backend_nhac.domain.loja.DadosOperacionais();
+        dados.setTaxaEntregaBase("PADRAO".equals(taxa) ? null : new BigDecimal(taxa));
+        loja.setDadosOperacionais(dados); lojaRepository.saveAndFlush(loja);
+        var estimativa = mockMvc.perform(post("/api/v1/lojas/" + loja.getId() + "/calcular-frete")
+                .contentType(MediaType.APPLICATION_JSON).content("{\"lat\":-23.5,\"lng\":-46.7}"))
+                .andExpect(status().isOk()).andReturn();
+        BigDecimal esperado = objectMapper.readTree(estimativa.getResponse().getContentAsString()).get("valor").decimalValue();
+        var response = mockMvc.perform(post("/api/v1/pedidos").header("Authorization", "Bearer " + token)
+                .contentType(MediaType.APPLICATION_JSON).content(objectMapper.writeValueAsString(pedidoComPagamento("DINHEIRO", null, null))))
+                .andExpect(status().isCreated()).andReturn();
+        String id = objectMapper.readTree(response.getResponse().getContentAsString()).get("pedidoId").asText();
+        assertEquals(0, esperado.compareTo(pedidoRepository.findById(id).orElseThrow().getTaxaFrete()));
+    }
+
+    @org.junit.jupiter.params.ParameterizedTest
     @org.junit.jupiter.params.provider.NullAndEmptySource
     @org.junit.jupiter.params.provider.ValueSource(strings = {" ", "BOLETO", "CARTAO_CREDITO", "PIX_TESTE"})
     void pagamentoInvalidoNaoReservaPedidoNemEstoque(String forma) throws Exception {

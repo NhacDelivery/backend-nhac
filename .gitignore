@@ -40,3 +40,6 @@ htmlcov/
 ```
 
 src/main/resources/*firebase-adminsdk*.json
+# Ferramentas Python locais
+__pycache__/
+*.py[cod]

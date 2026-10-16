@@ -71,6 +71,42 @@ class ChatClientesIT extends AbstractIntegrationTest {
                 .andExpect(jsonPath("$.content[0].naoLidas").value(naoLidas));
     }
 
+    @Autowired private br.com.nhac.backend_nhac.domain.loja.LojaRepository lojas;
+
+    @Test
+    void filtroAplicaAntesDaPaginacaoComTotaisCorretosESemVazarOutroUsuario() throws Exception {
+        var loja = new br.com.nhac.backend_nhac.domain.loja.Loja();
+        loja.setId("loja-filtro"); loja.setNome("Loja"); loja.setAberto(true); lojas.saveAndFlush(loja);
+        var comLoja = new Conversa("conv-loja", loja, a.getId(), ParticipanteTipo.CLIENTE);
+        comLoja.setUltimaMensagemEm(java.time.Instant.now().plusSeconds(60)); conversas.saveAndFlush(comLoja);
+        // Terceiro aparece como o segundo participante e também precisa ser encontrado.
+        for (int i = 0; i < 5; i++) {
+            var outro = criar("pessoa-" + i, Papel.CLIENTE);
+            var conversa = Conversa.entreClientes("conv-pessoa-" + i, outro.getId(), a.getId());
+            conversa.setUltimaMensagemEm(java.time.Instant.parse("2026-10-01T12:00:00Z"));
+            conversas.saveAndFlush(conversa);
+        }
+        conversas.saveAndFlush(Conversa.entreClientes("privada", b.getId(), terceiro.getId()));
+        mockMvc.perform(get("/api/v1/conversas").param("tipo", "CLIENTE").param("size", "2")
+                .header("Authorization", token(a)))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.totalElements").value(5))
+                .andExpect(jsonPath("$.totalPages").value(3)).andExpect(jsonPath("$.content.length()").value(2))
+                .andExpect(jsonPath("$.content[0].id").value("conv-pessoa-4"))
+                .andExpect(jsonPath("$.content[1].tipo").value("CLIENTE"));
+        mockMvc.perform(get("/api/v1/conversas").param("tipo", "CLIENTE").param("size", "2").param("page", "2")
+                .header("Authorization", token(a)))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.content.length()").value(1))
+                .andExpect(jsonPath("$.content[0].id").value("conv-pessoa-0")).andExpect(jsonPath("$.last").value(true));
+        mockMvc.perform(get("/api/v1/conversas").param("tipo", "LOJA").param("size", "2")
+                .header("Authorization", token(a)))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.totalElements").value(1))
+                .andExpect(jsonPath("$.content[0].id").value("conv-loja"));
+        mockMvc.perform(get("/api/v1/conversas").header("Authorization", token(a)))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.totalElements").value(6));
+        mockMvc.perform(get("/api/v1/conversas").param("tipo", "OUTRO").header("Authorization", token(a)))
+                .andExpect(status().isBadRequest());
+    }
+
     @Test
     void fluxoBidirecionalComReenvioELeituraIndependente() throws Exception {
         String id = abrir(a, b);
