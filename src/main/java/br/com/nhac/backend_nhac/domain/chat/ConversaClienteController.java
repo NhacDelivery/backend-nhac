@@ -68,15 +68,7 @@ public class ConversaClienteController {
         return ResponseEntity.ok(mensagem);
     }
 
-    /**
-     * Resposta do POST de abertura.
-     *
-     * Antes este endpoint devolvia ResponseEntity<String> com o id cru. Como o
-     * app manda Accept: application/json, o Spring escolhia application/json
-     * como Content-Type e mandava o id sem aspas — `conv_abc` não é JSON
-     * válido, então o Dio estourava no jsonDecode e o erro chegava no app sem
-     * status HTTP nenhum, mesmo com a conversa já tendo sido criada no banco.
-     */
+    /** Resposta JSON do POST de abertura da conversa. */
     @Schema(description = "Identificação da conversa aberta ou recuperada")
     public record ConversaAbertaDTO(
             @Schema(description = "ID da conversa", example = "conv_9f2c")

@@ -157,9 +157,6 @@ public class ResourceExceptionHandler {
         return ResponseEntity.status(status).body(erro);
     }
 
-    // ============================================================
-    //  HANDLERS NOVOS — resolvem os 500 dos webhooks e uploads
-    // ============================================================
 
     /**
      * Corpo da requisição ausente, vazio ou malformado (JSON inválido).
@@ -268,9 +265,6 @@ public class ResourceExceptionHandler {
         return ResponseEntity.status(status).body(erro);
     }
 
-    // ============================================================
-    //  HANDLERS PRÉ-EXISTENTES
-    // ============================================================
 
     @ExceptionHandler(org.springframework.web.servlet.resource.NoResourceFoundException.class)
     public ResponseEntity<ErroPadraoDTO> noResourceFound(org.springframework.web.servlet.resource.NoResourceFoundException e, HttpServletRequest request) {

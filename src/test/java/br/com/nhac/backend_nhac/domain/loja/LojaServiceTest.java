@@ -248,7 +248,6 @@ void deveObterMinhaLojaComSucesso() {
     Loja loja = construirLojaCompleta("loja_1", true);
     loja.setUsuarioId("user_dono");
 
-    // AGORA o service delega a resolução pro LojaAccessService
     when(lojaAccessService.obterLojaAcessivel(usuario)).thenReturn(loja);
 
     LojaDetalhesDTO resultado = lojaService.obterMinhaLoja(usuario);
@@ -264,7 +263,6 @@ void deveLancarExcecaoQuandoMinhaLojaNaoExistir() {
     Usuario usuario = new Usuario();
     usuario.setId("user_sem_loja");
 
-    // O LojaAccessService é quem lança a exceção agora
     when(lojaAccessService.obterLojaAcessivel(usuario))
             .thenThrow(new br.com.nhac.backend_nhac.exceptions.LojaNaoEncontradaException("user_sem_loja"));
 

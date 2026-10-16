@@ -181,11 +181,7 @@ public class EntregaController {
                 .orElseThrow(() -> new IdNaoEncontradoException("Pedido " + pedidoId + " não encontrado."));
     }
 
-    /**
-     * Antes desta checagem, /entregas/{pedidoId}/rota estava só sob
-     * .authenticated(): qualquer conta logada conseguia descobrir o endereço de
-     * entrega de qualquer pedido do sistema, bastando o id.
-     */
+    /** Restringe a consulta da rota aos participantes autorizados do pedido. */
     private void validarAcessoARota(Pedido pedido, Usuario usuario) {
         if (usuario.getPapel() == Papel.ADMIN) return;
 

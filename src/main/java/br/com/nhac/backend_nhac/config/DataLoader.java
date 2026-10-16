@@ -48,14 +48,10 @@ public class DataLoader implements CommandLineRunner {
     @Override
     public void run(String... args) throws Exception {
 
-        // ==============================================================
-        // 1) USUÁRIOS  — todos com emailVerificado/telefoneVerificado=true
-        //    para permitir login direto em dev.
-        // ==============================================================
+        // Usuários de desenvolvimento com emailVerificado/telefoneVerificado=true.
         if (usuarioRepository.count() == 0) {
             log.info("DataLoader v2: banco sem usuários. Cadastrando usuários de teste...");
 
-            // --- Cliente ---
             Usuario cliente = new Usuario();
             cliente.setId("firebase_user_cliente_001");
             cliente.setNome("Matheus Alves Cliente");
@@ -70,7 +66,6 @@ public class DataLoader implements CommandLineRunner {
             cliente.setAtivo(true);
             usuarioRepository.save(cliente);
 
-            // --- Lojista (dono da loja Sushi) ---
             Usuario lojista = new Usuario();
             lojista.setId("firebase_user_lojista_001");
             lojista.setNome("Carlos Lojista");
@@ -85,7 +80,6 @@ public class DataLoader implements CommandLineRunner {
             lojista.setAtivo(true);
             usuarioRepository.save(lojista);
 
-            // --- Funcionário (lojista da loja Burger) ---
             Usuario funcionario = new Usuario();
             funcionario.setId("firebase_user_funcionario_001");
             funcionario.setNome("Ana Funcionária");
@@ -100,7 +94,6 @@ public class DataLoader implements CommandLineRunner {
             funcionario.setAtivo(true);
             usuarioRepository.save(funcionario);
 
-            // --- Admin ---
             Usuario admin = new Usuario();
             admin.setId("firebase_user_admin_001");
             admin.setNome("Admin Nhac");
@@ -120,9 +113,6 @@ public class DataLoader implements CommandLineRunner {
             log.info("DataLoader v2: banco já possui {} usuários — pulando criação.", usuarioRepository.count());
         }
 
-        // ==============================================================
-        // 2) LOJAS E PRODUTOS
-        // ==============================================================
         if (lojaRepository.count() > 0) {
             log.info("DataLoader v2: banco já possui {} lojas — pulando seção de lojas.", lojaRepository.count());
             return;
@@ -130,7 +120,6 @@ public class DataLoader implements CommandLineRunner {
 
         log.info("DataLoader v2: iniciando cadastro de lojas e produtos de teste...");
 
-        // ----- Loja Sushi -----
         Loja lojaSushi = new Loja();
         lojaSushi.setId("loja_sushi_001");
         lojaSushi.setUsuarioId("firebase_user_lojista_001");
@@ -175,7 +164,6 @@ public class DataLoader implements CommandLineRunner {
         horariosSushi.setSabado("09:00-23:00");
         lojaSushi.setHorariosFuncionamento(horariosSushi);
 
-        // ----- Loja Burger -----
         Loja lojaHamburguer = new Loja();
         lojaHamburguer.setId("loja_burger_002");
         lojaHamburguer.setUsuarioId("firebase_user_funcionario_001");
@@ -222,7 +210,6 @@ public class DataLoader implements CommandLineRunner {
 
         lojaRepository.saveAll(List.of(lojaSushi, lojaHamburguer));
 
-        // ----- Produtos -----
         Produto hossomaki = new Produto();
         hossomaki.setId("prod_sushi_001");
         hossomaki.setLoja(lojaSushi);

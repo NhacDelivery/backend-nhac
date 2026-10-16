@@ -297,7 +297,6 @@ public class PedidoFlowIT extends AbstractIntegrationTest {
         produto.setLoja(loja);
         produtoRepository.save(produto);
 
-        // Mock StripePaymentService - agora usa mÃ©todo para cartÃ£o/Google Pay
         Mockito.when(stripePaymentService.criarPaymentIntentCartao(Mockito.any(Pedido.class))).thenAnswer(invocation -> {
             Pedido pedidoSalvo = invocation.getArgument(0);
             return new PedidoCriadoDTO(pedidoSalvo.getId(), "mock-secret", null, null);

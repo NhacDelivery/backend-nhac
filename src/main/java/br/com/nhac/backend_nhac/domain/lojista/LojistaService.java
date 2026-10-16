@@ -46,11 +46,7 @@ public class LojistaService {
                 .map(ProdutoLojistaDTO::new);
     }
 
-    /**
-     * Busca um único produto da loja do usuário logado (dono ou funcionário), incluindo
-     * inativos — GET /produtos/{id} (público) só retorna ativos, então o formulário de edição
-     * do painel não conseguia carregar um produto desativado antes deste endpoint existir.
-     */
+    /** Busca produto da loja do usuário logado, incluindo inativos para edição. */
     @Transactional(readOnly = true)
     public ProdutoLojistaDTO buscarProdutoPorId(Usuario usuarioLogado, String produtoId) {
         lojaAccessService.exigirCatalogo(usuarioLogado);

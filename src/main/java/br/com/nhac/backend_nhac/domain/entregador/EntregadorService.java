@@ -70,15 +70,7 @@ public class EntregadorService {
                 .criadoEm(Instant.now())
                 .build();
 
-        // CORREÇÃO: antes, isto sobrescrevia usuario.papel para ENTREGADOR —
-        // uma conta CLIENTE que virava entregadora perdia o papel de
-        // CLIENTE (e com ele, o acesso a qualquer rota que checasse
-        // Papel.CLIENTE, como abrir conversa no chat do app do cliente).
-        // O vínculo com tb_entregadores já é suficiente para saber que esta
-        // conta também é entregadora — ver Usuario.getAuthorities() em
-        // Usuario.java e o uso de existsByUsuarioIdAndAtivoTrue em
-        // SecurityFilter/StompAuthChannelInterceptor, que somam
-        // ROLE_ENTREGADOR às authorities sem depender deste campo.
+        // ROLE_ENTREGADOR vem do vínculo ativo, preservando o papel principal da conta.
 
         usuario.setCpf(cpf);
         usuarioRepository.save(usuario);
