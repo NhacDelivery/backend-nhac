@@ -36,6 +36,10 @@ public interface ProdutoRepository extends JpaRepository<Produto, String> {
     @Query("UPDATE Produto p SET p.estoque = p.estoque - :quantidade WHERE p.id = :id AND p.estoque >= :quantidade")
     int decrementarEstoqueSeDisponivel(@Param("id") String id, @Param("quantidade") int quantidade);
 
+    @Modifying(flushAutomatically = true)
+    @Query("UPDATE Produto p SET p.estoque = p.estoque + :quantidade WHERE p.id = :id AND p.estoque IS NOT NULL")
+    int incrementarEstoque(@Param("id") String id, @Param("quantidade") int quantidade);
+
     @Query(value = """
         SELECT p FROM Produto p
         JOIN FETCH p.loja 
@@ -88,7 +92,7 @@ public interface ProdutoRepository extends JpaRepository<Produto, String> {
                SUM(i.quantidade) as quantidadeVendida, SUM(i.precoHistorico * i.quantidade) as faturamento
         FROM ItemPedido i
         WHERE i.pedido.loja.id = :lojaId
-        AND i.pedido.criadoEm >= :inicio AND i.pedido.criadoEm <= :fim
+        AND i.pedido.criadoEm >= :inicio AND i.pedido.criadoEm < :fim
         AND i.pedido.status <> br.com.nhac.backend_nhac.domain.pedido.StatusPedido.CANCELADO
         GROUP BY i.produto.id, i.produto.nome, i.produto.categoriaMenu
         ORDER BY SUM(i.quantidade) DESC
@@ -96,7 +100,8 @@ public interface ProdutoRepository extends JpaRepository<Produto, String> {
     java.util.List<Object[]> rankingProdutosVendidos(
             @Param("lojaId") String lojaId,
             @Param("inicio") java.time.Instant inicio,
-            @Param("fim") java.time.Instant fim
+            @Param("fim") java.time.Instant fim,
+            Pageable pageable
     );
 
     Page<Produto> findByLojaIdAndIsAtivoTrue(String lojaId, Pageable pageable);

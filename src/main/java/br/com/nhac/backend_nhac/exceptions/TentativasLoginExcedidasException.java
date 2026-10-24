@@ -5,7 +5,7 @@ import org.springframework.http.HttpStatus;
 public class TentativasLoginExcedidasException extends NhacException {
     
     public TentativasLoginExcedidasException(String email) {
-        super("Número máximo de tentativas de login excedido para o usuário: " + email, ErrorCode.TENTATIVAS_LOGIN_EXCEDIDAS);
+        super("Muitas tentativas. Aguarde alguns minutos antes de tentar novamente.", ErrorCode.TENTATIVAS_LOGIN_EXCEDIDAS);
     }
     
     @Override

@@ -158,8 +158,9 @@ class UsuarioServiceTest {
         usuarioService.salvarUsuario(dto);
 
         ArgumentCaptor<Usuario> captor = ArgumentCaptor.forClass(Usuario.class);
-        verify(usuarioRepository).save(captor.capture());
+        verify(usuarioRepository).inserir(captor.capture());
         assertEquals("hash_gerado", captor.getValue().getSenha());
+        assertNotEquals(dto.id(), captor.getValue().getId());
     }
 
     @Test
@@ -174,7 +175,7 @@ class UsuarioServiceTest {
 
         verify(passwordEncoder, never()).encode(any());
         ArgumentCaptor<Usuario> captor = ArgumentCaptor.forClass(Usuario.class);
-        verify(usuarioRepository).save(captor.capture());
+        verify(usuarioRepository).inserir(captor.capture());
         assertEquals("  ", captor.getValue().getSenha());
     }
 

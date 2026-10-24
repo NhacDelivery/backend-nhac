@@ -1,186 +1,91 @@
 package br.com.nhac.backend_nhac.domain.financeiro;
 
 import br.com.nhac.backend_nhac.domain.financeiro.dto.FinanceiroDTOs.*;
-import br.com.nhac.backend_nhac.domain.loja.Loja;
 import br.com.nhac.backend_nhac.domain.loja.LojaAccessService;
 import br.com.nhac.backend_nhac.domain.painel.dto.FaturamentoDiaDTO;
-import br.com.nhac.backend_nhac.domain.pedido.ItemPedido;
-import br.com.nhac.backend_nhac.domain.pedido.Pedido;
-import br.com.nhac.backend_nhac.domain.pedido.PedidoRepository;
 import br.com.nhac.backend_nhac.domain.pedido.StatusPedido;
 import br.com.nhac.backend_nhac.domain.produto.ProdutoRepository;
 import br.com.nhac.backend_nhac.domain.usuario.Usuario;
+import java.math.BigDecimal;
+import java.math.RoundingMode;
+import java.time.*;
+import java.util.*;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.math.BigDecimal;
-import java.math.RoundingMode;
-import java.time.DayOfWeek;
-import java.time.Instant;
-import java.time.LocalDate;
-import java.time.ZoneId;
-import java.util.Comparator;
-import java.util.List;
-import java.util.Map;
-import java.util.stream.Collectors;
-
-/**
- * GET /lojista/financeiro (item 4.1 da spec). Tudo calculado em cima de
- * tb_pedidos/tb_itens_pedido — nenhuma tabela nova.
- *
- * Decisão assumida (pergunta em aberto #8 da spec, sem resposta ainda):
- * pedidos com status PENDENTE/PAGO/PREPARANDO/SAIU_ENTREGA (ainda não
- * entregues) ENTRAM no faturamento do período — só CANCELADO é excluído.
- * Se a decisão for "só ENTREGUE conta como faturamento", é só trocar o
- * filtro `p.getStatus() != CANCELADO` por `p.getStatus() == ENTREGUE` nos
- * pontos marcados abaixo.
- */
+/** Mantém a regra existente: todos os pedidos não cancelados compõem o período. */
 @Service
 public class FinanceiroService {
+    private static final ZoneId ZONA = ZoneId.of("America/Sao_Paulo");
+    private static final String[] DIAS = {"DOM", "SEG", "TER", "QUA", "QUI", "SEX", "SAB"};
+    private final FinanceiroRepository financeiro;
+    private final ProdutoRepository produtos;
+    private final LojaAccessService acesso;
 
-    private static final ZoneId ZONA_PADRAO = ZoneId.of("America/Sao_Paulo");
-    private static final String[] DIAS_SEMANA_PT = {"DOM", "SEG", "TER", "QUA", "QUI", "SEX", "SAB"};
-
-    private final PedidoRepository pedidoRepository;
-    private final ProdutoRepository produtoRepository;
-    private final LojaAccessService lojaAccessService;
-
-    public FinanceiroService(PedidoRepository pedidoRepository, ProdutoRepository produtoRepository, LojaAccessService lojaAccessService) {
-        this.pedidoRepository = pedidoRepository;
-        this.produtoRepository = produtoRepository;
-        this.lojaAccessService = lojaAccessService;
+    public FinanceiroService(FinanceiroRepository financeiro, ProdutoRepository produtos, LojaAccessService acesso) {
+        this.financeiro = financeiro; this.produtos = produtos; this.acesso = acesso;
     }
 
     @Transactional(readOnly = true)
-    public FinanceiroDTO obterFinanceiro(Usuario usuarioLogado, PeriodoFinanceiro periodo) {
-        lojaAccessService.exigirFinanceiro(usuarioLogado);
-        Loja loja = lojaAccessService.obterLojaAcessivel(usuarioLogado);
-        String lojaId = loja.getId();
-
-        LocalDate hoje = LocalDate.now(ZONA_PADRAO);
-        LocalDate primeiroDia = switch (periodo) {
+    public FinanceiroDTO obterFinanceiro(Usuario usuario, PeriodoFinanceiro periodo) {
+        acesso.exigirFinanceiro(usuario);
+        String lojaId = acesso.obterLojaAcessivel(usuario).getId();
+        LocalDate hoje = LocalDate.now(ZONA);
+        LocalDate primeiro = switch (periodo) {
             case HOJE -> hoje;
             case SETE_DIAS -> hoje.minusDays(6);
             case TRINTA_DIAS -> hoje.minusDays(29);
         };
-        Instant inicio = primeiroDia.atStartOfDay(ZONA_PADRAO).toInstant();
-        Instant fim = hoje.plusDays(1).atStartOfDay(ZONA_PADRAO).minusNanos(1).toInstant();
-
-        List<Pedido> todosNoPeriodo = pedidoRepository.findByLojaIdAndPeriodo(lojaId, inicio, fim);
-        List<Pedido> validos = todosNoPeriodo.stream().filter(p -> p.getStatus() != StatusPedido.CANCELADO).toList();
-
-        return new FinanceiroDTO(
-                periodo.name(),
-                calcularResumo(todosNoPeriodo, validos),
-                calcularFaturamentoDiario(validos, primeiroDia, hoje),
-                calcularPedidosPorDiaSemana(validos),
-                calcularVendasPorCategoria(validos),
-                calcularVendasPorPagamento(validos),
-                calcularProdutosMaisVendidos(lojaId, inicio, fim),
-                calcularPedidosPorHora(validos)
-        );
-    }
-
-    private ResumoFinanceiroDTO calcularResumo(List<Pedido> todos, List<Pedido> validos) {
-        BigDecimal faturamento = validos.stream().map(Pedido::getValorTotal).reduce(BigDecimal.ZERO, BigDecimal::add);
-        long numeroPedidos = validos.size();
-        BigDecimal ticketMedio = numeroPedidos == 0
-                ? BigDecimal.ZERO
-                : faturamento.divide(BigDecimal.valueOf(numeroPedidos), 2, RoundingMode.HALF_UP);
-
-        long totalComCancelados = todos.size();
-        long cancelados = todos.size() - validos.size();
-        BigDecimal taxaCancelamento = totalComCancelados == 0
-                ? BigDecimal.ZERO
-                : BigDecimal.valueOf(cancelados)
-                        .multiply(BigDecimal.valueOf(100))
-                        .divide(BigDecimal.valueOf(totalComCancelados), 1, RoundingMode.HALF_UP);
-
-        return new ResumoFinanceiroDTO(faturamento, numeroPedidos, ticketMedio, taxaCancelamento);
-    }
-
-    private List<FaturamentoDiaDTO> calcularFaturamentoDiario(List<Pedido> validos, LocalDate primeiroDia, LocalDate ultimoDia) {
-        Map<LocalDate, BigDecimal> valorPorDia = validos.stream()
-                .collect(Collectors.groupingBy(
-                        p -> p.getCriadoEm().atZone(ZONA_PADRAO).toLocalDate(),
-                        Collectors.reducing(BigDecimal.ZERO, Pedido::getValorTotal, BigDecimal::add)
-                ));
-        return primeiroDia.datesUntil(ultimoDia.plusDays(1))
-                .map(dia -> new FaturamentoDiaDTO(dia, valorPorDia.getOrDefault(dia, BigDecimal.ZERO)))
-                .toList();
-    }
-
-    private List<PedidosPorDiaSemanaDTO> calcularPedidosPorDiaSemana(List<Pedido> validos) {
-        Map<DayOfWeek, Long> porDia = validos.stream()
-                .collect(Collectors.groupingBy(
-                        p -> p.getCriadoEm().atZone(ZONA_PADRAO).getDayOfWeek(),
-                        Collectors.counting()
-                ));
-        // Segunda a domingo, na ordem que a UI espera
-        return java.util.stream.Stream.of(DayOfWeek.values())
-                .map(dia -> new PedidosPorDiaSemanaDTO(DIAS_SEMANA_PT[dia.getValue() % 7], porDia.getOrDefault(dia, 0L)))
-                .toList();
-    }
-
-    private List<VendasPorCategoriaDTO> calcularVendasPorCategoria(List<Pedido> validos) {
-        Map<String, BigDecimal> valorPorCategoria = validos.stream()
-                .flatMap(p -> p.getItens().stream())
-                .collect(Collectors.groupingBy(
-                        item -> item.getProduto().getCategoriaMenu(),
-                        Collectors.reducing(BigDecimal.ZERO, this::subtotalItem, BigDecimal::add)
-                ));
-        BigDecimal total = valorPorCategoria.values().stream().reduce(BigDecimal.ZERO, BigDecimal::add);
-        return valorPorCategoria.entrySet().stream()
-                .map(e -> new VendasPorCategoriaDTO(e.getKey(), e.getValue(), calcularPercentual(e.getValue(), total)))
-                .sorted(Comparator.comparing(VendasPorCategoriaDTO::valor).reversed())
-                .toList();
-    }
-
-    private List<VendasPorPagamentoDTO> calcularVendasPorPagamento(List<Pedido> validos) {
-        Map<String, BigDecimal> valorPorPagamento = validos.stream()
-                .collect(Collectors.groupingBy(
-                        Pedido::getFormaPagamento,
-                        Collectors.reducing(BigDecimal.ZERO, Pedido::getValorTotal, BigDecimal::add)
-                ));
-        BigDecimal total = valorPorPagamento.values().stream().reduce(BigDecimal.ZERO, BigDecimal::add);
-        return valorPorPagamento.entrySet().stream()
-                .map(e -> new VendasPorPagamentoDTO(e.getKey(), e.getValue(), calcularPercentual(e.getValue(), total)))
-                .sorted(Comparator.comparing(VendasPorPagamentoDTO::valor).reversed())
-                .toList();
-    }
-
-    private BigDecimal calcularPercentual(BigDecimal valor, BigDecimal total) {
-        if (total.compareTo(BigDecimal.ZERO) == 0) {
-            return BigDecimal.ZERO;
+        Instant inicio = primeiro.atStartOfDay(ZONA).toInstant();
+        Instant fim = hoje.plusDays(1).atStartOfDay(ZONA).toInstant();
+        var resumo = financeiro.resumo(lojaId, inicio, fim);
+        long todos = resumo.stream().mapToLong(FinanceiroRepository.PorStatus::getQuantidade).sum();
+        long cancelados = resumo.stream().filter(r -> r.getStatus() == StatusPedido.CANCELADO)
+                .mapToLong(FinanceiroRepository.PorStatus::getQuantidade).sum();
+        long validos = todos - cancelados;
+        BigDecimal total = resumo.stream().filter(r -> r.getStatus() != StatusPedido.CANCELADO)
+                .map(FinanceiroRepository.PorStatus::getTotal).reduce(BigDecimal.ZERO, BigDecimal::add);
+        Map<LocalDate, BigDecimal> porDia = new HashMap<>();
+        Map<DayOfWeek, Long> porSemana = new EnumMap<>(DayOfWeek.class);
+        Map<Integer, Long> porHora = new HashMap<>();
+        Map<String, BigDecimal> pagamentos = new TreeMap<>();
+        for (var hora : financeiro.horas(lojaId, inicio, fim)) {
+            // O armazenamento e a sessão JDBC usam UTC; a apresentação usa São Paulo.
+            var local = LocalDateTime.of(hora.getAno(), hora.getMes(), hora.getDia(), hora.getHora(), 0)
+                    .toInstant(ZoneOffset.UTC).atZone(ZONA);
+            porDia.merge(local.toLocalDate(), hora.getTotal(), BigDecimal::add);
+            porSemana.merge(local.getDayOfWeek(), hora.getQuantidade(), Long::sum);
+            porHora.merge(local.getHour(), hora.getQuantidade(), Long::sum);
+            pagamentos.merge(hora.getPagamento(), hora.getTotal(), BigDecimal::add);
         }
-        return valor.multiply(BigDecimal.valueOf(100)).divide(total, 1, RoundingMode.HALF_UP);
+        var categorias = financeiro.categorias(lojaId, inicio, fim);
+        BigDecimal totalItens = categorias.stream().map(FinanceiroRepository.PorCategoria::getTotal)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+        var ranking = produtos.rankingProdutosVendidos(lojaId, inicio, fim, PageRequest.of(0, 10)).stream()
+                .map(r -> new ProdutoMaisVendidoDTO((String) r[0], (String) r[1],
+                        ((Number) r[3]).longValue(), (BigDecimal) r[4])).toList();
+        return new FinanceiroDTO(periodo.name(),
+                new ResumoFinanceiroDTO(total, validos, dividir(total, validos),
+                        percentual(BigDecimal.valueOf(cancelados), BigDecimal.valueOf(todos))),
+                primeiro.datesUntil(hoje.plusDays(1))
+                        .map(d -> new FaturamentoDiaDTO(d, porDia.getOrDefault(d, BigDecimal.ZERO))).toList(),
+                Arrays.stream(DayOfWeek.values())
+                        .map(d -> new PedidosPorDiaSemanaDTO(DIAS[d.getValue() % 7], porSemana.getOrDefault(d, 0L))).toList(),
+                categorias.stream().map(c -> new VendasPorCategoriaDTO(c.getCategoria(), c.getTotal(), percentual(c.getTotal(), totalItens)))
+                        .sorted(Comparator.comparing(VendasPorCategoriaDTO::valor).reversed()).toList(),
+                pagamentos.entrySet().stream().map(e -> new VendasPorPagamentoDTO(e.getKey(), e.getValue(), percentual(e.getValue(), total)))
+                        .sorted(Comparator.comparing(VendasPorPagamentoDTO::valor).reversed()).toList(),
+                ranking,
+                java.util.stream.IntStream.range(0, 24)
+                        .mapToObj(h -> new PedidosPorHoraDTO(h, porHora.getOrDefault(h, 0L))).toList());
     }
 
-    private List<ProdutoMaisVendidoDTO> calcularProdutosMaisVendidos(String lojaId, Instant inicio, Instant fim) {
-        List<Object[]> linhas = produtoRepository.rankingProdutosVendidos(lojaId, inicio, fim);
-        return linhas.stream()
-                .limit(10)
-                .map(linha -> new ProdutoMaisVendidoDTO(
-                        (String) linha[0],
-                        (String) linha[1],
-                        ((Number) linha[3]).longValue(),
-                        (BigDecimal) linha[4]
-                ))
-                .toList();
+    private BigDecimal dividir(BigDecimal valor, long quantidade) {
+        return quantidade == 0 ? BigDecimal.ZERO : valor.divide(BigDecimal.valueOf(quantidade), 2, RoundingMode.HALF_UP);
     }
 
-    private List<PedidosPorHoraDTO> calcularPedidosPorHora(List<Pedido> validos) {
-        Map<Integer, Long> porHora = validos.stream()
-                .collect(Collectors.groupingBy(
-                        p -> p.getCriadoEm().atZone(ZONA_PADRAO).getHour(),
-                        Collectors.counting()
-                ));
-        return java.util.stream.IntStream.range(0, 24)
-                .mapToObj(hora -> new PedidosPorHoraDTO(hora, porHora.getOrDefault(hora, 0L)))
-                .toList();
-    }
-
-    private BigDecimal subtotalItem(ItemPedido item) {
-        return item.getPrecoHistorico().multiply(BigDecimal.valueOf(item.getQuantidade()));
+    private BigDecimal percentual(BigDecimal valor, BigDecimal total) {
+        return total.signum() == 0 ? BigDecimal.ZERO : valor.multiply(BigDecimal.valueOf(100)).divide(total, 1, RoundingMode.HALF_UP);
     }
 }

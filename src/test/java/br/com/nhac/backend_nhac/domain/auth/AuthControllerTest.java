@@ -48,6 +48,7 @@ import br.com.nhac.backend_nhac.infra.security.TokenService;
 
 @ExtendWith(MockitoExtension.class)
 class AuthControllerTest {
+    @Mock private CadastroService cadastroService;
 
     @Mock
     private UsuarioRepository usuarioRepository;
@@ -245,65 +246,28 @@ class AuthControllerTest {
     }
 
     @Test
-    @DisplayName("Deve registrar um novo usuário com sucesso quando o e-mail ainda não estiver em uso")
-    void deveRegistrarUsuarioComSucesso() {
-        RegistroRequestDTO requisicao = new RegistroRequestDTO(
-                "user_novo", "Novo Usuário", "novo@nhac.com", "11999998888", "senha123");
-
-        when(usuarioRepository.findByEmailIgnoreCase("novo@nhac.com")).thenReturn(Optional.empty());
-        when(passwordEncoder.encode("senha123")).thenReturn("senha_encriptada");
-        when(tokenService.gerarToken(any(Usuario.class))).thenReturn("token_jwt_gerado");
-        
-        // Mock do código de verificação de cadastro
-        var codigoVerificacao = new br.com.nhac.backend_nhac.domain.auth.CodigoVerificacaoEmail();
-        codigoVerificacao.setUtilizado(true);
-        when(codigoVerificacaoEmailRepository.findTopByEmailAndTipoAndUtilizadoTrueAndCriadoEmGreaterThanEqualOrderByCriadoEmDesc(
-            eq("novo@nhac.com"), 
-            eq(CodigoVerificacaoEmail.TipoCodigo.CADASTRO),
-            any(java.time.LocalDateTime.class)
-        )).thenReturn(Optional.of(codigoVerificacao));
-
-        ResponseEntity<LoginResponseDTO> resposta = authController.registrar(requisicao);
-
+    @DisplayName("Cadastro usa o serviço transacional e devolve a identidade do servidor")
+    void deveRegistrarNovoUsuarioComSucesso() {
+        var requisicao = new RegistroRequestDTO("id-cliente", "Novo Usuário", "novo@nhac.com",
+                "11999998888", "senha123", "comprovante");
+        var usuario = new Usuario();
+        usuario.setId("id-servidor"); usuario.setNome("Novo Usuário");
+        usuario.setEmail("novo@nhac.com"); usuario.setEmailVerificado(true);
+        when(cadastroService.registrar(requisicao)).thenReturn(usuario);
+        when(tokenService.gerarToken(usuario)).thenReturn("token");
+        var resposta = authController.registrar(requisicao);
         assertEquals(HttpStatus.CREATED, resposta.getStatusCode());
-        assertEquals("token_jwt_gerado", resposta.getBody().token());
-        assertEquals("CLIENTE", resposta.getBody().papel());
-
-        ArgumentCaptor<Usuario> captor = ArgumentCaptor.forClass(Usuario.class);
-        verify(usuarioRepository).save(captor.capture());
-        assertEquals("novo@nhac.com", captor.getValue().getEmail());
-        assertEquals("senha_encriptada", captor.getValue().getSenha());
+        assertEquals("id-servidor", resposta.getBody().usuarioId());
+        assertEquals("token", resposta.getBody().token());
+        verify(usuarioRepository, never()).save(any());
     }
 
     @Test
-    @DisplayName("Deve lançar RegraDeNegocioException ao tentar registrar um e-mail já em uso")
-    void deveLancarExcecaoAoRegistrarEmailDuplicado() {
-        RegistroRequestDTO requisicao = new RegistroRequestDTO(
-                "user_novo", "Novo Usuário", "matheus@nhac.com", "11999998888", "senha123");
-
-        Usuario usuarioExistente = new Usuario();
-        usuarioExistente.setEmail("matheus@nhac.com");
-        usuarioExistente.setEmailVerificado(true);
-
-        // Mock do código de verificação como já utilizado (para passar pela validação de email)
-        CodigoVerificacaoEmail codigoVerificacao = new CodigoVerificacaoEmail();
-        codigoVerificacao.setEmail("matheus@nhac.com");
-        codigoVerificacao.setTipo(CodigoVerificacaoEmail.TipoCodigo.CADASTRO);
-        codigoVerificacao.setUtilizado(true);
-        codigoVerificacao.setCriadoEm(LocalDateTime.now());
-
-        when(codigoVerificacaoEmailRepository.findTopByEmailAndTipoAndUtilizadoTrueAndCriadoEmGreaterThanEqualOrderByCriadoEmDesc(
-                eq("matheus@nhac.com"), 
-                eq(CodigoVerificacaoEmail.TipoCodigo.CADASTRO), 
-                any(LocalDateTime.class)))
-                .thenReturn(Optional.of(codigoVerificacao));
-
-        when(usuarioRepository.findByEmailIgnoreCase("matheus@nhac.com"))
-                .thenReturn(Optional.of(usuarioExistente));
-
+    void falhaDeCadastroNaoEmiteToken() {
+        var requisicao = new RegistroRequestDTO(null, "Novo", "novo@nhac.com",
+                "11999998888", "senha123", "comprovante");
+        when(cadastroService.registrar(requisicao)).thenThrow(new RegraDeNegocioException("E-mail em uso"));
         assertThrows(RegraDeNegocioException.class, () -> authController.registrar(requisicao));
-
-        verify(usuarioRepository, never()).save(any());
         verify(tokenService, never()).gerarToken(any());
     }
 

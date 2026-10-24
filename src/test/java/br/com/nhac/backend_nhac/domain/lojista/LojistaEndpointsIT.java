@@ -63,13 +63,13 @@ class LojistaEndpointsIT extends AbstractIntegrationTest {
         // Criar lojista A
         String emailA = "lojista.a@nhac.com.br";
         String senhaA = "senhaForte123";
-        criarCodigoVerificadoPara(emailA);
+        String provaA = criarCodigoVerificadoPara(emailA);
         RegistroRequestDTO registroA = new RegistroRequestDTO(
                 UUID.randomUUID().toString(),
                 "Lojista A",
                 emailA,
                 "11988887771",
-                senhaA
+                senhaA, provaA
         );
         mockMvc.perform(post("/api/v1/auth/registrar")
                         .contentType(MediaType.APPLICATION_JSON)
@@ -85,13 +85,13 @@ class LojistaEndpointsIT extends AbstractIntegrationTest {
         // Criar lojista B
         String emailB = "lojista.b@nhac.com.br";
         String senhaB = "senhaForte123";
-        criarCodigoVerificadoPara(emailB);
+        String provaB = criarCodigoVerificadoPara(emailB);
         RegistroRequestDTO registroB = new RegistroRequestDTO(
                 UUID.randomUUID().toString(),
                 "Lojista B",
                 emailB,
                 "11988887772",
-                senhaB
+                senhaB, provaB
         );
         mockMvc.perform(post("/api/v1/auth/registrar")
                         .contentType(MediaType.APPLICATION_JSON)

@@ -11,8 +11,8 @@
 	<groupId>br.com.nhac</groupId>
 	<artifactId>backend_nhac</artifactId>
 	<version>0.0.1-SNAPSHOT</version>
-	<name/>
-	<description/>
+	<name>Nhac Backend</name>
+	<description>API de delivery, catálogo e operação de lojas e entregadores do Nhac.</description>
 	<url/>
 	<licenses>
 		<license/>
@@ -156,13 +156,6 @@
 			<groupId>org.springframework.boot</groupId>
 			<artifactId>spring-boot-starter-security-test</artifactId>
 			<scope>test</scope>
-		</dependency>
-		<!-- Source: https://mvnrepository.com/artifact/io.jsonwebtoken/jjwt-api -->
-		<dependency>
-			<groupId>io.jsonwebtoken</groupId>
-			<artifactId>jjwt-api</artifactId>
-			<version>0.13.0</version>
-			<scope>compile</scope>
 		</dependency>
 		<!-- Source: https://mvnrepository.com/artifact/com.auth0/java-jwt -->
 		<dependency>

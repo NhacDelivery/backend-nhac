@@ -6,11 +6,9 @@ import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.util.Comparator;
 import java.util.HexFormat;
-import java.util.Map;
 import java.util.List;
 import java.util.Optional;
 import java.time.Instant;
-import java.time.temporal.ChronoUnit;
 
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.data.domain.Page;
@@ -22,10 +20,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import br.com.nhac.backend_nhac.domain.entregador.EntregadorRepository;
 import br.com.nhac.backend_nhac.domain.entregador.StatusOperacional;
-import br.com.nhac.backend_nhac.domain.loja.FreteService;
-import br.com.nhac.backend_nhac.domain.loja.Loja;
 import br.com.nhac.backend_nhac.domain.loja.LojaAccessService;
-import br.com.nhac.backend_nhac.domain.loja.LojaRepository;
 import br.com.nhac.backend_nhac.domain.pedido.dto.PedidoCreateDTO;
 import br.com.nhac.backend_nhac.domain.pedido.dto.PedidoCriadoDTO;
 import br.com.nhac.backend_nhac.domain.pedido.dto.PedidoDetalheLojistaDTO;
@@ -38,23 +33,15 @@ import br.com.nhac.backend_nhac.domain.produto.ProdutoRepository;
 import br.com.nhac.backend_nhac.domain.usuario.Usuario;
 import br.com.nhac.backend_nhac.domain.usuario.UsuarioRepository;
 import br.com.nhac.backend_nhac.exceptions.AcessoNegadoException;
-import br.com.nhac.backend_nhac.exceptions.CampoObrigatorioFaltandoException;
-import br.com.nhac.backend_nhac.exceptions.EstoqueInsuficienteException;
 import br.com.nhac.backend_nhac.exceptions.IdNaoEncontradoException;
-import br.com.nhac.backend_nhac.exceptions.IdempotenciaConflitoException;
-import br.com.nhac.backend_nhac.exceptions.LojaFechadaException;
-import br.com.nhac.backend_nhac.exceptions.PagamentoRecusadoException;
-import br.com.nhac.backend_nhac.exceptions.ProdutoInativoException;
-import br.com.nhac.backend_nhac.exceptions.ProdutoNaoEncontradoException;
-import br.com.nhac.backend_nhac.exceptions.QuantidadeInvalidaException;
 import br.com.nhac.backend_nhac.exceptions.RegraDeNegocioException;
-import br.com.nhac.backend_nhac.exceptions.PedidoAtivoException;
 import br.com.nhac.backend_nhac.exceptions.PagamentoIndisponivelException;
 
 @Service
 public class PedidoService {
 
     private static final org.slf4j.Logger log = org.slf4j.LoggerFactory.getLogger(PedidoService.class);
+    private static final com.fasterxml.jackson.databind.ObjectMapper FINGERPRINT_MAPPER = new com.fasterxml.jackson.databind.ObjectMapper();
 
     private static final List<StatusPedido> STATUS_ATIVOS = List.of(
             StatusPedido.PENDENTE, StatusPedido.PAGO, StatusPedido.PREPARANDO, StatusPedido.SAIU_ENTREGA);
@@ -65,41 +52,39 @@ public class PedidoService {
     private final Environment environment;
     private final PedidoReservaService reservaService;
     private final PagamentoMetricas metricas;
+    private final PedidoTransacao transacao;
 
     private final br.com.nhac.backend_nhac.domain.cupom.CupomService cupomService;
     private final PedidoRepository pedidoRepository;
-    private final LojaRepository lojaRepository;
     private final ProdutoRepository produtoRepository;
     private final UsuarioRepository usuarioRepository;
     private final LojaAccessService lojaAccessService;
     private final StripePaymentService stripePaymentService;
     private final AsaasPaymentService asaasPaymentService;
     private final ApplicationEventPublisher eventPublisher;
-    private final FreteService freteService;
     private final EntregadorRepository entregadorRepository;
     private final br.com.nhac.backend_nhac.domain.avaliacao_entregador.AvaliacaoEntregadorService avaliacaoEntregadorService;
 
-    public PedidoService(PedidoRepository pedidoRepository, LojaRepository lojaRepository, ProdutoRepository produtoRepository,
+    public PedidoService(PedidoRepository pedidoRepository, ProdutoRepository produtoRepository,
                           UsuarioRepository usuarioRepository, LojaAccessService lojaAccessService,
                           StripePaymentService stripePaymentService, AsaasPaymentService asaasPaymentService,
-                          ApplicationEventPublisher eventPublisher, FreteService freteService,
+                          ApplicationEventPublisher eventPublisher,
                           EntregadorRepository entregadorRepository,
                           br.com.nhac.backend_nhac.domain.cupom.CupomService cupomService,
                           Environment environment,
                           br.com.nhac.backend_nhac.domain.avaliacao_entregador.AvaliacaoEntregadorService avaliacaoEntregadorService,
-                          PedidoReservaService reservaService, PagamentoMetricas metricas) {
+                          PedidoReservaService reservaService, PagamentoMetricas metricas, PedidoTransacao transacao) {
+        this.transacao = transacao;
         this.metricas = metricas;
         this.reservaService = reservaService;
         this.cupomService = cupomService;
         this.pedidoRepository = pedidoRepository;
-        this.lojaRepository = lojaRepository;
         this.produtoRepository = produtoRepository;
         this.usuarioRepository = usuarioRepository;
         this.lojaAccessService = lojaAccessService;
         this.stripePaymentService = stripePaymentService;
         this.asaasPaymentService = asaasPaymentService;
         this.eventPublisher = eventPublisher;
-        this.freteService = freteService;
         this.entregadorRepository = entregadorRepository;
         this.environment = environment;
         this.avaliacaoEntregadorService = avaliacaoEntregadorService;
@@ -324,8 +309,19 @@ public class PedidoService {
         return new PedidoDetalheLojistaDTO(pedido, clienteNome, clienteTelefone);
     }
 
-    @Transactional
+    @Transactional(propagation = org.springframework.transaction.annotation.Propagation.NOT_SUPPORTED)
     public void atualizarStatus(String pedidoId, StatusPedido novoStatus, Usuario usuarioLogado) {
+        if (novoStatus == StatusPedido.CANCELADO) {
+            cancelarComPermissao(pedidoId, usuarioLogado.getId(), usuarioLogado);
+            return;
+        }
+        transacao.executar(() -> {
+            atualizarStatusEmTransacao(pedidoId, novoStatus, usuarioLogado);
+            return null;
+        });
+    }
+
+    private void atualizarStatusEmTransacao(String pedidoId, StatusPedido novoStatus, Usuario usuarioLogado) {
         Pedido pedido = pedidoRepository.findById(pedidoId)
                 .orElseThrow(() -> new IdNaoEncontradoException("Pedido não encontrado."));
 
@@ -338,16 +334,6 @@ public class PedidoService {
         if (novoStatus == StatusPedido.ENTREGUE) {
             throw new RegraDeNegocioException(
                     "A entrega só pode ser concluída pelo entregador com o código de confirmação.");
-        }
-
-        if (novoStatus == StatusPedido.CANCELADO) {
-            if (pedido.getStatus() != StatusPedido.PENDENTE) {
-                throw new RegraDeNegocioException(
-                        "Pedido pago ou em preparo não pode ser cancelado sem um fluxo de estorno.");
-            }
-            cancelarCobrancaSePendente(pedido);
-            cancelarInternamente(pedido);
-            return;
         }
 
         pedido.alterarStatus(novoStatus);
@@ -373,28 +359,41 @@ public class PedidoService {
         }
     }
 
-    @Transactional
+    @Transactional(propagation = org.springframework.transaction.annotation.Propagation.NOT_SUPPORTED)
     public void cancelarPedido(String pedidoId, String usuarioIdLogado) {
-        Pedido pedido = pedidoRepository.findLockedById(pedidoId)
-                .orElseThrow(() -> new IdNaoEncontradoException("Pedido não encontrado."));
+        cancelarComPermissao(pedidoId, usuarioIdLogado, null);
+    }
 
-        if (!pedido.getUsuarioId().equals(usuarioIdLogado)) {
-            throw new AcessoNegadoException("Acesso negado: você não tem permissão para cancelar este pedido.");
-        }
+    private void cancelarComPermissao(String pedidoId, String clienteId, Usuario lojista) {
+        Pedido snapshot = transacao.executar(() -> {
+            Pedido p = pedidoRepository.findLockedById(pedidoId)
+                    .orElseThrow(() -> new IdNaoEncontradoException("Pedido não encontrado."));
+            autorizarCancelamento(p, clienteId, lojista);
+            if (p.getStatus() != StatusPedido.PENDENTE)
+                throw new RegraDeNegocioException("Somente pedidos com pagamento pendente podem ser cancelados por esta operação.");
+            return PedidoReservaService.snapshotParaPagamento(p);
+        });
+        // HTTP sem conexão/lock de banco. Uma falha conserva a reserva persistida.
+        cancelarCobrancaSePendente(snapshot);
+        transacao.executar(() -> {
+            Pedido atual = pedidoRepository.findLockedById(pedidoId)
+                    .orElseThrow(() -> new IdNaoEncontradoException("Pedido não encontrado."));
+            autorizarCancelamento(atual, clienteId, lojista);
+            if (atual.getStatus() == StatusPedido.CANCELADO) return null;
+            if (atual.getStatus() != StatusPedido.PENDENTE || atual.isPagamentoCriacaoIncerta()
+                    || !java.util.Objects.equals(atual.getAsaasPaymentId(), snapshot.getAsaasPaymentId())
+                    || !java.util.Objects.equals(atual.getStripePaymentIntentId(), snapshot.getStripePaymentIntentId()))
+                throw new RegraDeNegocioException("O pedido mudou durante o cancelamento. Atualize seus dados.");
+            cancelarInternamente(atual);
+            return null;
+        });
+    }
 
-        // Sem fluxo de refund explícito, o cliente só cancela antes do
-        // pagamento ser confirmado. Cancelamentos pós-pagamento precisam
-        // passar por uma futura operação de estorno.
-        if (pedido.getStatus() != StatusPedido.PENDENTE) {
-            throw new RegraDeNegocioException(
-                    "O cliente só pode cancelar pedidos enquanto o pagamento estiver pendente.");
-        }
-
-        // A cobrança precisa deixar de ser pagável antes de liberarmos estoque
-        // e permitirmos um novo pedido. Se o provedor falhar, mantenha ativo.
-        cancelarCobrancaSePendente(pedido);
-
-        cancelarInternamente(pedido);
+    private void autorizarCancelamento(Pedido pedido, String clienteId, Usuario lojista) {
+        boolean permitido = lojista == null ? pedido.getUsuarioId().equals(clienteId)
+                : lojista.getPapel() == br.com.nhac.backend_nhac.domain.usuario.Papel.ADMIN
+                || lojaAccessService.temAcessoALoja(lojista, pedido.getLoja().getId());
+        if (!permitido) throw new AcessoNegadoException("Você não tem permissão para cancelar este pedido.");
     }
 
     /** Cancela o pedido e registra o estorno na mesma transação. Nenhuma chamada externa sob lock. */
@@ -441,6 +440,49 @@ public class PedidoService {
     }
 
     static String calcularFingerprint(String usuarioId, PedidoCreateDTO dto) {
+        List<String> endereco = dto.enderecoEntrega() == null ? List.of() : List.of(
+                n(dto.enderecoEntrega().rua()),
+                n(dto.enderecoEntrega().numero()),
+                n(dto.enderecoEntrega().bairro()),
+                n(dto.enderecoEntrega().cidade()),
+                n(dto.enderecoEntrega().estado()),
+                n(dto.enderecoEntrega().cep()),
+                n(dto.enderecoEntrega().complemento()),
+                dto.enderecoEntrega().latitude() == null ? "" : dto.enderecoEntrega().latitude().toString(),
+                dto.enderecoEntrega().longitude() == null ? "" : dto.enderecoEntrega().longitude().toString());
+
+        List<String> itens = dto.itens().stream()
+                .sorted(Comparator.comparing(PedidoCreateDTO.ItemPedidoDTO::produtoId)
+                        .thenComparing(PedidoCreateDTO.ItemPedidoDTO::quantidade))
+                .map(i -> jsonCanonico(List.of(n(i.produtoId()), i.quantidade(),
+                        i.adicionais() == null ? List.of() : i.adicionais().stream().sorted().toList())))
+                .sorted()
+                .toList();
+
+        String canonico = jsonCanonico(List.of(
+                n(usuarioId), n(dto.lojaId()), n(dto.formaPagamento()),
+                n(dto.observacao()), n(dto.cupomId()), endereco, itens,
+                dto.trocoPara() == null ? "" : dto.trocoPara().stripTrailingZeros().toPlainString(),
+                dto.cpfPagador() == null ? "" : dto.cpfPagador().replaceAll("\\D", "")));
+
+        try {
+            byte[] digest = MessageDigest.getInstance("SHA-256")
+                    .digest(canonico.getBytes(StandardCharsets.UTF_8));
+            return HexFormat.of().formatHex(digest);
+        } catch (NoSuchAlgorithmException e) {
+            throw new IllegalStateException("SHA-256 indisponível na JVM.", e);
+        }
+    }
+
+    private static String jsonCanonico(Object valor) {
+        try {
+            return FINGERPRINT_MAPPER.writeValueAsString(valor);
+        } catch (com.fasterxml.jackson.core.JsonProcessingException e) {
+            throw new IllegalStateException("Não foi possível identificar o pedido.", e);
+        }
+    }
+
+    static String calcularFingerprintLegado(String usuarioId, PedidoCreateDTO dto) {
         String endereco = dto.enderecoEntrega() == null ? "" : String.join("|",
                 n(dto.enderecoEntrega().rua()),
                 n(dto.enderecoEntrega().numero()),
@@ -533,8 +575,7 @@ public class PedidoService {
         for (ItemPedido item : pedido.getItens()) {
             Produto produto = item.getProduto();
             if (produto.getEstoque() != null) {
-                produto.setEstoque(produto.getEstoque() + item.getQuantidade());
-                produtoRepository.save(produto);
+                produtoRepository.incrementarEstoque(produto.getId(), item.getQuantidade());
             }
         }
     }

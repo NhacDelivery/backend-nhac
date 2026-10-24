@@ -1,6 +1,6 @@
 # Contratos de UX e pedidos simultâneos
 
-Branch: `fix/ux-estados-e-erros`, base main `22b7796`. Implantar antes do Flutter da branch homônima. Nenhuma migração destrutiva ou publicação direta na main.
+Contratos em vigor. O histórico da implementação permanece nos commits; este guia descreve o comportamento esperado pelos clientes.
 
 - `GET /pedidos/ativos`: lista completa do usuário autenticado, ordenada por criação decrescente. O singular permanece por compatibilidade.
 - `POST /pedidos`: endereço exige latitude e longitude finitas, dentro dos limites e diferentes do par `0,0`. O DTO persiste ambas no pedido. Compras distintas podem coexistir; idempotência por chave/fingerprint, lock de usuário, estoque e pagamento permanecem.

@@ -1,4 +1,4 @@
-package br.com.nhac.backend_nhac.domain.novosendpoints;
+package br.com.nhac.backend_nhac.domain.contratos;
 
 import java.math.BigDecimal;
 import java.time.Instant;
@@ -54,8 +54,8 @@ import br.com.nhac.backend_nhac.domain.usuario.dto.FuncionarioResponseDTO;
 @br.com.nhac.backend_nhac.infra.security.WebMvcControllerTest(controllers = {FuncionarioController.class, PainelController.class, FinanceiroController.class,
         ChatController.class, ConversaClienteController.class})
 @AutoConfigureMockMvc(addFilters = false)
-@org.springframework.context.annotation.Import(NovosEndpointsControllerTest.MethodSecurityConfig.class)
-class NovosEndpointsControllerTest {
+@org.springframework.context.annotation.Import(ContratosPainelControllerTest.MethodSecurityConfig.class)
+class ContratosPainelControllerTest {
 
     @org.springframework.boot.test.context.TestConfiguration(proxyBeanMethods = false)
     @org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity

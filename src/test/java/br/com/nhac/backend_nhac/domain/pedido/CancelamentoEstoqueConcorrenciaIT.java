@@ -23,6 +23,28 @@ class CancelamentoEstoqueConcorrenciaIT extends AbstractMariaDbIntegrationTest {
     @Autowired UsuarioRepository usuarioRepository;
 
     @Test
+    void pedidosDistintosDevolvemTodasAsUnidadesDoMesmoProduto() throws Exception {
+        var cliente = new Usuario(); cliente.setId("cliente-distinto"); cliente.setNome("Cliente");
+        usuarioRepository.save(cliente);
+        var loja = loja(); lojaRepository.save(loja);
+        var produto = produto(loja); produto.setEstoque(8); produtoRepository.save(produto);
+        for (int i = 0; i < 2; i++) {
+            var p = pedido(cliente, loja); p.setId("pedido-distinto-" + i);
+            var item = new ItemPedido(); item.setId("item-distinto-" + i);
+            item.setProduto(produto); item.setNome("Produto"); item.setPrecoHistorico(produto.getPreco());
+            item.setQuantidade(i + 2); p.adicionarItem(item); pedidoRepository.saveAndFlush(p);
+        }
+        var inicio = new CountDownLatch(1);
+        try (var executor = Executors.newFixedThreadPool(2)) {
+            var a = executor.submit(() -> { inicio.await(); pedidoService.marcarComoCanceladoPorFalhaDePagamento("pedido-distinto-0"); return true; });
+            var b = executor.submit(() -> { inicio.await(); pedidoService.marcarComoCanceladoPorFalhaDePagamento("pedido-distinto-1"); return true; });
+            inicio.countDown();
+            assertTrue(a.get(15, TimeUnit.SECONDS)); assertTrue(b.get(15, TimeUnit.SECONDS));
+        }
+        assertEquals(13, produtoRepository.findById(produto.getId()).orElseThrow().getEstoque());
+    }
+
+    @Test
     void cancelamentosConcorrentesNaoDevemDevolverEstoqueDuasVezes() throws Exception {
         Usuario cliente = new Usuario();
         cliente.setId("cli-cancel");

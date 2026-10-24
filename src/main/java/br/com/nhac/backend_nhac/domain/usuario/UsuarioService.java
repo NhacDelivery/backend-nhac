@@ -62,13 +62,14 @@ public class UsuarioService {
         }
 
         Usuario usuario = dto.toEntity();
+        usuario.setId(java.util.UUID.randomUUID().toString());
         usuario.setTelefone(telefone);
 
         if (dto.senha() != null && !dto.senha().isBlank()) {
             usuario.setSenha(passwordEncoder.encode(dto.senha()));
         }
 
-        usuarioRepository.save(usuario);
+        usuarioRepository.inserir(usuario);
     }
 
     @org.springframework.transaction.annotation.Transactional(readOnly=true)

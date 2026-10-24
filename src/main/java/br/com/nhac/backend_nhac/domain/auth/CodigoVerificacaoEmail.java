@@ -33,6 +33,16 @@ public class CodigoVerificacaoEmail {
     @Builder.Default
     private boolean utilizado = false;
 
+    // Invalidar um OTP não comprova a posse do e-mail. Esta prova é separada.
+    @Column(name = "validado_em")
+    private LocalDateTime validadoEm;
+
+    @Column(name = "consumido_em")
+    private LocalDateTime consumidoEm;
+
+    @Column(name = "token_cadastro_hash", length = 64, unique = true)
+    private String tokenCadastroHash;
+
     @Column(name = "criado_em")
     private LocalDateTime criadoEm;
 

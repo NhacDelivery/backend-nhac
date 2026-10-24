@@ -19,14 +19,14 @@ public class AuthFlowIT extends AbstractIntegrationTest {
         String email = "teste.integracao@nhac.com.br";
         String senha = "senhaForte123";
 
-        criarCodigoVerificadoPara(email);
+        String prova = criarCodigoVerificadoPara(email);
 
         RegistroRequestDTO registroReq = new RegistroRequestDTO(
                 UUID.randomUUID().toString(),
                 "Usuario Teste",
                 email,
                 "11999999999",
-                senha
+                senha, prova
         );
 
         mockMvc.perform(post("/api/v1/auth/registrar")

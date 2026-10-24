@@ -35,22 +35,28 @@ public abstract class AbstractIntegrationTest {
     @Autowired
     private JdbcTemplate jdbcTemplate;
 
-    protected void criarCodigoVerificadoPara(String email) {
+    @Autowired private br.com.nhac.backend_nhac.domain.auth.VerificacaoEmailService verificacaoEmailService;
+    @Autowired private br.com.nhac.backend_nhac.domain.auth.AuthRateLimitService rateLimiter;
+
+    protected String criarCodigoVerificadoPara(String email) {
         codigoVerificacaoEmailRepository.save(
                 br.com.nhac.backend_nhac.domain.auth.CodigoVerificacaoEmail.builder()
                         .email(email.trim().toLowerCase())
                         .codigo("123456")
                         .dataExpiracao(java.time.LocalDateTime.now().plusHours(1))
                         .tentativas(0)
-                        .utilizado(true)
+                        .utilizado(false)
                         .tipo(br.com.nhac.backend_nhac.domain.auth.CodigoVerificacaoEmail.TipoCodigo.CADASTRO)
                         .build()
         );
+        return verificacaoEmailService.verificarCodigoCadastro(email, "123456");
     }
 
     @BeforeEach
     public void setup() {
         limparBanco();
+        ((com.github.benmanes.caffeine.cache.Cache<?, ?>) org.springframework.test.util.ReflectionTestUtils
+                .getField(rateLimiter, "tentativas")).invalidateAll();
         this.mockMvc = MockMvcBuilders.webAppContextSetup(this.webApplicationContext)
                 .apply(org.springframework.security.test.web.servlet.setup.SecurityMockMvcConfigurers.springSecurity())
                 .build();

@@ -9,14 +9,18 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
 import java.time.Instant;
-import java.time.LocalDateTime;
-import java.time.ZoneOffset;
+import java.time.Clock;
+import java.time.Duration;
 
 @Service
 public class TokenService {
 
     @Value("${api.security.token.secret}")
     private String secret;
+    private final Clock clock;
+
+    public TokenService() { this(Clock.systemUTC()); }
+    TokenService(Clock clock) { this.clock = clock; }
 
     public String gerarToken(Usuario usuario) {
         try {
@@ -46,7 +50,7 @@ public class TokenService {
     }
 
     private Instant gerarDataExpiracao() {
-        return LocalDateTime.now().plusDays(30).toInstant(ZoneOffset.of("-03:00"));
+        return Instant.now(clock).plus(Duration.ofDays(30));
     }
 
 
