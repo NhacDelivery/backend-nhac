@@ -2,6 +2,7 @@ package br.com.nhac.backend_nhac.domain.auth;
 
 import java.security.SecureRandom;
 import java.time.LocalDateTime;
+import java.util.Locale;
 
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -21,12 +22,11 @@ public class VerificacaoEmailService {
 
     private static final int TEMPO_EXPIRACAO_MINUTOS = 15;
     private static final int MAX_TENTATIVAS = 3;
-    private static final int TEMPO_VALIDACAO_CADASTRO_MINUTOS = 30;
     private static final String URL_LOGO_NHAC = "https://raw.githubusercontent.com/NhacDelivery/backend-nhac/main/nhac-logo.png";
 
     @Transactional
     public void enviarCodigoCadastro(String email) {
-        String finalEmail = email.trim().toLowerCase();
+        String finalEmail = email.trim().toLowerCase(Locale.ROOT);
         
         // Verifica se e-mail já está cadastrado e ativo
         if (usuarioRepository.findByEmailIgnoreCase(finalEmail).isPresent()) {
@@ -126,9 +126,9 @@ public class VerificacaoEmailService {
         emailService.enviarEmailHtml(email, assunto, htmlConteudo);
     }
 
-    @Transactional
-    public void verificarCodigoCadastro(String email, String codigoDigitado) {
-        String emailFormatado = email.trim().toLowerCase();
+    @Transactional(noRollbackFor = RegraDeNegocioException.class)
+    public String verificarCodigoCadastro(String email, String codigoDigitado) {
+        String emailFormatado = email.trim().toLowerCase(Locale.ROOT);
         LocalDateTime agora = LocalDateTime.now();
 
         CodigoVerificacaoEmail codigoBanco = codigoRepository
@@ -139,13 +139,33 @@ public class VerificacaoEmailService {
             )
             .orElseThrow(() -> new RegraDeNegocioException("Código de verificação inválido ou expirado."));
 
+        if (codigoBanco.getTentativas() >= MAX_TENTATIVAS) {
+            codigoBanco.setUtilizado(true);
+            throw new RegraDeNegocioException("Limite de tentativas excedido. Solicite um novo código.");
+        }
         if (!codigoBanco.getCodigo().equals(codigoDigitado.trim())) {
-            // Incrementa tentativas se tiver essa lógica, ou barra direto:
+            codigoBanco.setTentativas(codigoBanco.getTentativas() + 1);
+            codigoRepository.save(codigoBanco);
             throw new RegraDeNegocioException("Código de verificação inválido ou expirado.");
         }
 
+        byte[] bytes = new byte[32];
+        new SecureRandom().nextBytes(bytes);
+        String token = java.util.Base64.getUrlEncoder().withoutPadding().encodeToString(bytes);
         codigoBanco.setUtilizado(true);
+        codigoBanco.setValidadoEm(agora);
+        codigoBanco.setTokenCadastroHash(hashToken(token));
         codigoRepository.save(codigoBanco);
+        return token;
+    }
+
+    static String hashToken(String token) {
+        try {
+            return java.util.HexFormat.of().formatHex(java.security.MessageDigest.getInstance("SHA-256")
+                    .digest(token.getBytes(java.nio.charset.StandardCharsets.UTF_8)));
+        } catch (java.security.NoSuchAlgorithmException e) {
+            throw new IllegalStateException("SHA-256 indisponível", e);
+        }
     }
 
 
@@ -162,7 +182,7 @@ public class VerificacaoEmailService {
     }
 
     private CodigoVerificacaoEmail conferirCodigoReset(String email, String codigoDigitado) {
-        email = email.trim().toLowerCase();
+        email = email.trim().toLowerCase(Locale.ROOT);
         LocalDateTime agora = LocalDateTime.now();
 
         CodigoVerificacaoEmail registro = codigoRepository
@@ -187,7 +207,7 @@ public class VerificacaoEmailService {
 
     @Transactional
     public void enviarCodigoReset(String email) {
-        String finalEmail = email.trim().toLowerCase();
+        String finalEmail = email.trim().toLowerCase(Locale.ROOT);
         CodigoVerificacaoEmail novoCodigo = salvarNovoCodigoReset(finalEmail);
         enviarEmailReset(finalEmail, novoCodigo);
     }

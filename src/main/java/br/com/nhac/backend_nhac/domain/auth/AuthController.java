@@ -27,25 +27,23 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.web.bind.annotation.*;
 
-import java.time.LocalDateTime;
-import java.util.ArrayList;
 
 @RestController
 @RequestMapping("/api/v1/auth")
 @Tag(name = "Autenticação", description = "Endpoints para Login, Registro e Emissão de Tokens JWT")
 public class AuthController {
+    public record ConfirmacaoCadastroDTO(String tokenCadastro) {}
 
     private final UsuarioRepository usuarioRepository;
     private final PasswordEncoder passwordEncoder;
     private final TokenService tokenService;
     private final GoogleAuthService googleAuthService;
     private final SmsAuthService smsAuthService;
-    private final br.com.nhac.backend_nhac.domain.auth.VerificacaoTelefoneService verificacaoTelefoneService;
     private final br.com.nhac.backend_nhac.domain.auth.VerificacaoEmailService verificacaoEmailService;
     private final UsuarioService usuarioService;
-    private final CodigoVerificacaoEmailRepository codigoVerificacaoEmailRepository;
+    private final CadastroService cadastroService;
 
-    public AuthController(UsuarioRepository usuarioRepository, PasswordEncoder passwordEncoder, TokenService tokenService, GoogleAuthService googleAuthService, SmsAuthService smsAuthService, br.com.nhac.backend_nhac.domain.auth.VerificacaoTelefoneService verificacaoTelefoneService, br.com.nhac.backend_nhac.domain.auth.VerificacaoEmailService verificacaoEmailService, UsuarioService usuarioService, CodigoVerificacaoEmailRepository codigoVerificacaoEmailRepository) {
+    public AuthController(UsuarioRepository usuarioRepository, PasswordEncoder passwordEncoder, TokenService tokenService, GoogleAuthService googleAuthService, SmsAuthService smsAuthService, VerificacaoEmailService verificacaoEmailService, UsuarioService usuarioService, CadastroService cadastroService) {
 
 
         this.usuarioRepository = usuarioRepository;
@@ -53,10 +51,9 @@ public class AuthController {
         this.tokenService = tokenService;
         this.googleAuthService = googleAuthService;
         this.smsAuthService = smsAuthService;
-        this.verificacaoTelefoneService = verificacaoTelefoneService;
         this.verificacaoEmailService = verificacaoEmailService;
         this.usuarioService = usuarioService;
-        this.codigoVerificacaoEmailRepository = codigoVerificacaoEmailRepository;
+        this.cadastroService = cadastroService;
     }
 
     @PostMapping("/login")
@@ -111,8 +108,7 @@ public class AuthController {
     @Operation(summary = "Enviar código de verificação para cadastro", description = "Envia um código de 6 dígitos para o e-mail informado. Necessário para confirmar o e-mail antes do registro.")
     @ApiResponses(value = {
             @ApiResponse(responseCode = "200", description = "Código enviado com sucesso"),
-            @ApiResponse(responseCode = "400", description = "E-mail inválido ou não informado"),
-            @ApiResponse(responseCode = "409", description = "E-mail já está em uso"),
+            @ApiResponse(responseCode = "400", description = "E-mail inválido, não informado ou já em uso"),
             @ApiResponse(responseCode = "429", description = "Rate limit excedido")
     })
     @PostMapping("/enviar-codigo-cadastro")
@@ -121,51 +117,27 @@ public class AuthController {
         return ResponseEntity.ok().build();
     }
 
-    @Operation(summary = "Confirmar e-mail para cadastro", description = "Valida o código de verificação enviado para o e-mail. Após confirmação, o usuário pode concluir o registro.")
+    @Operation(summary = "Confirmar e-mail para cadastro", description = "Valida o OTP e retorna tokenCadastro. Envie essa prova na conclusão do registro; vale por 30 minutos e só pode ser consumida uma vez.")
     @ApiResponses(value = {
-            @ApiResponse(responseCode = "200", description = "E-mail confirmado com sucesso"),
-            @ApiResponse(responseCode = "400", description = "Código inválido ou expirado")
+            @ApiResponse(responseCode = "200", description = "E-mail confirmado; resposta contém tokenCadastro"),
+            @ApiResponse(responseCode = "400", description = "Código inválido, expirado ou limite de erros excedido"),
+            @ApiResponse(responseCode = "429", description = "Limite de requisições excedido")
     })
     @PostMapping("/confirmar-email-cadastro")
-    public ResponseEntity<Void> confirmarEmailCadastro(@RequestBody @Valid ConfirmarEmailDTO body) {
-        verificacaoEmailService.verificarCodigoCadastro(body.email(), body.codigo());
-        return ResponseEntity.ok().build();
+    public ResponseEntity<ConfirmacaoCadastroDTO> confirmarEmailCadastro(@RequestBody @Valid ConfirmarEmailDTO body) {
+        String token = verificacaoEmailService.verificarCodigoCadastro(body.email(), body.codigo());
+        return ResponseEntity.ok(new ConfirmacaoCadastroDTO(token));
     }
 
+    @Operation(summary = "Concluir cadastro", description = "Insere uma nova conta consumindo tokenCadastro do e-mail confirmado. O ID legado recebido é ignorado: adote usuarioId e token da resposta.")
+    @ApiResponses({
+            @ApiResponse(responseCode = "201", description = "Conta criada com identidade gerada pelo servidor"),
+            @ApiResponse(responseCode = "400", description = "Dados inválidos, contato já em uso ou prova de cadastro inválida"),
+            @ApiResponse(responseCode = "429", description = "Limite de requisições excedido")
+    })
     @PostMapping("/registrar")
     public ResponseEntity<LoginResponseDTO> registrar(@RequestBody @Valid RegistroRequestDTO body) {
-        // Verifica se o e-mail foi verificado para cadastro
-        LocalDateTime agora = java.time.LocalDateTime.now();
-        LocalDateTime dataLimite = agora.minusMinutes(30);
-        
-        var codigoVerificado = codigoVerificacaoEmailRepository.findTopByEmailAndTipoAndUtilizadoTrueAndCriadoEmGreaterThanEqualOrderByCriadoEmDesc(
-            body.email().trim().toLowerCase(), 
-            CodigoVerificacaoEmail.TipoCodigo.CADASTRO,
-            dataLimite
-        );
-        
-        if (codigoVerificado.isEmpty() || !codigoVerificado.get().isUtilizado()) {
-            throw new RegraDeNegocioException("E-mail não verificado. Confirme seu e-mail antes de concluir o cadastro.");
-        }
-
-        if (usuarioRepository.findByEmailIgnoreCase(body.email()).isPresent()) {
-            throw new RegraDeNegocioException("Este e-mail já está em uso.");
-        }
-
-
-        Usuario novoUsuario = new Usuario();
-        novoUsuario.setId(body.id());
-        novoUsuario.setNome(body.nome());
-        novoUsuario.setEmail(body.email());
-        String telefone = br.com.nhac.backend_nhac.domain.usuario.TelefoneNormalizador.normalizar(body.telefone());
-        if (telefone != null && usuarioRepository.findByTelefone(telefone).isPresent())
-            throw new RegraDeNegocioException("Este telefone já está em uso.");
-        novoUsuario.setTelefone(telefone);
-        novoUsuario.setSenha(passwordEncoder.encode(body.senha()));
-        novoUsuario.setEnderecos(new ArrayList<>());
-        novoUsuario.setEmailVerificado(true);
-
-        usuarioRepository.save(novoUsuario);
+        Usuario novoUsuario = cadastroService.registrar(body);
 
         String token = tokenService.gerarToken(novoUsuario);
         return ResponseEntity.status(HttpStatus.CREATED).body(LoginResponseDTO.from(novoUsuario, token, false));

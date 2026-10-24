@@ -85,6 +85,11 @@ public class StompAuthChannelInterceptor implements ChannelInterceptor {
             autenticarConnect(accessor);
         } else if (StompCommand.SUBSCRIBE.equals(accessor.getCommand())) {
             autorizarSubscribe(accessor);
+        } else if (StompCommand.SEND.equals(accessor.getCommand())) {
+            exigirUsuario(accessor);
+            String destino = accessor.getDestination();
+            if (destino == null || !destino.matches("/app/conversas/[^/*?{}]+/enviar"))
+                throw new WebSocketAutenticacaoException("Destino de envio não permitido.");
         }
 
         return message;
@@ -103,10 +108,10 @@ public class StompAuthChannelInterceptor implements ChannelInterceptor {
     }
 
     private void autorizarSubscribe(StompHeaderAccessor accessor) {
+        exigirUsuario(accessor);
         String destino = accessor.getDestination();
-        if (destino == null) {
-            return;
-        }
+        if (destino == null || destino.contains("*") || destino.contains("?") || destino.contains("{"))
+            throw new WebSocketAutenticacaoException("Destino de assinatura não permitido.");
 
         if (destino.startsWith(PREFIXO_TOPICO_CONVERSA)) {
             autorizarConversa(accessor, destino);
@@ -114,8 +119,9 @@ public class StompAuthChannelInterceptor implements ChannelInterceptor {
             autorizarOfertasEntregador(accessor, destino);
         } else if (destino.startsWith(PREFIXO_TOPICO_PEDIDO) && destino.endsWith(SUFIXO_TOPICO_STATUS)) {
             autorizarStatusPedido(accessor, destino);
+        } else if (!"/user/queue/erros".equals(destino)) {
+            throw new WebSocketAutenticacaoException("Destino de assinatura não permitido.");
         }
-        // Outros tópicos passam sem checagem adicional.
     }
 
     private void autorizarConversa(StompHeaderAccessor accessor, String destino) {

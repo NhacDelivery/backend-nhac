@@ -45,8 +45,10 @@ public class PedidoReservaService {
                     usuarioLogado.getId(), idempotencyKey);
             if (existente.isPresent()) {
                 Pedido pedidoExistente = existente.get();
+                String fingerprintEsperado = pedidoExistente.getIdempotencyFingerprintVersao() == 1
+                        ? PedidoService.calcularFingerprintLegado(usuarioLogado.getId(), dto) : idempotencyFingerprint;
                 if (pedidoExistente.getIdempotencyFingerprint() != null
-                        && !pedidoExistente.getIdempotencyFingerprint().equals(idempotencyFingerprint)) {
+                        && !pedidoExistente.getIdempotencyFingerprint().equals(fingerprintEsperado)) {
                     throw new IdempotenciaConflitoException(
                             "A Idempotency-Key já foi usada com um pedido diferente.");
                 }

@@ -56,6 +56,28 @@ public class AsaasPaymentServiceTest {
     }
 
     @Test
+    void clienteEmConciliacaoEhRecuperadoSemNovoPost() {
+        Pedido pedido = criarPedidoTeste();
+        when(clienteRepository.findById(anyString())).thenAnswer(i -> java.util.Optional.of(new PagamentoCliente(i.getArgument(0), "__CRIACAO_PENDENTE__")));
+        when(restTemplate.exchange(contains("/customers?externalReference="), eq(HttpMethod.GET), any(HttpEntity.class), eq(String.class)))
+                .thenReturn(ResponseEntity.ok("{\"data\":[{\"id\":\"cus_recuperado\"}]}"));
+        when(restTemplate.postForEntity(eq(testApiUrl + "/payments"), any(HttpEntity.class), eq(String.class)))
+                .thenReturn(ResponseEntity.ok("{\"id\":\"pay_recuperado\"}"));
+        asaasPaymentService.criarCobrancaPix(pedido, nomePagador, emailPagador, cpfPagador);
+        verify(restTemplate, never()).postForEntity(eq(testApiUrl + "/customers"), any(HttpEntity.class), eq(String.class));
+        verify(clienteRepository).concluirCriacao(anyString(), eq("cus_recuperado"));
+    }
+
+    @Test
+    void clienteInconclusivoSemResultadoNaoEhCriadoNovamente() {
+        when(clienteRepository.findById(anyString())).thenAnswer(i -> java.util.Optional.of(new PagamentoCliente(i.getArgument(0), "__CRIACAO_PENDENTE__")));
+        when(restTemplate.exchange(contains("/customers?externalReference="), eq(HttpMethod.GET), any(HttpEntity.class), eq(String.class)))
+                .thenReturn(ResponseEntity.ok("{\"data\":[]}"));
+        assertThrows(RuntimeException.class, () -> asaasPaymentService.criarCobrancaPix(criarPedidoTeste(), nomePagador, emailPagador, cpfPagador));
+        verify(restTemplate, never()).postForEntity(anyString(), any(HttpEntity.class), eq(String.class));
+    }
+
+    @Test
     @DisplayName("Deve criar cobrança PIX com sucesso quando API do Asaas retornar OK")
     void deveCriarCobrancaPixComSucesso() {
         Pedido pedido = criarPedidoTeste();

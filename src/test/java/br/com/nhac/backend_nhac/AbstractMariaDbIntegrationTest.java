@@ -19,5 +19,6 @@ public abstract class AbstractMariaDbIntegrationTest extends AbstractIntegration
         registry.add("spring.flyway.enabled", () -> "false");
         registry.add("spring.datasource.hikari.maximum-pool-size", () -> "8");
         registry.add("spring.datasource.hikari.transaction-isolation", () -> "TRANSACTION_READ_COMMITTED");
+        registry.add("spring.datasource.hikari.connection-init-sql", () -> "SET time_zone = '+00:00'");
     }
 }

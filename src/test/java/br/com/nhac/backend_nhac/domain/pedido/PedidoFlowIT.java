@@ -35,6 +35,25 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 public class PedidoFlowIT extends AbstractIntegrationTest {
+    @Autowired private PedidoService pedidoService;
+
+    @Test
+    void cancelamentoNaoMantemTransacaoDuranteChamadaAoGateway() {
+        var p = new Pedido(); p.setId("cancelamento-sem-http-sob-lock"); p.setUsuarioId(usuario.getId());
+        p.setLoja(loja); p.setValorTotal(new BigDecimal("45.00")); p.setTaxaFrete(new BigDecimal("5.00"));
+        p.setFormaPagamento("CARTAO"); p.setStatus(StatusPedido.PENDENTE); p.setCriadoEm(java.time.Instant.now());
+        p.setStripePaymentIntentId("pi_cancelamento"); pedidoRepository.saveAndFlush(p);
+        Mockito.when(stripePaymentService.consultarStatus("pi_cancelamento")).thenAnswer(i -> {
+            assertFalse(org.springframework.transaction.support.TransactionSynchronizationManager.isActualTransactionActive());
+            return "requires_payment_method";
+        });
+        Mockito.doAnswer(i -> {
+            assertFalse(org.springframework.transaction.support.TransactionSynchronizationManager.isActualTransactionActive());
+            return null;
+        }).when(stripePaymentService).cancelarPaymentIntent("pi_cancelamento");
+        pedidoService.cancelarPedido(p.getId(), usuario.getId());
+        assertEquals(StatusPedido.CANCELADO, pedidoRepository.findById(p.getId()).orElseThrow().getStatus());
+    }
 
     @org.junit.jupiter.params.ParameterizedTest
     @org.junit.jupiter.params.provider.ValueSource(strings = {"0.00", "7.35", "PADRAO"})

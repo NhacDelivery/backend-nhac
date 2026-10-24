@@ -8,7 +8,11 @@ pedido, devolve estoque/cupom e grava SOLICITADO na mesma transação sob lock.
 Replay retorna 202 sem nova devolução. O cancelamento pendente anterior continua
 em PATCH `/pedidos/{id}/cancelar`. Dinheiro não tem devolução eletrônica.
 
-O worker consulta no máximo 50 registros por execução, com intervalo de 60s por
+O cancelamento de pedido pendente autoriza/captura o snapshot em uma transação curta,
+consulta/cancela a cobrança sem lock de banco e revalida o estado em outra transação
+antes de liberar estoque. Se houver falha, a reserva permanece para retry/conciliação.
+
+O worker de estornos consulta no máximo 50 registros por execução, com intervalo de 60s por
 registro. SOLICITADO -> ENVIANDO é um update condicional commitado antes do POST
 externo. Duas instâncias não criam o mesmo estorno. Nenhum HTTP externo mantém o
 lock/transação do cancelamento. Somente confirmação integral vira CONCLUIDO.
@@ -48,8 +52,10 @@ como etiquetas. Actuator continua sem exposição pública de métricas.
 
 ## Publicação no Cloud Run
 
-Aplicar V1023 e publicar backend antes do app. O job @Scheduled exige CPU disponível
-fora de requisições e instância ativa. No Cloud Run, verificar faturamento por
+O fluxo de estorno foi introduzido em V1023.
+As correções de cadastro/fingerprint posteriores acrescentam V1024 e V1025; consulte
+o [contrato de autenticação](autenticacao.md) antes de publicar a mudança de cadastro.
+O job @Scheduled exige CPU disponível fora de requisições e instância ativa. No Cloud Run, verificar faturamento por
 instância/CPU sempre alocada e mínimo de instâncias, ou usar execução externa
 protegida do processamento. Não presumir que @Scheduled funciona após scale-to-zero.
 POST `/api/v1/operacao/pagamentos/processar` permite disparo síncrono por ADMIN;

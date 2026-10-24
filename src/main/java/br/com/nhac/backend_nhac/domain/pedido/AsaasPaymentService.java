@@ -35,7 +35,6 @@ public class AsaasPaymentService {
     private Gson gson = new Gson();
     private final PedidoRepository pedidoRepository;
     private final PagamentoClienteRepository clienteRepository;
-    private final Object[] customerLocks = java.util.stream.IntStream.range(0, 64).mapToObj(i -> new Object()).toArray();
 
     public AsaasPaymentService(RestTemplate restTemplate, PedidoRepository pedidoRepository, PagamentoClienteRepository clienteRepository) {
         this.clienteRepository = clienteRepository;
@@ -50,15 +49,36 @@ public class AsaasPaymentService {
             chave = java.util.HexFormat.of().formatHex(java.security.MessageDigest.getInstance("SHA-256")
                     .digest(raw.getBytes(java.nio.charset.StandardCharsets.UTF_8)));
         } catch (java.security.NoSuchAlgorithmException e) { throw new IllegalStateException(e); }
-        synchronized (customerLocks[Math.floorMod(chave.hashCode(), customerLocks.length)]) {
-            var salvo = clienteRepository.findById(chave);
-            if (salvo.isPresent()) return salvo.get().getCustomerId();
-            String customerId = criarCustomer(nome, email, cpfCnpj);
-            clienteRepository.save(new PagamentoCliente(chave, customerId));
+        var salvo = clienteRepository.findById(chave);
+        if (salvo.isPresent()) return resolverCliente(chave, salvo.get());
+        try {
+            // A PK faz o claim entre JVMs. Nenhuma transação fica aberta durante HTTP.
+            clienteRepository.reservarCriacao(chave);
+        } catch (org.springframework.dao.DataIntegrityViolationException concorrente) {
+            return resolverCliente(chave, clienteRepository.findById(chave).orElseThrow());
+        }
+        try {
+            String customerId = criarCustomer(nome, email, cpfCnpj, chave);
+            clienteRepository.concluirCriacao(chave, customerId);
             return customerId;
+        } catch (org.springframework.web.client.HttpClientErrorException e) {
+            if (java.util.Set.of(400, 401, 403, 422).contains(e.getStatusCode().value()))
+                clienteRepository.liberarRejeicao(chave);
+            throw e;
         }
     }
-    private String criarCustomer(String nome, String email, String cpfCnpj) {
+
+    private String resolverCliente(String chave, PagamentoCliente cliente) {
+        if (!"__CRIACAO_PENDENTE__".equals(cliente.getCustomerId())) return cliente.getCustomerId();
+        var data = buscar("/customers?externalReference=" + chave).getAsJsonArray("data");
+        if (data == null || data.size() != 1)
+            throw new IllegalStateException("Cadastro do pagador em conciliação. Não repetir criação de resultado incerto.");
+        String id = data.get(0).getAsJsonObject().get("id").getAsString();
+        clienteRepository.concluirCriacao(chave, id);
+        return id;
+    }
+
+    private String criarCustomer(String nome, String email, String cpfCnpj, String referencia) {
         HttpHeaders headers = new HttpHeaders();
         headers.setContentType(MediaType.APPLICATION_JSON);
         headers.set("access_token", asaasApiKey);
@@ -67,6 +87,7 @@ public class AsaasPaymentService {
         customerBody.addProperty("name", nome);
         customerBody.addProperty("email", email);
         customerBody.addProperty("cpfCnpj", cpfCnpj.replaceAll("\\D", ""));
+        customerBody.addProperty("externalReference", referencia);
 
         HttpEntity<String> entity = new HttpEntity<>(customerBody.toString(), headers);
         String url = asaasApiUrl + "/customers";

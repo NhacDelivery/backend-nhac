@@ -37,7 +37,6 @@ import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import br.com.nhac.backend_nhac.exceptions.RegraDeNegocioException;
 import br.com.nhac.backend_nhac.exceptions.AcessoNegadoException;
-import br.com.nhac.backend_nhac.exceptions.PedidoAtivoException;
 import br.com.nhac.backend_nhac.domain.pedido.StatusPedido;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -45,6 +44,7 @@ import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
 class PedidoServiceTest {
+    @Mock PedidoTransacao transacao;
 
     @Mock PagamentoMetricas metricas;
     @Mock private PedidoRepository pedidoRepository;
@@ -65,6 +65,7 @@ class PedidoServiceTest {
 
     @BeforeEach
     void configurarAcessoDaLoja() {
+        lenient().when(transacao.executar(any())).thenAnswer(i -> ((java.util.function.Supplier<?>) i.getArgument(0)).get());
         org.springframework.test.util.ReflectionTestUtils.setField(pedidoService, "reservaService",
                 new PedidoReservaService(pedidoRepository, lojaRepository, produtoRepository, usuarioRepository, null, freteService));
         lenient().when(usuarioRepository.findLockedById(anyString()))
@@ -725,7 +726,7 @@ class PedidoServiceTest {
         pedido.setId("pedido_pago");
         pedido.setLoja(loja);
         pedido.setStatus(StatusPedido.PAGO);
-        when(pedidoRepository.findById("pedido_pago")).thenReturn(Optional.of(pedido));
+        when(pedidoRepository.findLockedById("pedido_pago")).thenReturn(Optional.of(pedido));
 
         assertThrows(RegraDeNegocioException.class,
                 () -> pedidoService.atualizarStatus("pedido_pago", StatusPedido.CANCELADO, dono));

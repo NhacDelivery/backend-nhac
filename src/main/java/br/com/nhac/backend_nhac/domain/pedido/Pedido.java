@@ -102,6 +102,9 @@ public class Pedido {
     @Column(name = "idempotency_fingerprint", length = 64)
     private String idempotencyFingerprint;
 
+    @Column(name = "idempotency_fingerprint_versao", nullable = false)
+    private int idempotencyFingerprintVersao = 2;
+
     @Column(nullable = false, precision = 10, scale = 2)
     private BigDecimal desconto = BigDecimal.ZERO;
 

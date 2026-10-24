@@ -114,8 +114,9 @@ public class FeedService {
         if (!Set.of("Padrao", "Recentes").contains(ordem)) throw new RegraDeNegocioException("Ordenação inválida.");
         Sort sort = Sort.by("criadoEm", "id");
         if (ordem.equals("Recentes")) sort = sort.descending();
-        return comentarios.listar(id, autor ? post.getUsuario().getId() : null, pagina(page, size, sort))
-                .map(c -> respostaComentario(c, post, usuario));
+        var pagina = comentarios.listar(id, autor ? post.getUsuario().getId() : null, pagina(page, size, sort));
+        var respostas = respostasComentarios(pagina.getContent(), usuario);
+        return pagina.map(c -> respostas.get(c.getId()));
     }
     @Transactional(readOnly=true)
     public FeedComentarioResponseDTO buscarComentario(String postId, String comentarioId) {
@@ -209,7 +210,11 @@ public class FeedService {
                 estados.computeIfAbsent(i.getPost().getId(), k -> EnumSet.noneOf(FeedInteracao.Tipo.class)).add(i.getTipo());
         }
         Map<String, FeedComentarioResponseDTO> destacados = new HashMap<>();
-        if (!ids.isEmpty()) for (var c : comentarios.destacados(ids)) destacados.put(c.getPost().getId(), respostaComentario(c, c.getPost()));
+        if (!ids.isEmpty()) {
+            var top = comentarios.destacados(ids);
+            var respostas = respostasComentarios(top, usuario);
+            for (var c : top) destacados.put(c.getPost().getId(), respostas.get(c.getId()));
+        }
         return pagina.map(p -> resposta(p, estados.getOrDefault(p.getId(), Set.of()), destacados.get(p.getId()), p.getUsuario().getId().equals(usuario.getId()) || usuario.getPapel() == Papel.ADMIN));
     }
 
@@ -233,13 +238,29 @@ public class FeedService {
         return respostaComentario(c, p, null);
     }
     private FeedComentarioResponseDTO respostaComentario(FeedComentario c, FeedPost p, Usuario usuario) {
-        boolean podeExcluir = usuario != null && (usuario.getPapel() == Papel.ADMIN ||
-                c.getUsuario().getId().equals(usuario.getId()) || p.getUsuario().getId().equals(usuario.getId()));
-        String respostaANome = c.getRespostaAId() == null ? null : comentarios.findByIdAndPostId(c.getRespostaAId(), p.getId())
-                .map(pai -> pai.getUsuario().getNome()).orElse("Comentário excluído");
-        return new FeedComentarioResponseDTO(c.getId(), c.getUsuario().getId(), c.getUsuario().getNome(),
-                c.getUsuario().getImagemUrl(), c.getConteudo(), c.getUsuario().getId().equals(p.getUsuario().getId()),
-                c.getCriadoEm(), podeExcluir, c.getCurtidores().size(),
-                usuario != null && c.getCurtidores().contains(usuario.getId()), c.getRespostaAId(), respostaANome);
+        return respostasComentarios(List.of(c), usuario).get(c.getId());
+    }
+
+    private Map<String, FeedComentarioResponseDTO> respostasComentarios(List<FeedComentario> lista, Usuario usuario) {
+        if (lista.isEmpty()) return Map.of();
+        var ids = lista.stream().map(FeedComentario::getId).toList();
+        Map<String, Integer> contagens = new HashMap<>();
+        for (var linha : comentarios.contarCurtidas(ids))
+            contagens.put((String) linha[0], ((Number) linha[1]).intValue());
+        Set<String> curtidos = usuario == null ? Set.of() : new HashSet<>(comentarios.curtidosPorUsuario(ids, usuario.getId()));
+        var pais = lista.stream().map(FeedComentario::getRespostaAId).filter(Objects::nonNull).distinct().toList();
+        Map<String, String> nomes = new HashMap<>();
+        if (!pais.isEmpty()) for (var linha : comentarios.nomesDosAutores(pais)) nomes.put((String) linha[0], (String) linha[1]);
+        Map<String, FeedComentarioResponseDTO> resultado = new HashMap<>();
+        for (var c : lista) {
+            var p = c.getPost();
+            boolean podeExcluir = usuario != null && (usuario.getPapel() == Papel.ADMIN ||
+                    c.getUsuario().getId().equals(usuario.getId()) || p.getUsuario().getId().equals(usuario.getId()));
+            resultado.put(c.getId(), new FeedComentarioResponseDTO(c.getId(), c.getUsuario().getId(), c.getUsuario().getNome(),
+                    c.getUsuario().getImagemUrl(), c.getConteudo(), c.getUsuario().getId().equals(p.getUsuario().getId()),
+                    c.getCriadoEm(), podeExcluir, contagens.getOrDefault(c.getId(), 0), curtidos.contains(c.getId()),
+                    c.getRespostaAId(), c.getRespostaAId() == null ? null : nomes.getOrDefault(c.getRespostaAId(), "Comentário excluído")));
+        }
+        return resultado;
     }
 }

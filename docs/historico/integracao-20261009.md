@@ -1,5 +1,7 @@
 # Integração e correções de 09/10/2026
 
+> Registro de integração, não uma lista atual de pendências. Consulte o índice de documentação e a arquitetura atuais.
+
 A branch `feature/chat-clientes-20261008` integra os contratos de `fix/motoboy-contratos-20261005` e mantém os recursos de feed, adicionais e chat de clientes. Inclui recuperação/correção de coordenadas, histórico com endereço completo, expiração de disponibilidade, avisos persistentes, preferências de push, repasses, suporte, validação de bicicleta/Pix/documentos e confirmação de troca de telefone. A integração preserva o envio de mensagens de clientes após commit e acrescenta o aviso de mensagens para motoboys.
 
 Novas correções: preferências de comida por conta com diferença entre nunca escolhidas e escolha vazia; edição do feed idempotente por usuário/publicação; destinatário no payload push; AASA para Universal Links; retirada/transferência efetiva de corrida com bloqueios transacionais e preservação do estado terminal do suporte. O agente Mockito é carregado explicitamente no Java 25.

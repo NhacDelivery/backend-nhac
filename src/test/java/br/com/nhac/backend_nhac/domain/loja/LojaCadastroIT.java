@@ -50,14 +50,14 @@ class LojaCadastroIT extends AbstractIntegrationTest {
         String email = "lojista.fase2@nhac.com.br";
         String senha = "senhaForte123";
 
-        criarCodigoVerificadoPara(email);
+        String prova = criarCodigoVerificadoPara(email);
 
         RegistroRequestDTO registroReq = new RegistroRequestDTO(
                 UUID.randomUUID().toString(),
                 "Lojista Teste",
                 email,
                 "11988887777",
-                senha
+                senha, prova
         );
 
         mockMvc.perform(post("/api/v1/auth/registrar")
@@ -106,14 +106,14 @@ class LojaCadastroIT extends AbstractIntegrationTest {
         String email = "lojista.segundaloja@nhac.com.br";
         String senha = "senhaForte123";
 
-        criarCodigoVerificadoPara(email);
+        String prova = criarCodigoVerificadoPara(email);
 
         RegistroRequestDTO registroReq = new RegistroRequestDTO(
                 UUID.randomUUID().toString(),
                 "Lojista Segunda Loja",
                 email,
                 "11988887776",
-                senha
+                senha, prova
         );
 
         mockMvc.perform(post("/api/v1/auth/registrar")
@@ -160,14 +160,14 @@ class LojaCadastroIT extends AbstractIntegrationTest {
         String email = "lojista.minhaloja@nhac.com.br";
         String senha = "senhaForte123";
 
-        criarCodigoVerificadoPara(email);
+        String prova = criarCodigoVerificadoPara(email);
 
         RegistroRequestDTO registroReq = new RegistroRequestDTO(
                 UUID.randomUUID().toString(),
                 "Lojista Minha Loja",
                 email,
                 "11988887775",
-                senha
+                senha, prova
         );
 
         mockMvc.perform(post("/api/v1/auth/registrar")
@@ -207,18 +207,18 @@ class LojaCadastroIT extends AbstractIntegrationTest {
         // Criar usuário 1 (dono)
         String email1 = "dono.loja@nhac.com.br";
         String senha = "senhaForte123";
-        criarCodigoVerificadoPara(email1);
+        String prova1 = criarCodigoVerificadoPara(email1);
         RegistroRequestDTO registro1 = new RegistroRequestDTO(
-                UUID.randomUUID().toString(), "Dono Loja", email1, "11988887774", senha
+                UUID.randomUUID().toString(), "Dono Loja", email1, "11988887774", senha, prova1
         );
         mockMvc.perform(post("/api/v1/auth/registrar").contentType(MediaType.APPLICATION_JSON).content(objectMapper.writeValueAsString(registro1))).andExpect(status().isCreated());
         String token1 = objectMapper.readTree(mockMvc.perform(post("/api/v1/auth/login").contentType(MediaType.APPLICATION_JSON).content(objectMapper.writeValueAsString(new LoginRequestDTO(email1, senha)))).andExpect(status().isOk()).andReturn().getResponse().getContentAsString()).get("token").asText();
 
         // Criar usuário 2 (invasor)
         String email2 = "invasor.loja@nhac.com.br";
-        criarCodigoVerificadoPara(email2);
+        String prova2 = criarCodigoVerificadoPara(email2);
         RegistroRequestDTO registro2 = new RegistroRequestDTO(
-                UUID.randomUUID().toString(), "Invasor Loja", email2, "11988887773", senha
+                UUID.randomUUID().toString(), "Invasor Loja", email2, "11988887773", senha, prova2
         );
         mockMvc.perform(post("/api/v1/auth/registrar").contentType(MediaType.APPLICATION_JSON).content(objectMapper.writeValueAsString(registro2))).andExpect(status().isCreated());
         String token2 = objectMapper.readTree(mockMvc.perform(post("/api/v1/auth/login").contentType(MediaType.APPLICATION_JSON).content(objectMapper.writeValueAsString(new LoginRequestDTO(email2, senha)))).andExpect(status().isOk()).andReturn().getResponse().getContentAsString()).get("token").asText();
@@ -318,8 +318,8 @@ class LojaCadastroIT extends AbstractIntegrationTest {
     }
 
     private String registrarConta(String email, String telefone) throws Exception {
-        criarCodigoVerificadoPara(email);
-        var registro = new RegistroRequestDTO(UUID.randomUUID().toString(), "Responsável Teste", email, telefone, "Teste12345");
+        String prova = criarCodigoVerificadoPara(email);
+        var registro = new RegistroRequestDTO(UUID.randomUUID().toString(), "Responsável Teste", email, telefone, "Teste12345", prova);
         String resposta = mockMvc.perform(post("/api/v1/auth/registrar").contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(registro)))
                 .andExpect(status().isCreated()).andReturn().getResponse().getContentAsString();

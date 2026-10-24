@@ -10,7 +10,7 @@ import jakarta.persistence.LockModeType;
 import org.springframework.stereotype.Repository;
 
 @Repository
-public interface UsuarioRepository extends JpaRepository<Usuario, String> {
+public interface UsuarioRepository extends JpaRepository<Usuario, String>, UsuarioInsertRepository {
 
     @org.springframework.data.jpa.repository.Modifying
     @org.springframework.data.jpa.repository.Query("update Usuario u set u.fcmToken = null where u.fcmToken = :token and u.id <> :id")

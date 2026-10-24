@@ -10,6 +10,21 @@ import static org.junit.jupiter.api.Assertions.*;
 
 class TokenServiceTest {
 
+    @Test
+    void expiracaoRepresentaTrintaDiasExatosEmQualquerFuso() {
+        var instante = java.time.Instant.parse("2030-01-01T00:00:00Z");
+        var service = new TokenService(java.time.Clock.fixed(instante, java.time.ZoneOffset.UTC));
+        ReflectionTestUtils.setField(service, "secret", "chave_secreta_de_teste_1234567890");
+        var anterior = java.util.TimeZone.getDefault();
+        try {
+            for (String zona : java.util.List.of("UTC", "America/Sao_Paulo", "Asia/Tokyo")) {
+                java.util.TimeZone.setDefault(java.util.TimeZone.getTimeZone(zona));
+                var token = com.auth0.jwt.JWT.decode(service.gerarToken(usuarioDeTeste()));
+                assertEquals(instante.plus(java.time.Duration.ofDays(30)), token.getExpiresAtAsInstant());
+            }
+        } finally { java.util.TimeZone.setDefault(anterior); }
+    }
+
     private TokenService tokenService;
 
     @BeforeEach

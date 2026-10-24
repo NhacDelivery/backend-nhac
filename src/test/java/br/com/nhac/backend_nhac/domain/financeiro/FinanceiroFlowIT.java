@@ -21,9 +21,13 @@ import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.MediaType;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 
 import java.math.BigDecimal;
+import java.time.LocalDate;
+import java.time.ZoneId;
+import java.time.ZoneOffset;
 import java.util.List;
 import java.util.UUID;
 
@@ -50,6 +54,8 @@ public class FinanceiroFlowIT extends AbstractIntegrationTest {
     private PedidoRepository pedidoRepository;
     @Autowired
     private TokenService tokenService;
+    @Autowired
+    private JdbcTemplate jdbc;
 
     @MockitoBean
     private StripePaymentService stripePaymentService;
@@ -119,7 +125,7 @@ public class FinanceiroFlowIT extends AbstractIntegrationTest {
         });
     }
 
-    private void criarPedidoPago(int quantidade) throws Exception {
+    private String criarPedidoPago(int quantidade) throws Exception {
         PedidoCreateDTO.ItemPedidoDTO itemDto = new PedidoCreateDTO.ItemPedidoDTO(
                 produto.getId(), produto.getNome(), null, quantidade
         );
@@ -134,11 +140,13 @@ public class FinanceiroFlowIT extends AbstractIntegrationTest {
                 List.of(itemDto)
         );
 
-        mockMvc.perform(post("/api/v1/pedidos")
+        String resposta = mockMvc.perform(post("/api/v1/pedidos")
                         .header("Authorization", "Bearer " + tokenCliente)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(pedidoDto)))
-                .andExpect(status().isCreated());
+                .andExpect(status().isCreated())
+                .andReturn().getResponse().getContentAsString();
+        return objectMapper.readTree(resposta).get("pedidoId").asText();
     }
 
     @Test
@@ -190,8 +198,7 @@ public class FinanceiroFlowIT extends AbstractIntegrationTest {
     void pedidoCanceladoNaoDeveEntrarNoFaturamentoMasDeveContarNaTaxaDeCancelamento() throws Exception {
         criarPedidoPago(1); // pedido vÃ¡lido: 40.00
 
-        // Um cliente sÃ³ pode manter um pedido ativo. Use outro cliente para
-        // preservar o cenÃ¡rio de dois pedidos no mesmo financeiro da loja.
+        // Dois clientes distintos também compõem o mesmo financeiro da loja.
         Usuario outroCliente = new Usuario();
         outroCliente.setId(UUID.randomUUID().toString());
         outroCliente.setNome("Cliente Cancelamento");
@@ -232,6 +239,26 @@ public class FinanceiroFlowIT extends AbstractIntegrationTest {
                 .andExpect(jsonPath("$.resumo.numeroPedidos").value(1))
                 // mas os 2 pedidos (1 vÃ¡lido + 1 cancelado) entram no denominador da taxa de cancelamento
                 .andExpect(jsonPath("$.resumo.taxaCancelamentoPercentual").value(50.0));
+    }
+
+    @Test
+    void deveRespeitarViradaDoDiaEmSaoPauloEExcluirInicioDoDiaSeguinte() throws Exception {
+        var zona = ZoneId.of("America/Sao_Paulo");
+        var inicio = LocalDate.now(zona).atStartOfDay(zona).toInstant();
+        var fim = LocalDate.now(zona).plusDays(1).atStartOfDay(zona).toInstant();
+        for (var instante : List.of(inicio.minusSeconds(1), inicio, fim.minusSeconds(1), fim)) {
+            String pedidoId = criarPedidoPago(1);
+            jdbc.update("update tb_pedidos set criado_em=? where id=?", instante.atOffset(ZoneOffset.UTC), pedidoId);
+        }
+
+        mockMvc.perform(get("/api/v1/lojista/financeiro")
+                        .header("Authorization", "Bearer " + tokenDono).param("periodo", "HOJE"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.resumo.faturamentoPeriodo").value(80.00))
+                .andExpect(jsonPath("$.resumo.numeroPedidos").value(2))
+                .andExpect(jsonPath("$.pedidosPorHora[0].quantidade").value(1))
+                .andExpect(jsonPath("$.pedidosPorHora[23].quantidade").value(1))
+                .andExpect(jsonPath("$.produtosMaisVendidos[0].quantidadeVendida").value(2));
     }
 
     @Test
