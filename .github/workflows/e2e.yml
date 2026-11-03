@@ -12,7 +12,7 @@ on:
         required: false
         type: string
   push:
-    branches: [main]
+    branches: [main, 'feat/**']
   pull_request:
     paths:
       - 'src/main/java/br/com/nhac/backend_nhac/config/E2EDataLoader.java'
