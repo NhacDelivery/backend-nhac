@@ -89,8 +89,41 @@ class FeedIntegrationTest extends AbstractIntegrationTest {
         mockMvc.perform(get("/publicacao/"+postId)).andExpect(status().isNotFound());
     }
     @Test
+    void listaMinhasPublicacoesSomenteDaSessaoComPaginacao() throws Exception {
+        var primeiro = criar("Minha primeira publicação");
+        feed.criar(outro, new FeedPostCreateDTO("Publicação de outra pessoa",
+                List.of(), List.of(), null, false, null));
+        var segundo = criar("Minha segunda publicação");
+
+        var pagina1 = mockMvc.perform(get("/api/v1/feed/posts/meus").with(user(autor))
+                .param("page", "0").param("size", "1"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.totalElements").value(2))
+                .andExpect(jsonPath("$.totalPages").value(2))
+                .andExpect(jsonPath("$.content.length()").value(1))
+                .andExpect(jsonPath("$.content[0].usuarioId").value(autor.getId()))
+                .andReturn();
+        var pagina2 = mockMvc.perform(get("/api/v1/feed/posts/meus").with(user(autor))
+                .param("page", "1").param("size", "1"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.content.length()").value(1))
+                .andExpect(jsonPath("$.content[0].usuarioId").value(autor.getId()))
+                .andReturn();
+
+        var ids = List.of(
+                objectMapper.readTree(pagina1.getResponse().getContentAsString())
+                        .get("content").get(0).get("id").asText(),
+                objectMapper.readTree(pagina2.getResponse().getContentAsString())
+                        .get("content").get(0).get("id").asText());
+        assertTrue(ids.contains(primeiro.id()));
+        assertTrue(ids.contains(segundo.id()));
+        assertEquals(2, ids.stream().distinct().count());
+    }
+
+    @Test
     void exigeAutenticacao() throws Exception {
         mockMvc.perform(get("/api/v1/feed/posts")).andExpect(status().isForbidden());
+        mockMvc.perform(get("/api/v1/feed/posts/meus")).andExpect(status().isForbidden());
     }
 
     @Test

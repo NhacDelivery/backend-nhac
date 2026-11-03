@@ -22,6 +22,11 @@ public class FeedController {
             @RequestParam(defaultValue = "0") int page, @RequestParam(defaultValue = "20") int size) {
         return service.listar(usuario, categoria, page, size);
     }
+    @GetMapping("/meus")
+    public Page<FeedPostResponseDTO> meus(@AuthenticationPrincipal Usuario usuario,
+            @RequestParam(defaultValue = "0") int page, @RequestParam(defaultValue = "20") int size) {
+        return service.listarMeus(usuario, page, size);
+    }
     @GetMapping("/salvos")
     public Page<FeedPostResponseDTO> salvos(@AuthenticationPrincipal Usuario usuario,
             @RequestParam(defaultValue = "0") int page, @RequestParam(defaultValue = "20") int size) {

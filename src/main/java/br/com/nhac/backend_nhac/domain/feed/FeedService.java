@@ -41,6 +41,12 @@ public class FeedService {
     }
 
     @Transactional(readOnly = true)
+    public Page<FeedPostResponseDTO> listarMeus(Usuario usuario, int page, int size) {
+        return respostas(posts.listarDoUsuario(usuario.getId(),
+                pagina(page, size, Sort.by(Sort.Direction.DESC, "criadoEm", "id"))), usuario);
+    }
+
+    @Transactional(readOnly = true)
     public Page<FeedPostResponseDTO> listarSalvos(Usuario usuario, int page, int size) {
         return respostas(posts.listarSalvos(usuario.getId(), FeedInteracao.Tipo.SALVO,
                 pagina(page, size, Sort.by(Sort.Direction.DESC, "criadoEm", "id"))), usuario);

@@ -14,6 +14,7 @@ fora das migrations; veja `docs/catalogo-social-dev.md`.
 | PUT / DELETE | /{id}/curtida | Curtir/descurtir de forma idempotente |
 | PUT / DELETE | /{id}/salvo | Salvar/remover de salvos de forma idempotente |
 | GET | /salvos | Posts salvos de quem está logado |
+| GET | /meus | Publicações do usuário autenticado, com a mesma paginação |
 | GET / POST | /{id}/comentarios | Listar/criar comentários |
 | DELETE | /{id}/comentarios/{comentarioId} | Excluir comentário (seu autor, autor do post ou ADMIN) |
 
@@ -23,6 +24,10 @@ Resposta usa `content`, `totalElements`, `totalPages`, `number`, `last` do Page 
 Destaques e Novidades usam ordem cronológica decrescente; não há recomendação personalizada.
 Em Alta ordena por curtidas, comentários, data e id. Promoções filtra posts patrocinados.
 Comentários usam ordem cronológica crescente e desempate por id.
+
+GET /meus não recebe usuário por parâmetro: a autoria é determinada pelo JWT da
+sessão. A listagem inclui todas as publicações próprias ativas e usa ordenação
+cronológica decrescente, sem limitar aos itens carregados na timeline.
 
 POST/PUT de post:
 

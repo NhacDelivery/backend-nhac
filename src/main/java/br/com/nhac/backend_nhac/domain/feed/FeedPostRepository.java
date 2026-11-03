@@ -20,6 +20,10 @@ public interface FeedPostRepository extends JpaRepository<FeedPost, String> {
     Page<FeedPost> listar(@Param("promocoes") boolean promocoes, Pageable pageable);
 
     @EntityGraph(attributePaths = {"usuario", "loja"})
+    @Query("select p from FeedPost p where p.usuario.id = :usuarioId and p.usuario.ativo = true")
+    Page<FeedPost> listarDoUsuario(@Param("usuarioId") String usuarioId, Pageable pageable);
+
+    @EntityGraph(attributePaths = {"usuario", "loja"})
     @Query("select p from FeedPost p where p.usuario.ativo = true and exists "
             + "(select i.id from FeedInteracao i where i.post = p and i.usuario.id = :usuarioId and i.tipo = :tipo)")
     Page<FeedPost> listarSalvos(@Param("usuarioId") String usuarioId,
