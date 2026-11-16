@@ -14,6 +14,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
+import br.com.nhac.backend_nhac.domain.loja.dto.AtualizarBannerLojaDTO;
 import br.com.nhac.backend_nhac.domain.loja.dto.LojaCreateDTO;
 import br.com.nhac.backend_nhac.domain.loja.dto.LojaDetalhesDTO;
 import br.com.nhac.backend_nhac.domain.loja.dto.LojaResumoDTO;
@@ -96,7 +97,7 @@ public class LojaController {
     }
 
     @Operation(summary = "Atualizar loja",
-            description = "Atualização completa da loja (mesmo contrato de criação). Apenas o dono ou ADMIN. O campo usuarioId do corpo, se enviado, é ignorado — o dono não pode ser alterado.")
+            description = "Atualização completa dos dados operacionais e de perfil. Para alterar o banner, use PATCH /{id}/banner. Apenas o dono ou ADMIN. O campo usuarioId do corpo, se enviado, é ignorado — o dono não pode ser alterado.")
     @ApiResponses(value = {
             @ApiResponse(responseCode = "200", description = "Loja atualizada com sucesso"),
             @ApiResponse(responseCode = "400", description = "Payload inválido",
@@ -114,6 +115,15 @@ public class LojaController {
             @RequestBody @Valid LojaCreateDTO dto,
             @AuthenticationPrincipal Usuario usuarioLogado) {
         return ResponseEntity.ok(lojaService.atualizarLoja(id, dto, usuarioLogado));
+    }
+
+    @PatchMapping("/{id}/banner")
+    @Operation(summary = "Alterar o banner público da loja", description = "Apenas o dono da loja ou ADMIN.")
+    public ResponseEntity<LojaDetalhesDTO> atualizarBanner(
+            @PathVariable String id,
+            @RequestBody @Valid AtualizarBannerLojaDTO dto,
+            @AuthenticationPrincipal Usuario usuarioLogado) {
+        return ResponseEntity.ok(lojaService.atualizarBanner(id, dto.bannerUrl(), usuarioLogado));
     }
 
     @PatchMapping("/{id}/localizacao")

@@ -20,8 +20,11 @@ public record LojaResumoDTO(
         @Schema(description = "Categoria principal para filtros", example = "Japonesa")
         String categoria,
 
-        @Schema(description = "URL do banner da loja no Firebase Storage", example = "https://firebasestorage.../banner.png")
+        @Schema(description = "URL da imagem de perfil da loja", example = "https://example.com/logo.jpg")
         String imagemUrl,
+
+        @Schema(description = "URL opcional da capa exibida na página pública da loja")
+        String bannerUrl,
 
         @Schema(description = "Métricas principais da loja para exibição no card")
         DadosOperacionaisDTO dadosOperacionais,
@@ -72,6 +75,7 @@ public record LojaResumoDTO(
                 loja.getDescricao(),
                 loja.getCategoria(),
                 loja.getImagemUrl(),
+                loja.getBannerUrl(),
                 new LojaResumoDTO.DadosOperacionaisDTO(
                         loja.getDadosOperacionais().getAvaliacaoMedia(),
                         loja.getDadosOperacionais().getTaxaEntregaBase(),

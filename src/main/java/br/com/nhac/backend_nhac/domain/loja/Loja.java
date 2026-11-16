@@ -3,9 +3,11 @@ package br.com.nhac.backend_nhac.domain.loja;
 
 import jakarta.persistence.*;
 import lombok.*;
+import org.hibernate.annotations.DynamicUpdate;
 
 
 @Entity
+@DynamicUpdate
 @Table(name = "tb_lojas")
 @NoArgsConstructor
 @AllArgsConstructor
@@ -34,6 +36,9 @@ public class Loja {
 
     @Column(columnDefinition = "TEXT")
     private  String imagemUrl;
+
+    @Column(name = "banner_url", length = 500)
+    private String bannerUrl;
 
     @Column(name = "is_aberto", nullable = false)
     private boolean isAberto;
