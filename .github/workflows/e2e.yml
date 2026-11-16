@@ -165,7 +165,7 @@ jobs:
         run: python3 -m unittest discover -s tool -p 'test_*.py' -v
 
       - name: Setup Java 25
-        uses: actions/setup-java@v4
+        uses: actions/setup-java@v5
         with:
           distribution: temurin
           java-version: '25'
@@ -182,7 +182,7 @@ jobs:
         run: echo "home=$JAVA_HOME" >> "$GITHUB_OUTPUT"
 
       - name: Setup Java 17 for Android
-        uses: actions/setup-java@v4
+        uses: actions/setup-java@v5
         with:
           distribution: temurin
           java-version: '17'
