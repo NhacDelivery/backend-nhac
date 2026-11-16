@@ -94,6 +94,37 @@ class LojaServiceTest {
         verify(lojaRepository, never()).save(any());
     }
 
+    @Test
+    void atualizaBannerPreservandoImagemDePerfil() {
+        Loja loja = construirLojaCompleta("loja_1", true);
+        Usuario dono = new Usuario();
+        dono.setPapel(Papel.LOJISTA);
+        when(lojaRepository.findById("loja_1")).thenReturn(Optional.of(loja));
+        when(lojaAccessService.temAcessoALoja(dono, "loja_1")).thenReturn(true);
+        when(lojaRepository.save(loja)).thenReturn(loja);
+
+        String imagemOriginal = loja.getImagemUrl();
+        String bannerUrl = "https://example.com/capa.jpg";
+        LojaDetalhesDTO resposta = lojaService.atualizarBanner("loja_1", bannerUrl, dono);
+
+        assertEquals(bannerUrl, resposta.bannerUrl());
+        assertEquals(imagemOriginal, resposta.imagemUrl());
+        assertTrue(resposta.isAberto());
+        verify(lojaRepository).save(loja);
+    }
+
+    @Test
+    void impedeAlteracaoDoBannerDeOutraLoja() {
+        Loja loja = construirLojaCompleta("loja_1", true);
+        Usuario outroLojista = new Usuario();
+        outroLojista.setPapel(Papel.LOJISTA);
+        when(lojaRepository.findById("loja_1")).thenReturn(Optional.of(loja));
+
+        assertThrows(AcessoNegadoException.class, () -> lojaService.atualizarBanner(
+                "loja_1", "https://example.com/capa.jpg", outroLojista));
+        verify(lojaRepository, never()).save(any());
+    }
+
     @Mock
     private LojaRepository lojaRepository;
 

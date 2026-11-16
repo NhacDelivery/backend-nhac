@@ -1,0 +1,1 @@
+ALTER TABLE tb_lojas ADD COLUMN banner_url VARCHAR(500) NULL;

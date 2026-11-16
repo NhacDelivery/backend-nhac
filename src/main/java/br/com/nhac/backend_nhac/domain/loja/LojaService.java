@@ -161,6 +161,20 @@ public class LojaService {
 
     @Transactional
     @CacheEvict(cacheNames = {LOJAS, LOJA}, allEntries = true)
+    public LojaDetalhesDTO atualizarBanner(String id, String bannerUrl, Usuario usuarioLogado) {
+        lojaAccessService.exigirPapelDonoOuAdmin(usuarioLogado);
+        Loja loja = lojaRepository.findById(id)
+                .orElseThrow(() -> new LojaNaoEncontradaException(id));
+        if (usuarioLogado.getPapel() != Papel.ADMIN
+                && !lojaAccessService.temAcessoALoja(usuarioLogado, id)) {
+            throw new AcessoNegadoException("Acesso negado: você não tem permissão para atualizar esta loja.");
+        }
+        loja.setBannerUrl(bannerUrl);
+        return new LojaDetalhesDTO(lojaRepository.save(loja));
+    }
+
+    @Transactional
+    @CacheEvict(cacheNames = {LOJAS, LOJA}, allEntries = true)
     public LojaDetalhesDTO atualizarLocalizacao(String id, AtualizarLocalizacaoLojaDTO dto, Usuario usuarioLogado) {
         lojaAccessService.exigirPapelDonoOuAdmin(usuarioLogado);
         Loja loja = lojaRepository.findById(id)

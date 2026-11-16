@@ -29,10 +29,12 @@ import java.util.List;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
+import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -78,7 +80,7 @@ class LojaControllerTest {
         LojaResumoDTO.DadosOperacionaisDTO dadosOp =
                 new LojaResumoDTO.DadosOperacionaisDTO(4.8f, new BigDecimal("5.99"), 30, 45, 150, true, false, null);
         LojaResumoDTO.FormasPagamentoDTO formasPagto = new LojaResumoDTO.FormasPagamentoDTO(true, true, true, true, false, false);
-        LojaResumoDTO resumo = new LojaResumoDTO("loja_1", "Sushi Ken", "Descrição", "Japonesa", "url", dadosOp, formasPagto);
+        LojaResumoDTO resumo = new LojaResumoDTO("loja_1", "Sushi Ken", "Descrição", "Japonesa", "url", null, dadosOp, formasPagto);
         Page<LojaResumoDTO> pagina = new PageImpl<>(List.of(resumo), PageRequest.of(0, 10), 1);
 
         when(lojaService.obterLojasPaginadas(org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any(), anyInt(), anyInt())).thenReturn(pagina);
@@ -101,7 +103,8 @@ class LojaControllerTest {
         mockMvc.perform(get("/api/v1/lojas/loja_1"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.id").value("loja_1"))
-                .andExpect(jsonPath("$.endereco.rua").value("Rua das Flores"));
+                .andExpect(jsonPath("$.endereco.rua").value("Rua das Flores"))
+                .andExpect(jsonPath("$.bannerUrl").value("https://example.com/capa.jpg"));
     }
 
     private static @NonNull LojaDetalhesDTO getLojaDetalhesDTO(LojaDetalhesDTO.DadosOperacionaisDTO dadosOp) {
@@ -111,7 +114,7 @@ class LojaControllerTest {
                 "18:00-23:00", "Fechado", "11:00-23:00", "11:00-23:00", "11:00-23:00", "11:00-23:59", "11:00-23:59");
         LojaDetalhesDTO.FormasPagamentoDTO formasPagto = new LojaDetalhesDTO.FormasPagamentoDTO(true, true, true, true, false, false);
         LojaDetalhesDTO detalhes = new LojaDetalhesDTO(
-                "loja_1", "Sushi Ken", "Descrição completa", "Japonesa", "url", true, dadosOp, endereco, horarios, formasPagto, null, null);
+                "loja_1", "Sushi Ken", "Descrição completa", "Japonesa", "url", "https://example.com/capa.jpg", true, dadosOp, endereco, horarios, formasPagto, null, null);
         return detalhes;
     }
 
@@ -132,7 +135,7 @@ class LojaControllerTest {
         LojaResumoDTO.DadosOperacionaisDTO dadosOp =
                 new LojaResumoDTO.DadosOperacionaisDTO(0.0f, new BigDecimal("5.99"), 30, 45, 0, true, false, null);
         LojaResumoDTO.FormasPagamentoDTO formasPagto = new LojaResumoDTO.FormasPagamentoDTO(true, true, true, true, false, false);
-        LojaResumoDTO resumo = new LojaResumoDTO("loja_0001", "Mercado Central", "Orgânicos", "Restaurantes", "url", dadosOp, formasPagto);
+        LojaResumoDTO resumo = new LojaResumoDTO("loja_0001", "Mercado Central", "Orgânicos", "Restaurantes", "url", null, dadosOp, formasPagto);
 
         when(lojaService.criarLoja(any(LojaCreateDTO.class), eq(usuarioLogado))).thenReturn(resumo);
 
@@ -141,7 +144,8 @@ class LojaControllerTest {
                   "nome": "Mercado Central",
                   "descricao": "Orgânicos",
                   "categoria": "Restaurantes",
-                  "imagemUrl": "https://example.com/banner.jpg",
+                  "imagemUrl": "https://example.com/logo.jpg",
+                  "bannerUrl": "https://example.com/capa.jpg",
                   "isAberto": true,
                   "usuarioId": "usuario-forjado",
                   "dadosOperacionais": {
@@ -179,7 +183,26 @@ class LojaControllerTest {
                 .andExpect(jsonPath("$.id").value("loja_0001"))
                 .andExpect(jsonPath("$.nome").value("Mercado Central"));
 
-        verify(lojaService).criarLoja(any(LojaCreateDTO.class), eq(usuarioLogado));
+        verify(lojaService).criarLoja(argThat(dto ->
+                "https://example.com/capa.jpg".equals(dto.toEntity().getBannerUrl())
+                        && "https://example.com/logo.jpg".equals(dto.toEntity().getImagemUrl())), eq(usuarioLogado));
+    }
+
+    @Test
+    void deveAtualizarBannerSemExigirOsDemaisDados() throws Exception {
+        String bannerUrl = "https://example.com/capa.jpg";
+        when(lojaService.atualizarBanner("loja_1", bannerUrl, usuarioLogado))
+                .thenReturn(getLojaDetalhesDTO(null));
+
+        mockMvc.perform(patch("/api/v1/lojas/loja_1/banner")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"bannerUrl": "https://example.com/capa.jpg"}
+                                """))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.bannerUrl").value(bannerUrl));
+
+        verify(lojaService).atualizarBanner("loja_1", bannerUrl, usuarioLogado);
     }
 
     @Test

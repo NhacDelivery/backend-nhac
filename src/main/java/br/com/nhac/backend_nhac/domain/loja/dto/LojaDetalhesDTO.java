@@ -20,8 +20,11 @@ public record LojaDetalhesDTO(
         @Schema(description = "Categoria principal", example = "Japonesa")
         String categoria,
 
-        @Schema(description = "URL do banner da loja no Firebase Storage", example = "https://firebasestorage.../banner.png")
+        @Schema(description = "URL da imagem de perfil da loja", example = "https://example.com/logo.jpg")
         String imagemUrl,
+
+        @Schema(description = "URL opcional da capa exibida na página pública da loja")
+        String bannerUrl,
 
         @Schema(description = "Indica se a loja está aberta para receber pedidos agora", example = "true")
         boolean isAberto,
@@ -91,6 +94,7 @@ public record LojaDetalhesDTO(
                 loja.getDescricao(),
                 loja.getCategoria(),
                 loja.getImagemUrl(),
+                loja.getBannerUrl(),
                 loja.isAberto(),
                 mapearDadosOperacionais(loja),
                 mapearEndereco(loja),

@@ -7,6 +7,8 @@ import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
 
+import org.hibernate.validator.constraints.URL;
+
 import java.math.BigDecimal;
 
 @Schema(description = "Objeto de transferência para criação ou atualização de uma loja")
@@ -25,9 +27,9 @@ public record LojaCreateDTO(
         @Schema(description = "Categoria que a loja se encaixa", example = "Restaurantes")
         String categoria,
 
-        @NotBlank(message = "A url do banner da loja é obrigatória.")
-        @Size(max = 500, message = "A url do banner da loja não pode passar de 500 caracteres.")
-        @Schema(description = "URL do banner da loja", example = "https://amazonaws.com/photo-1579202673506-ca3ce28943ef.jpg")
+        @NotBlank(message = "A URL da imagem de perfil da loja é obrigatória.")
+        @Size(max = 500, message = "A URL da imagem de perfil da loja não pode passar de 500 caracteres.")
+        @Schema(description = "URL da imagem de perfil da loja", example = "https://example.com/logo.jpg")
         String imagemUrl,
 
         @NotNull(message = "O status de abertura da loja deve ser informado.")
@@ -52,13 +54,18 @@ public record LojaCreateDTO(
         @org.hibernate.validator.constraints.br.CPF(message = "CPF inválido.")
         @jakarta.validation.constraints.Pattern(regexp = "\\d{11}|\\d{3}\\.\\d{3}\\.\\d{3}-\\d{2}", message = "CPF inválido.")
         @Schema(description = "CPF do responsável, salvo no usuário autenticado apenas na criação. Opcional para clientes antigos.")
-        String cpfResponsavel
+        String cpfResponsavel,
+
+        @Size(max = 500)
+        @URL(protocol = "https")
+        @Schema(description = "URL opcional da capa exibida na página pública da loja")
+        String bannerUrl
 ) {
     public LojaCreateDTO(String nome, String descricao, String categoria, String imagemUrl,
             Boolean isAberto, DadosOperacionaisDTO dadosOperacionais, EnderecoDTO endereco,
             HorariosDTO horarios, FormasPagamentoDTO formasPagamento) {
         this(nome, descricao, categoria, imagemUrl, isAberto, dadosOperacionais, endereco,
-                horarios, formasPagamento, null);
+                horarios, formasPagamento, null, null);
     }
 
     @Schema(description = "Dados de operação logística da loja")
@@ -145,6 +152,7 @@ public record LojaCreateDTO(
         loja.setDescricao(this.descricao());
         loja.setCategoria(this.categoria());
         loja.setImagemUrl(this.imagemUrl());
+        loja.setBannerUrl(this.bannerUrl());
         loja.setAberto(this.isAberto());
 
         DadosOperacionais dados = new DadosOperacionais();
