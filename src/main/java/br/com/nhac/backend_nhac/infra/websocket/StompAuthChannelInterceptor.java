@@ -169,7 +169,7 @@ public class StompAuthChannelInterceptor implements ChannelInterceptor {
                 PREFIXO_TOPICO_PEDIDO.length(),
                 destino.length() - SUFIXO_TOPICO_STATUS.length());
 
-        Pedido pedido = pedidoRepository.findById(pedidoId).orElse(null);
+        Pedido pedido = pedidoRepository.buscarParaAssinaturaStatus(pedidoId).orElse(null);
         if (pedido == null) {
             // Não vaza se o pedido existe ou não: nega igual a um acesso indevido.
             throw new WebSocketAutenticacaoException("Sem permissão para este pedido.");

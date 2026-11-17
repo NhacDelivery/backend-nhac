@@ -27,6 +27,11 @@ public class FeedController {
             @RequestParam(defaultValue = "0") int page, @RequestParam(defaultValue = "20") int size) {
         return service.listarSalvos(usuario, page, size);
     }
+    @GetMapping("/autores/{usuarioId}")
+    public FeedPerfilResponseDTO perfil(@PathVariable String usuarioId, @AuthenticationPrincipal Usuario usuario,
+            @RequestParam(defaultValue = "0") int page, @RequestParam(defaultValue = "20") int size) {
+        return service.buscarPerfil(usuarioId, usuario, page, size);
+    }
     @GetMapping("/{id}")
     public FeedPostResponseDTO buscar(@PathVariable String id, @AuthenticationPrincipal Usuario usuario) {
         return service.buscar(id, usuario);

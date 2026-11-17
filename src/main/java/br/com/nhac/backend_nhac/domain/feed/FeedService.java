@@ -47,6 +47,18 @@ public class FeedService {
     }
 
     @Transactional(readOnly = true)
+    public FeedPerfilResponseDTO buscarPerfil(String usuarioId, Usuario usuario, int page, int size) {
+        Usuario autor = usuarios.findById(usuarioId).filter(Usuario::isAtivo)
+                .orElseThrow(() -> new IdNaoEncontradoException("Perfil não encontrado."));
+        Pageable paginacao = pagina(page, size, Sort.by(Sort.Direction.DESC, "criadoEm", "id"));
+        Page<FeedPostResponseDTO> publicacoes = respostas(posts.listarPorAutor(autor.getId(), paginacao), usuario);
+        boolean podeEnviarMensagem = usuario.getPapel() == Papel.CLIENTE && autor.getPapel() == Papel.CLIENTE
+                && !usuario.getId().equals(autor.getId());
+        return new FeedPerfilResponseDTO(autor.getId(), autor.getNome(), autor.getImagemUrl(), autor.getBannerUrl(),
+                podeEnviarMensagem, publicacoes.getContent(), publicacoes.hasNext());
+    }
+
+    @Transactional(readOnly = true)
     public FeedPostResponseDTO buscar(String id, Usuario usuario) {
         FeedPost post = buscarPost(id, false);
         return respostas(new PageImpl<>(List.of(post)), usuario).getContent().getFirst();

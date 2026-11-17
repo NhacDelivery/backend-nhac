@@ -4,7 +4,7 @@ import br.com.nhac.backend_nhac.domain.usuario.Usuario;
 import br.com.nhac.backend_nhac.domain.usuario.Papel;
 import io.swagger.v3.oas.annotations.media.Schema;
 
-@Schema(description = "Objeto de resposta com os dados públicos do perfil do utilizador (Sem dados sensíveis)")
+@Schema(description = "Dados da própria conta autenticada")
 public record UsuarioResponseDTO(
         @Schema(description = "ID único do utilizador")
         String id,
@@ -27,16 +27,17 @@ public record UsuarioResponseDTO(
         @Schema(description = "Cargo do funcionário na loja", example = "Gerente")
         String cargo,
         boolean temSenha,
-        String lojaVinculadaId
+        String lojaVinculadaId,
+        String bannerUrl
 ) {
 
     public UsuarioResponseDTO(String id, String nome, String email, String telefone, String imagemUrl,
             Papel papel, String cargo) {
-        this(id,nome,email,telefone,imagemUrl,papel,cargo,false,null);
+        this(id,nome,email,telefone,imagemUrl,papel,cargo,false,null,null);
     }
     public UsuarioResponseDTO(String id, String nome, String email, String telefone, String imagemUrl,
             Papel papel, String cargo, boolean temSenha) {
-        this(id,nome,email,telefone,imagemUrl,papel,cargo,temSenha,null);
+        this(id,nome,email,telefone,imagemUrl,papel,cargo,temSenha,null,null);
     }
     public UsuarioResponseDTO(Usuario usuario) {
         this(
@@ -48,7 +49,8 @@ public record UsuarioResponseDTO(
                 usuario.getPapel(),
                 usuario.getCargo(),
                 usuario.getSenha() != null && !usuario.getSenha().isBlank(),
-                usuario.getLojaVinculadaId()
+                usuario.getLojaVinculadaId(),
+                usuario.getBannerUrl()
         );
     }
 }

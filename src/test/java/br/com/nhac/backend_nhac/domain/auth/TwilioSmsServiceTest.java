@@ -1,5 +1,10 @@
 package br.com.nhac.backend_nhac.domain.auth;
 
+import br.com.nhac.backend_nhac.exceptions.ServicoIndisponivelException;
+import com.twilio.exception.ApiException;
+import com.twilio.rest.api.v2010.account.Message;
+import com.twilio.rest.api.v2010.account.MessageCreator;
+import com.twilio.type.PhoneNumber;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -9,6 +14,9 @@ import org.springframework.test.util.ReflectionTestUtils;
 
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.mockStatic;
+import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
 class TwilioSmsServiceTest {
@@ -42,11 +50,25 @@ class TwilioSmsServiceTest {
     }
 
     @Test
-    void enviarSms_Real_DeveLancarExcecaoSemInternetOuCredenciaisInvalidas() {
+    void enviarSms_RealComConfiguracaoIncompleta_FalhaSemSimularEnvio() {
         ReflectionTestUtils.setField(twilioSmsService, "mockMode", false);
-        
-        assertThrows(RuntimeException.class, () -> {
-            twilioSmsService.enviarSms("+5511999999999", "Teste de mensagem real");
-        });
+        ReflectionTestUtils.setField(twilioSmsService, "accountSid", "");
+        assertThrows(ServicoIndisponivelException.class,
+                () -> twilioSmsService.enviarSms("+5511999999999", "Código de teste"));
+    }
+
+    @Test
+    void enviarSms_RealComFalhaDoProvedor_RetornaServicoIndisponivel() {
+        ReflectionTestUtils.setField(twilioSmsService, "mockMode", false);
+        String destino = "+5511999999999";
+        String mensagem = "Código de teste";
+        MessageCreator envio = mock(MessageCreator.class);
+        when(envio.create()).thenThrow(new ApiException("Falha simulada", 21408));
+
+        try (var messages = mockStatic(Message.class)) {
+            messages.when(() -> Message.creator(new PhoneNumber(destino), new PhoneNumber("+1234567890"), mensagem))
+                    .thenReturn(envio);
+            assertThrows(ServicoIndisponivelException.class, () -> twilioSmsService.enviarSms(destino, mensagem));
+        }
     }
 }
