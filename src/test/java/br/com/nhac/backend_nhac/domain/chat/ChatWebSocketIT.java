@@ -3,10 +3,17 @@ package br.com.nhac.backend_nhac.domain.chat;
 import br.com.nhac.backend_nhac.AbstractIntegrationTest;
 import br.com.nhac.backend_nhac.domain.chat.dto.ChatDTOs.EnviarMensagemDTO;
 import br.com.nhac.backend_nhac.domain.chat.dto.ChatDTOs.MensagemDTO;
+import br.com.nhac.backend_nhac.domain.entregador.Entregador;
+import br.com.nhac.backend_nhac.domain.entregador.EntregadorRepository;
 import br.com.nhac.backend_nhac.domain.loja.DadosOperacionais;
 import br.com.nhac.backend_nhac.domain.loja.EnderecoLoja;
 import br.com.nhac.backend_nhac.domain.loja.Loja;
 import br.com.nhac.backend_nhac.domain.loja.LojaRepository;
+import br.com.nhac.backend_nhac.domain.pedido.Pedido;
+import br.com.nhac.backend_nhac.domain.pedido.PedidoRepository;
+import br.com.nhac.backend_nhac.domain.pedido.PedidoStatusAtualizadoEvent;
+import br.com.nhac.backend_nhac.domain.pedido.PedidoStatusEventListener;
+import br.com.nhac.backend_nhac.domain.pedido.StatusPedido;
 import br.com.nhac.backend_nhac.domain.usuario.Papel;
 import br.com.nhac.backend_nhac.domain.usuario.Usuario;
 import br.com.nhac.backend_nhac.domain.usuario.UsuarioRepository;
@@ -23,6 +30,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.web.server.LocalServerPort;
 import org.springframework.messaging.converter.JacksonJsonMessageConverter;
 import org.springframework.messaging.converter.MappingJackson2MessageConverter;
+import org.springframework.messaging.converter.StringMessageConverter;
 import org.springframework.messaging.simp.stomp.StompFrameHandler;
 import org.springframework.messaging.simp.stomp.StompHeaders;
 import org.springframework.messaging.simp.stomp.StompSession;
@@ -34,6 +42,7 @@ import org.springframework.web.socket.messaging.WebSocketStompClient;
 
 import java.lang.reflect.Type;
 import java.math.BigDecimal;
+import java.time.Instant;
 import java.util.UUID;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.ExecutionException;
@@ -54,6 +63,9 @@ public class ChatWebSocketIT extends AbstractIntegrationTest {
     @Autowired private MensagemRepository mensagemRepository;
     @Autowired private TokenService tokenService;
     @Autowired private ChatService chatService;
+    @Autowired private EntregadorRepository entregadores;
+    @Autowired private PedidoRepository pedidos;
+    @Autowired private PedidoStatusEventListener publicadorStatus;
 
     private Usuario donoA;
     private Usuario clienteA;
@@ -147,6 +159,48 @@ public class ChatWebSocketIT extends AbstractIntegrationTest {
             assertEquals(3, mensagemRepository.countByConversaId(id));
         } finally {
             a.disconnect(); b.disconnect(); client.stop();
+        }
+    }
+
+    @Test
+    void motoboyDaCorridaRecebeStatusDoPedidoPeloSocket() throws Exception {
+        Usuario motoboy = criarUsuario("entregador.ws@teste.com", Papel.ENTREGADOR);
+        Entregador entregador = entregadores.saveAndFlush(Entregador.builder()
+                .id("entregador-ws").usuario(motoboy).cnh("12345678901").placaVeiculo("BRA1A23").build());
+        Pedido pedido = new Pedido();
+        pedido.setId("pedido-ws");
+        pedido.setUsuarioId(clienteA.getId());
+        pedido.setLoja(lojaA);
+        pedido.setEntregador(entregador);
+        pedido.setStatus(StatusPedido.PREPARANDO);
+        pedido.setFormaPagamento("DINHEIRO");
+        pedido.setValorTotal(BigDecimal.TEN);
+        pedido.setTaxaFrete(BigDecimal.ZERO);
+        pedido.setCriadoEm(Instant.now());
+        pedidos.saveAndFlush(pedido);
+
+        WebSocketStompClient client = criarClienteStomp();
+        client.setMessageConverter(new StringMessageConverter());
+        StompSession session = conectar(client, tokenService.gerarToken(motoboy));
+        BlockingQueue<String> recebidos = new LinkedBlockingQueue<>();
+        try {
+            session.subscribe("/topic/pedidos/" + pedido.getId() + "/status", new StompFrameHandler() {
+                @Override public Type getPayloadType(StompHeaders headers) { return String.class; }
+                @Override public void handleFrame(StompHeaders headers, Object payload) {
+                    recebidos.add((String) payload);
+                }
+            });
+            // O broker simples não confirma a assinatura, por isso aguardamos a entrega do evento.
+            String recebido = null;
+            long limite = System.nanoTime() + TimeUnit.SECONDS.toNanos(TIMEOUT_SECONDS);
+            while (recebido == null && session.isConnected() && System.nanoTime() < limite) {
+                publicadorStatus.publicar(new PedidoStatusAtualizadoEvent(pedido.getId(), StatusPedido.SAIU_ENTREGA));
+                recebido = recebidos.poll(100, TimeUnit.MILLISECONDS);
+            }
+            assertEquals("SAIU_ENTREGA", recebido);
+        } finally {
+            if (session.isConnected()) session.disconnect();
+            client.stop();
         }
     }
 

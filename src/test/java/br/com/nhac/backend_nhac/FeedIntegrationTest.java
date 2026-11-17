@@ -100,6 +100,45 @@ class FeedIntegrationTest extends AbstractIntegrationTest {
     }
 
     @Test
+    void perfilMostraBannerEPublicacoesDoAutorSemDadosPrivados() throws Exception {
+        String banner = "https://example.com/capa.jpg";
+        String corpo = "{\"bannerUrl\":\"" + banner + "\"}";
+        String editar = "/api/v1/usuarios/" + autor.getId() + "/banner";
+        mockMvc.perform(patch(editar).with(user(outro)).contentType(MediaType.APPLICATION_JSON).content(corpo))
+                .andExpect(status().isForbidden());
+        mockMvc.perform(patch(editar).with(user(autor)).contentType(MediaType.APPLICATION_JSON)
+                .content("{\"bannerUrl\":\"http://example.com/capa.jpg\"}"))
+                .andExpect(status().isBadRequest());
+        mockMvc.perform(patch(editar).with(user(autor)).contentType(MediaType.APPLICATION_JSON).content(corpo))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.bannerUrl").value(banner));
+
+        var antiga = criar("Mais antiga");
+        feed.criar(outro, new FeedPostCreateDTO("De outro autor", List.of(), List.of(), null, false, null));
+        var recente = criar("Mais recente");
+        String perfil = "/api/v1/feed/posts/autores/" + autor.getId();
+        mockMvc.perform(get(perfil)).andExpect(status().isForbidden());
+        mockMvc.perform(get(perfil).with(user(outro)).param("size", "1"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.nome").value("Autor real"))
+                .andExpect(jsonPath("$.bannerUrl").value(banner))
+                .andExpect(jsonPath("$.email").doesNotExist())
+                .andExpect(jsonPath("$.telefone").doesNotExist())
+                .andExpect(jsonPath("$.podeEnviarMensagem").value(true))
+                .andExpect(jsonPath("$.publicacoes.length()").value(1))
+                .andExpect(jsonPath("$.publicacoes[0].id").value(recente.id()))
+                .andExpect(jsonPath("$.temMais").value(true));
+        mockMvc.perform(get(perfil).with(user(autor)).param("page", "1").param("size", "1"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.podeEnviarMensagem").value(false))
+                .andExpect(jsonPath("$.publicacoes[0].id").value(antiga.id()))
+                .andExpect(jsonPath("$.temMais").value(false));
+
+        autor.setAtivo(false);
+        usuarios.save(autor);
+        mockMvc.perform(get(perfil).with(user(outro))).andExpect(status().isNotFound());
+    }
+
+    @Test
     void criaComAutorDaSessaoEPersisteContrato() throws Exception {
         mockMvc.perform(post("/api/v1/feed/posts").with(user(autor))
                 .contentType(MediaType.APPLICATION_JSON)

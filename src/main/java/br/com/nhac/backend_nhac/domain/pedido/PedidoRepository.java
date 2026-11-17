@@ -3,6 +3,7 @@ package br.com.nhac.backend_nhac.domain.pedido;
 import br.com.nhac.backend_nhac.domain.entregador.Entregador;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.jpa.repository.EntityGraph;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
@@ -31,6 +32,10 @@ public interface PedidoRepository extends JpaRepository<Pedido, String> {
     Optional<Pedido> findByStripePaymentIntentId(String stripePaymentIntentId);
     Optional<Pedido> findByAsaasPaymentId(String asaasPaymentId);
     Optional<Pedido> findByUsuarioIdAndIdempotencyKey(String usuarioId, String idempotencyKey);
+
+    @EntityGraph(attributePaths = {"loja", "entregador.usuario"})
+    @Query("select p from Pedido p where p.id = :id")
+    Optional<Pedido> buscarParaAssinaturaStatus(@Param("id") String id);
 
     @org.springframework.data.jpa.repository.EntityGraph(attributePaths = {"loja", "entregador"})
     Optional<Pedido> findFirstByUsuarioIdAndStatusInOrderByCriadoEmDesc(String usuarioId, List<StatusPedido> status);

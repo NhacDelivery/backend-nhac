@@ -3,6 +3,7 @@ package br.com.nhac.backend_nhac.domain.auth;
 import br.com.nhac.backend_nhac.domain.auth.dto.LoginResponseDTO;
 import br.com.nhac.backend_nhac.domain.auth.dto.ValidarCodigoSmsDTO;
 import br.com.nhac.backend_nhac.domain.usuario.Usuario;
+import br.com.nhac.backend_nhac.exceptions.CodigoSmsRejeitadoException;
 import br.com.nhac.backend_nhac.infra.security.TokenService;
 import br.com.nhac.backend_nhac.domain.usuario.UsuarioRepository;
 import lombok.RequiredArgsConstructor;
@@ -21,7 +22,7 @@ public class SmsAuthService {
     private final UsuarioRepository usuarioRepository;
     private final TokenService tokenService;
 
-    @Transactional
+    @Transactional(noRollbackFor = CodigoSmsRejeitadoException.class)
     public LoginResponseDTO autenticarComSms(ValidarCodigoSmsDTO dto) {
         // Valida o código SMS. Lança exceção se for inválido, expirado ou com limite excedido.
         verificacaoTelefoneService.validarCodigo(dto);

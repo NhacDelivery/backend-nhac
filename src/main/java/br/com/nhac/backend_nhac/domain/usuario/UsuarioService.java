@@ -52,6 +52,14 @@ public class UsuarioService {
     }
 
     @Transactional
+    public UsuarioResponseDTO atualizarBanner(String id, String bannerUrl) {
+        Usuario usuario = usuarioRepository.findLockedById(id)
+                .orElseThrow(() -> new IdNaoEncontradoException("Usuário não encontrado."));
+        usuario.setBannerUrl(bannerUrl);
+        return new UsuarioResponseDTO(usuario);
+    }
+
+    @Transactional
     public void salvarUsuario(UsuarioCreateDTO dto) {
         if (dto.email() != null && usuarioRepository.findByEmailIgnoreCase(dto.email()).isPresent()) {
             throw new RegraDeNegocioException("Este e-mail já está em uso.");

@@ -42,6 +42,9 @@ public class Usuario implements UserDetails {
     @Column(name = "imagem_url", columnDefinition = "TEXT")
     private String imagemUrl;
 
+    @Column(name = "banner_url", length = 500)
+    private String bannerUrl;
+
     @Column(length = 14, unique = true)
     private String cpf;
 
