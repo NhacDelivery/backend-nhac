@@ -22,12 +22,15 @@ public class SuporteEntregaController {
     this.repository = repository;
   }
 
+  private static final String UUID_REGEX =
+      "[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}";
+
+  public record DesistirDTO(
+      @NotBlank @Pattern(regexp = UUID_REGEX) String id,
+      @NotBlank @Size(min = 5, max = 500) String descricao) {}
+
   public record AbrirDTO(
-      @NotBlank
-          @Pattern(
-              regexp =
-                  "[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}")
-          String id,
+      @NotBlank @Pattern(regexp = UUID_REGEX) String id,
       @NotBlank @Pattern(regexp = "RETIRADA|TRANSFERENCIA|ACIDENTE|ENDERECO|OUTRO") String motivo,
       @NotBlank @Size(min = 5, max = 2000) String descricao) {}
 
@@ -54,6 +57,16 @@ public class SuporteEntregaController {
       @AuthenticationPrincipal Usuario usuario,
       @RequestBody @Valid AbrirDTO dto) {
     return SuporteEntregaResponseDTO.de(service.abrir(pedidoId, usuario, dto));
+  }
+
+  @PostMapping("/entregas/{pedidoId}/desistir")
+  @PreAuthorize("hasRole('ENTREGADOR')")
+  @ResponseStatus(org.springframework.http.HttpStatus.NO_CONTENT)
+  public void desistir(
+      @PathVariable String pedidoId,
+      @AuthenticationPrincipal Usuario usuario,
+      @RequestBody @Valid DesistirDTO dto) {
+    service.desistir(pedidoId, usuario, dto);
   }
 
   @GetMapping("/entregas/{pedidoId}/suporte")

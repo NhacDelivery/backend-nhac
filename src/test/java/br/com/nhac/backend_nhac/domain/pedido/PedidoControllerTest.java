@@ -207,7 +207,7 @@ class PedidoControllerTest {
     void deveRetornarPedidoComStatus200QuandoExistirEDonoEstiverLogado() throws Exception {
         PedidoResponseDTO mockResponse = new PedidoResponseDTO(
                 "pedido_123", "user_123", "loja_001", "Loja Teste", new BigDecimal("100.00"), new BigDecimal("5.00"),
-                "PIX", null, null, StatusPedido.PENDENTE, null, null, Collections.emptyList(), BigDecimal.ZERO, null,
+                "PIX", null, null, "Imprevisto com a moto", StatusPedido.PENDENTE, null, null, Collections.emptyList(), BigDecimal.ZERO, null,
                 null, null, false
         );
 
@@ -216,7 +216,8 @@ class PedidoControllerTest {
         mockMvc.perform(get("/api/v1/pedidos/pedido_123"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.id").value("pedido_123"))
-                .andExpect(jsonPath("$.lojaId").value("loja_001"));
+                .andExpect(jsonPath("$.lojaId").value("loja_001"))
+                .andExpect(jsonPath("$.justificativaDesistenciaEntrega").value("Imprevisto com a moto"));
     }
 
     @Test

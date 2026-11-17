@@ -244,7 +244,7 @@ public class DespachoService {
      */
     @Transactional
     public EntregaAtivaResponseDTO coletarPedido(String pedidoId, Usuario usuarioLogado) {
-        Entregador entregador = entregadorService.buscarPorUsuario(usuarioLogado);
+        Entregador entregador = entregadorService.buscarPorUsuarioComBloqueio(usuarioLogado);
         Pedido pedido = buscarPedidoDoEntregador(pedidoId, entregador);
 
         if (pedido.getStatus() == StatusPedido.SAIU_ENTREGA) {
@@ -322,7 +322,7 @@ public class DespachoService {
     }
 
     private Pedido buscarPedidoDoEntregador(String pedidoId, Entregador entregador) {
-        Pedido pedido = pedidoRepository.findById(pedidoId)
+        Pedido pedido = pedidoRepository.findLockedById(pedidoId)
                 .orElseThrow(() -> new IdNaoEncontradoException("Pedido " + pedidoId + " não encontrado."));
 
         if (pedido.getEntregador() == null || !pedido.getEntregador().getId().equals(entregador.getId())) {
@@ -333,10 +333,14 @@ public class DespachoService {
 
     private EntregaAtivaResponseDTO montarEntregaAtiva(Pedido pedido) {
         Usuario cliente = usuarioRepository.findById(pedido.getUsuarioId()).orElse(null);
+        String donoId = pedido.getLoja() != null ? pedido.getLoja().getUsuarioId() : null;
+        String telefoneLoja = donoId == null ? null
+                : usuarioRepository.findById(donoId).map(Usuario::getTelefone).orElse(null);
         return new EntregaAtivaResponseDTO(
                 pedido,
                 cliente != null ? cliente.getNome() : "Cliente",
-                cliente != null ? cliente.getTelefone() : null
+                cliente != null ? cliente.getTelefone() : null,
+                telefoneLoja
         );
     }
 
@@ -371,10 +375,6 @@ public class DespachoService {
                 List.of(StatusPedido.PREPARANDO, StatusPedido.SAIU_ENTREGA)
         ).orElseThrow(() -> new IdNaoEncontradoException("Você não possui nenhuma entrega ativa no momento."));
 
-        Usuario cliente = usuarioRepository.findById(pedidoAtivo.getUsuarioId()).orElse(null);
-        String clienteNome = cliente != null ? cliente.getNome() : "Cliente";
-        String clienteTelefone = cliente != null ? cliente.getTelefone() : null;
-
-        return new EntregaAtivaResponseDTO(pedidoAtivo, clienteNome, clienteTelefone);
+        return montarEntregaAtiva(pedidoAtivo);
     }
 }

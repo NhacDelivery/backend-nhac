@@ -52,12 +52,50 @@ class SuporteEntregaServiceTest {
     pedido.setId("pedido");
     pedido.setEntregador(original);
     pedido.setStatus(StatusPedido.PREPARANDO);
-    when(suporte.findLockedById("protocolo")).thenReturn(Optional.of(ticket));
+    lenient().when(suporte.findLockedById("protocolo")).thenReturn(Optional.of(ticket));
   }
 
   void corridaAtiva() {
     when(entregadores.findLockedByUsuarioId("original")).thenReturn(Optional.of(original));
     when(pedidos.findLockedById("pedido")).thenReturn(Optional.of(pedido));
+  }
+
+  @Test
+  void desistirAntesDaColetaRegistraJustificativaERedespachaUmaVez() {
+    corridaAtiva();
+    var dto = new SuporteEntregaController.DesistirDTO("nova-desistencia", "Imprevisto com a moto");
+    var protocolo = ArgumentCaptor.forClass(SolicitacaoSuporte.class);
+
+    service.desistir("pedido", original.getUsuario(), dto);
+
+    verify(suporte).save(protocolo.capture());
+    assertNull(pedido.getEntregador());
+    assertEquals(StatusPedido.PREPARANDO, pedido.getStatus());
+    assertEquals("Imprevisto com a moto", pedido.getJustificativaDesistenciaEntrega());
+    assertEquals(StatusOperacional.OFFLINE, original.getStatusOperacional());
+    assertEquals("RETIRADO", protocolo.getValue().getStatus());
+    when(suporte.findById(dto.id())).thenReturn(Optional.of(protocolo.getValue()));
+
+    service.desistir("pedido", original.getUsuario(), dto);
+
+    verify(eventos, times(1)).publishEvent(new PedidoPreparandoEvent("pedido"));
+    verify(eventos, times(1)).publishEvent(new PedidoStatusAtualizadoEvent("pedido", StatusPedido.PREPARANDO));
+    verify(pedidos, times(1)).save(pedido);
+  }
+
+  @Test
+  void desistirAposColetaNaoLiberaCorrida() {
+    corridaAtiva();
+    pedido.setStatus(StatusPedido.SAIU_ENTREGA);
+    pedido.setColetadoEm(Instant.now());
+
+    assertThrows(RegraDeNegocioException.class, () -> service.desistir("pedido", original.getUsuario(),
+        new SuporteEntregaController.DesistirDTO("desistencia", "Imprevisto com a moto")));
+
+    assertSame(original, pedido.getEntregador());
+    assertNull(pedido.getJustificativaDesistenciaEntrega());
+    verify(suporte, never()).save(any());
+    verifyNoInteractions(eventos);
   }
 
   @Test

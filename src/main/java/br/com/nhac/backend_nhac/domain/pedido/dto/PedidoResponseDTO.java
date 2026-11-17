@@ -19,6 +19,7 @@ public record PedidoResponseDTO(
         @Schema(description = "Forma de pagamento") String formaPagamento,
         @Schema(description = "Troco para") BigDecimal trocoPara,
         @Schema(description = "Observações") String observacao,
+        @Schema(description = "Justificativa da última desistência de um entregador") String justificativaDesistenciaEntrega,
         @Schema(description = "Status atual do pedido") StatusPedido status,
         @Schema(description = "Data e hora da criação") Instant criadoEm,
         @Schema(description = "Endereço onde será entregue") EnderecoEntregaResponseDTO enderecoEntrega,
@@ -40,6 +41,7 @@ public record PedidoResponseDTO(
                 pedido.getFormaPagamento(),
                 pedido.getTrocoPara(),
                 pedido.getObservacao(),
+                pedido.getJustificativaDesistenciaEntrega(),
                 pedido.getStatus(),
                 pedido.getCriadoEm(),
                 pedido.getEnderecoEntrega() != null ? new EnderecoEntregaResponseDTO(
@@ -83,6 +85,7 @@ public record PedidoResponseDTO(
                 pedido.getFormaPagamento(),
                 pedido.getTrocoPara(),
                 pedido.getObservacao(),
+                pedido.getJustificativaDesistenciaEntrega(),
                 pedido.getStatus(),
                 pedido.getCriadoEm(),
                 pedido.getEnderecoEntrega() != null ? new EnderecoEntregaResponseDTO(

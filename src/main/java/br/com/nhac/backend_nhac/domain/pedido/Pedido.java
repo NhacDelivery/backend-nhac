@@ -55,6 +55,9 @@ public class Pedido {
     @Column(columnDefinition = "TEXT")
     private String observacao;
 
+    @Column(name = "justificativa_desistencia_entrega", length = 500)
+    private String justificativaDesistenciaEntrega;
+
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 30)
     private StatusPedido status;
