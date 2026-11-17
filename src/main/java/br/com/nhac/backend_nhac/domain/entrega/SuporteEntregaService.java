@@ -1,5 +1,7 @@
 package br.com.nhac.backend_nhac.domain.entrega;
 
+import br.com.nhac.backend_nhac.domain.entregador.Entregador;
+import br.com.nhac.backend_nhac.domain.entregador.StatusOperacional;
 import br.com.nhac.backend_nhac.domain.pedido.*;
 import br.com.nhac.backend_nhac.domain.usuario.Usuario;
 import br.com.nhac.backend_nhac.exceptions.*;
@@ -70,6 +72,53 @@ public class SuporteEntregaService {
             : "Solicitação recebida. O pedido continua sob sua responsabilidade; preserve-o e"
                   + " aguarde instruções para transferência ou devolução.");
     return suporte.save(ticket);
+  }
+
+  @Transactional
+  public void desistir(String pedidoId, Usuario usuario, SuporteEntregaController.DesistirDTO dto) {
+    Entregador entregador = entregadores.findLockedByUsuarioId(usuario.getId())
+        .orElseThrow(() -> new IdNaoEncontradoException("Entregador não encontrado."));
+    Pedido pedido = pedidos.findLockedById(pedidoId)
+        .orElseThrow(() -> new IdNaoEncontradoException("Pedido não encontrado."));
+    String descricao = dto.descricao().strip();
+    if (descricao.length() < 5)
+      throw new RegraDeNegocioException("Informe uma justificativa com pelo menos 5 caracteres.");
+    var existente = suporte.findById(dto.id());
+    if (existente.isPresent()) {
+      var ticket = existente.get();
+      if (!usuario.getId().equals(ticket.getUsuarioId()) || !pedidoId.equals(ticket.getPedidoId()))
+        throw new AcessoNegadoException("Protocolo de outra solicitação.");
+      if (!"DESISTIR".equals(ticket.getAcao()) || !descricao.equals(ticket.getDescricao()))
+        throw new RegraDeNegocioException("Protocolo já usado com outros dados.");
+      return;
+    }
+    if (pedido.getEntregador() == null || !entregador.getId().equals(pedido.getEntregador().getId()))
+      throw new AcessoNegadoException("Esta corrida não pertence a você.");
+    if (pedido.getStatus() != StatusPedido.PREPARANDO || pedido.getColetadoEm() != null)
+      throw new RegraDeNegocioException(
+          "A desistência é permitida antes da retirada. Se já estiver com o pedido, acione o suporte.");
+
+    var ticket = new SolicitacaoSuporte();
+    ticket.setId(dto.id());
+    ticket.setPedidoId(pedidoId);
+    ticket.setUsuarioId(usuario.getId());
+    ticket.setMotivo("RETIRADA");
+    ticket.setDescricao(descricao);
+    ticket.setEtapa("ANTES_COLETA");
+    ticket.setStatus("RETIRADO");
+    ticket.setAcao("DESISTIR");
+    ticket.setResposta("Corrida cancelada pelo entregador antes da retirada.");
+    Instant agora = Instant.now();
+    ticket.setCriadoEm(agora);
+    ticket.setRespondidoEm(agora);
+    suporte.save(ticket);
+
+    pedido.setEntregador(null);
+    pedido.setJustificativaDesistenciaEntrega(descricao);
+    liberarResponsavel(pedido, entregador);
+    pedidos.save(pedido);
+    eventos.publishEvent(new PedidoStatusAtualizadoEvent(pedidoId, pedido.getStatus()));
+    eventos.publishEvent(new PedidoPreparandoEvent(pedidoId));
   }
 
   @Transactional(readOnly = true)
@@ -147,16 +196,19 @@ public class SuporteEntregaService {
               + novo.getUsuario().getNome()
               + ". Você foi liberado da corrida.");
     }
-    anterior.setStatusOperacional(
-        br.com.nhac.backend_nhac.domain.entregador.StatusOperacional.OFFLINE);
-    for (var oferta : ofertas.findByPedidoIdAndStatus(pedido.getId(), StatusOferta.ACEITA))
-      oferta.setStatus(StatusOferta.RECUSADA);
-    for (var oferta : ofertas.findByPedidoIdAndStatus(pedido.getId(), StatusOferta.PENDENTE))
-      oferta.setStatus(StatusOferta.EXPIRADA);
+    liberarResponsavel(pedido, anterior);
     ticket.setAcao(dto.acao());
     ticket.setRespondidoEm(Instant.now());
     pedidos.save(pedido);
     return suporte.save(ticket);
+  }
+
+  private void liberarResponsavel(Pedido pedido, Entregador anterior) {
+    anterior.setStatusOperacional(StatusOperacional.OFFLINE);
+    for (var oferta : ofertas.findByPedidoIdAndStatus(pedido.getId(), StatusOferta.ACEITA))
+      oferta.setStatus(StatusOferta.RECUSADA);
+    for (var oferta : ofertas.findByPedidoIdAndStatus(pedido.getId(), StatusOferta.PENDENTE))
+      oferta.setStatus(StatusOferta.EXPIRADA);
   }
 
   @Transactional

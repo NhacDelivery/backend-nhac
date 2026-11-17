@@ -236,13 +236,17 @@ class DespachoServiceTest {
     void deveMarcarSaiuEntregaAoColetarPedido() {
         pedido.setEntregador(entregador);   // simula pedido já aceito
 
-        when(entregadorService.buscarPorUsuario(usuarioEntregador)).thenReturn(entregador);
-        when(pedidoRepository.findById("ped_1")).thenReturn(Optional.of(pedido));
+        when(entregadorService.buscarPorUsuarioComBloqueio(usuarioEntregador)).thenReturn(entregador);
+        when(pedidoRepository.findLockedById("ped_1")).thenReturn(Optional.of(pedido));
+        pedido.getLoja().setUsuarioId("dono_1");
+        Usuario dono = new Usuario();
+        dono.setTelefone("+5511999990000");
+        when(usuarioRepository.findById("dono_1")).thenReturn(Optional.of(dono));
         when(usuarioRepository.findById("cli_1")).thenReturn(Optional.of(new Usuario()));
 
         EntregaAtivaResponseDTO resposta = despachoService.coletarPedido("ped_1", usuarioEntregador);
 
-        assertNotNull(resposta);
+        assertEquals("+5511999990000", resposta.lojaTelefone());
         assertEquals(StatusPedido.SAIU_ENTREGA, pedido.getStatus());
         verify(pedidoRepository, times(1)).save(pedido);
     }

@@ -11,6 +11,7 @@ public record EntregaAtivaResponseDTO(
         String lojaId,
         String lojaNome,
         String lojaEndereco,
+        String lojaTelefone,
         Double lojaLatitude,
         Double lojaLongitude,
         String clienteNome,
@@ -24,12 +25,13 @@ public record EntregaAtivaResponseDTO(
         StatusPedido statusPedido,
         String observacao
 ) {
-    public EntregaAtivaResponseDTO(Pedido pedido, String clienteNome, String clienteTelefone) {
+    public EntregaAtivaResponseDTO(Pedido pedido, String clienteNome, String clienteTelefone, String lojaTelefone) {
         this(
                 pedido.getId(),
                 pedido.getLoja() != null ? pedido.getLoja().getId() : null,
                 pedido.getLoja() != null ? pedido.getLoja().getNome() : null,
                 formatarEnderecoLoja(pedido),
+                lojaTelefone,
                 pedido.getLoja() != null && pedido.getLoja().getGeoLocalizacao() != null ? pedido.getLoja().getGeoLocalizacao().getGeoLat() : null,
                 pedido.getLoja() != null && pedido.getLoja().getGeoLocalizacao() != null ? pedido.getLoja().getGeoLocalizacao().getGeoLng() : null,
                 clienteNome,
