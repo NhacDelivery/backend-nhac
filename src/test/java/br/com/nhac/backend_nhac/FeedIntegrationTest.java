@@ -1,6 +1,7 @@
 package br.com.nhac.backend_nhac;
 
 import br.com.nhac.backend_nhac.domain.feed.*;
+import br.com.nhac.backend_nhac.domain.loja.*;
 import br.com.nhac.backend_nhac.domain.usuario.*;
 import org.junit.jupiter.api.*;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -15,6 +16,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 class FeedIntegrationTest extends AbstractIntegrationTest {
     @Autowired UsuarioRepository usuarios;
     @Autowired FeedService feed;
+    @Autowired LojaRepository lojas;
     @Autowired org.springframework.jdbc.core.JdbcTemplate jdbc;
     private Usuario autor;
     private Usuario outro;
@@ -121,6 +123,9 @@ class FeedIntegrationTest extends AbstractIntegrationTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.nome").value("Autor real"))
                 .andExpect(jsonPath("$.bannerUrl").value(banner))
+                .andExpect(jsonPath("$.totalPublicacoes").value(2))
+                .andExpect(jsonPath("$.anoCadastro").value(autor.getCriadoEm().atZone(java.time.ZoneOffset.UTC).getYear()))
+                .andExpect(jsonPath("$.lojaParaMensagem").doesNotExist())
                 .andExpect(jsonPath("$.email").doesNotExist())
                 .andExpect(jsonPath("$.telefone").doesNotExist())
                 .andExpect(jsonPath("$.podeEnviarMensagem").value(true))
@@ -130,12 +135,48 @@ class FeedIntegrationTest extends AbstractIntegrationTest {
         mockMvc.perform(get(perfil).with(user(autor)).param("page", "1").param("size", "1"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.podeEnviarMensagem").value(false))
+                .andExpect(jsonPath("$.totalPublicacoes").value(2))
+                .andExpect(jsonPath("$.lojaParaMensagem").doesNotExist())
                 .andExpect(jsonPath("$.publicacoes[0].id").value(antiga.id()))
                 .andExpect(jsonPath("$.temMais").value(false));
 
         autor.setAtivo(false);
         usuarios.save(autor);
         mockMvc.perform(get(perfil).with(user(outro))).andExpect(status().isNotFound());
+    }
+
+    @Test
+    void perfilDoLojistaUsaAPropriaLojaParaContatoECapa() throws Exception {
+        autor.setPapel(Papel.LOJISTA);
+        usuarios.save(autor);
+        String perfil = "/api/v1/feed/posts/autores/" + autor.getId();
+        mockMvc.perform(get(perfil).with(user(outro))).andExpect(status().isOk())
+                .andExpect(jsonPath("$.podeEnviarMensagem").value(false))
+                .andExpect(jsonPath("$.lojaParaMensagem").doesNotExist());
+
+        var loja = lojas.save(Loja.builder().id("loja-autora").usuarioId(autor.getId()).nome("Padaria da Ana")
+                .isAberto(true).dadosOperacionais(new DadosOperacionais())
+                .endereco(new EnderecoLoja("Rua", "1", "Osasco", "SP", "06000-000", "Centro", null))
+                .bannerUrl("https://example.com/loja.jpg").build());
+        mockMvc.perform(get(perfil).with(user(outro))).andExpect(status().isOk())
+                .andExpect(jsonPath("$.podeEnviarMensagem").value(false))
+                .andExpect(jsonPath("$.lojaParaMensagem.id").value(loja.getId()))
+                .andExpect(jsonPath("$.lojaParaMensagem.nome").value(loja.getNome()))
+                .andExpect(jsonPath("$.bannerUrl").value(loja.getBannerUrl()))
+                .andExpect(jsonPath("$.totalPublicacoes").value(0));
+        mockMvc.perform(post("/api/v1/conversas/lojas/" + loja.getId()).with(user(outro)))
+                .andExpect(status().isOk());
+
+        autor.setBannerUrl("https://example.com/pessoal.jpg");
+        usuarios.save(autor);
+        mockMvc.perform(get(perfil).with(user(autor))).andExpect(status().isOk())
+                .andExpect(jsonPath("$.bannerUrl").value(autor.getBannerUrl()))
+                .andExpect(jsonPath("$.lojaParaMensagem").doesNotExist());
+        outro.setPapel(Papel.FUNCIONARIO);
+        usuarios.save(outro);
+        mockMvc.perform(get(perfil).with(user(outro))).andExpect(status().isOk())
+                .andExpect(jsonPath("$.podeEnviarMensagem").value(false))
+                .andExpect(jsonPath("$.lojaParaMensagem").doesNotExist());
     }
 
     @Test

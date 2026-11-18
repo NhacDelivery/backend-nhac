@@ -8,6 +8,7 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.data.domain.*;
 import java.util.*;
 import java.time.Instant;
+import java.time.ZoneOffset;
 
 @Service
 @Transactional
@@ -52,10 +53,22 @@ public class FeedService {
                 .orElseThrow(() -> new IdNaoEncontradoException("Perfil não encontrado."));
         Pageable paginacao = pagina(page, size, Sort.by(Sort.Direction.DESC, "criadoEm", "id"));
         Page<FeedPostResponseDTO> publicacoes = respostas(posts.listarPorAutor(autor.getId(), paginacao), usuario);
-        boolean podeEnviarMensagem = usuario.getPapel() == Papel.CLIENTE && autor.getPapel() == Papel.CLIENTE
+        boolean visitanteCliente = usuario.isAtivo() && usuario.getPapel() == Papel.CLIENTE
                 && !usuario.getId().equals(autor.getId());
-        return new FeedPerfilResponseDTO(autor.getId(), autor.getNome(), autor.getImagemUrl(), autor.getBannerUrl(),
-                podeEnviarMensagem, publicacoes.getContent(), publicacoes.hasNext());
+        boolean mensagemDireta = visitanteCliente && autor.getPapel() == Papel.CLIENTE;
+        Optional<Loja> lojaDoAutor = autor.getPapel() == Papel.LOJISTA
+                ? lojas.findByUsuarioId(autor.getId()) : Optional.empty();
+        String banner = autor.getBannerUrl();
+        if (banner == null || banner.isBlank()) {
+            banner = lojaDoAutor.map(Loja::getBannerUrl).orElse(null);
+        }
+        var lojaParaMensagem = lojaDoAutor.filter(loja -> visitanteCliente)
+                .map(loja -> new FeedPerfilResponseDTO.LojaParaMensagem(loja.getId(), loja.getNome(), loja.getImagemUrl()))
+                .orElse(null);
+        Integer anoCadastro = autor.getCriadoEm() == null ? null : autor.getCriadoEm().atZone(ZoneOffset.UTC).getYear();
+        return new FeedPerfilResponseDTO(autor.getId(), autor.getNome(), autor.getImagemUrl(), banner,
+                mensagemDireta, publicacoes.getContent(), publicacoes.hasNext(), publicacoes.getTotalElements(),
+                anoCadastro, lojaParaMensagem);
     }
 
     @Transactional(readOnly = true)
