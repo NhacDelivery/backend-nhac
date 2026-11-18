@@ -9,5 +9,10 @@ public record FeedPerfilResponseDTO(
         String bannerUrl,
         boolean podeEnviarMensagem,
         List<FeedPostResponseDTO> publicacoes,
-        boolean temMais
-) {}
+        boolean temMais,
+        long totalPublicacoes,
+        Integer anoCadastro,
+        LojaParaMensagem lojaParaMensagem
+) {
+    public record LojaParaMensagem(String id, String nome, String imagemUrl) {}
+}
