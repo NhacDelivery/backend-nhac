@@ -16,14 +16,32 @@ public class PagamentoOperacaoController {
     private final PedidoService service;
     private final PagamentoMetricas metricas;
     private final PagamentoEstornoService estornos;
-    public PagamentoOperacaoController(PedidoRepository repository, PedidoService service, PagamentoMetricas metricas, PagamentoEstornoService estornos) {
+    private final StripePaymentService stripe;
+    public PagamentoOperacaoController(PedidoRepository repository, PedidoService service, PagamentoMetricas metricas, PagamentoEstornoService estornos, StripePaymentService stripe) {
+        this.stripe = stripe;
         this.repository = repository; this.service = service; this.metricas = metricas; this.estornos = estornos;
     }
     @GetMapping("/pedidos/{id}/operacao-pagamento")
     public PagamentoOperacaoDTO consultar(@PathVariable String id, @AuthenticationPrincipal Usuario usuario) {
         Pedido p = repository.findById(id).orElseThrow(() -> new IdNaoEncontradoException("Pedido não encontrado."));
         if (!p.getUsuarioId().equals(usuario.getId())) throw new AcessoNegadoException("Este pedido pertence a outro usuário.");
-        return PagamentoOperacaoDTO.de(p);
+        var operacao = PagamentoOperacaoDTO.de(p);
+        if (p.getStatus() != StatusPedido.PENDENTE || !"REGULAR".equals(operacao.estado())
+                || p.getPagamentoExpiraEm() == null) return operacao;
+        if ("PIX".equalsIgnoreCase(p.getFormaPagamento())) {
+            return new PagamentoOperacaoDTO(id, "REGULAR", operacao.atualizadoEm(), false, true);
+        }
+        if (!java.util.Set.of("CARTAO", "STRIPE", "GOOGLE_PAY").contains(p.getFormaPagamento())) return operacao;
+        if (p.getStripePaymentIntentId() == null) {
+            return new PagamentoOperacaoDTO(id, "REGULAR", operacao.atualizadoEm(), false, true);
+        }
+        String status = stripe.consultarStatus(p.getStripePaymentIntentId());
+        if ("succeeded".equals(status)) {
+            service.marcarComoPagoPorPaymentIntentId(p.getStripePaymentIntentId());
+            return PagamentoOperacaoDTO.de(repository.findById(id).orElseThrow());
+        }
+        boolean podePagar = StripePaymentService.aceitaPagamento(status);
+        return new PagamentoOperacaoDTO(id, podePagar ? "REGULAR" : "CONCILIACAO", operacao.atualizadoEm(), false, podePagar);
     }
     @PostMapping("/pedidos/{id}/estorno")
     public ResponseEntity<Void> solicitar(@PathVariable String id, @AuthenticationPrincipal Usuario usuario) {

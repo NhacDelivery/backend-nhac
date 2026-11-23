@@ -57,6 +57,9 @@ public class Produto {
     @Column(name = "is_ativo", nullable = false)
     private boolean isAtivo = true;
 
+    @Column(name = "catalogo_demonstracao", nullable = false)
+    private boolean catalogoDemonstracao;
+
     @Column(name = "criado_em")
     private Instant criadoEm;
 

@@ -10,6 +10,8 @@ import java.util.Optional;
 
 @Repository
 public interface EnderecoUsuarioRepository extends JpaRepository<EnderecoUsuario, String> {
+    boolean existsByUsuarioId(String usuarioId);
+
     List<EnderecoUsuario> findByUsuarioId(String usuarioId);
 
     // Preserva um padrão existente; caso contrário, escolhe o menor id da conta.

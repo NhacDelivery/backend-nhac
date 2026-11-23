@@ -29,7 +29,8 @@ import lombok.Setter;
 @Entity
 @Table(name = "tb_conversas", uniqueConstraints = {
         @UniqueConstraint(columnNames = {"loja_id", "cliente_id", "participante_tipo"}),
-        @UniqueConstraint(columnNames = {"cliente_id", "segundo_cliente_id"})})
+        @UniqueConstraint(columnNames = {"cliente_id", "segundo_cliente_id"}),
+        @UniqueConstraint(columnNames = {"pedido_id", "entregador_usuario_id"})})
 @Getter
 @Setter
 @NoArgsConstructor
@@ -52,6 +53,13 @@ public class Conversa {
     /** Apenas no chat direto: os dois IDs são persistidos em ordem canônica. */
     @Column(name = "segundo_cliente_id", length = 50)
     private String segundoClienteId;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "pedido_id")
+    private br.com.nhac.backend_nhac.domain.pedido.Pedido pedido;
+
+    @Column(name = "entregador_usuario_id", length = 50)
+    private String entregadorUsuarioId;
 
     @Enumerated(EnumType.STRING)
     @Column(name = "participante_tipo", nullable = false, length = 20)
@@ -119,7 +127,7 @@ public class Conversa {
 
     /** No chat direto, naoLidasLoja guarda as não lidas do segundo cliente. */
     public void registrarNovaMensagem(RemetenteTipo remetente, String remetenteId, String preview) {
-        if (!isEntreClientes()) {
+        if (!isEntreClientes() && participanteTipo != ParticipanteTipo.ENTREGA) {
             registrarNovaMensagem(remetente, preview);
             return;
         }

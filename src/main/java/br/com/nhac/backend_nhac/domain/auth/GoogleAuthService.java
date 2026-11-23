@@ -46,7 +46,7 @@ public class GoogleAuthService {
                     "Login Google está desabilitado neste ambiente.");
         }
         try {
-            List<String> clientIds = Arrays.asList(googleClientIds.split(","));
+            List<String> clientIds = Arrays.stream(googleClientIds.split(",")).map(String::trim).filter(id -> !id.isEmpty()).toList();
 
             GoogleIdTokenVerifier verifier = new GoogleIdTokenVerifier.Builder(
                     new NetHttpTransport(), new GsonFactory())
@@ -59,6 +59,9 @@ public class GoogleAuthService {
                 GoogleIdToken.Payload payload = idToken.getPayload();
 
                 String email = payload.getEmail();
+                if (email == null || email.isBlank() || !Boolean.TRUE.equals(payload.getEmailVerified())) {
+                    throw new CredenciaisInvalidasException("Confirme seu e-mail na conta Google antes de entrar.");
+                }
                 String nome = (String) payload.get("name");
                 String imagemUrl = (String) payload.get("picture");
 
@@ -72,8 +75,10 @@ public class GoogleAuthService {
             } else {
                 throw new CredenciaisInvalidasException("Token do Google inválido ou expirado");
             }
-        } catch (Exception e) {
-            throw new CredenciaisInvalidasException("Erro ao validar token social:" + e.getMessage());
+        } catch (java.io.IOException e) {
+            throw new br.com.nhac.backend_nhac.exceptions.ServicoIndisponivelException("Falha ao consultar o Google. Tente novamente.");
+        } catch (java.security.GeneralSecurityException | IllegalArgumentException e) {
+            throw new CredenciaisInvalidasException("Erro ao validar token social. Entre com o Google novamente.");
         }
     }
 

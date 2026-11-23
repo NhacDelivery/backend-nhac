@@ -13,5 +13,12 @@ public record PedidoCriadoDTO(
         String pixCopiaECola,
 
         @Schema(description = "URL da imagem ou payload do QR Code do PIX (será null para pagamentos com cartão/Google Pay)", example = "https://qr.stripe.com/test_123")
-        String qrCodeUrl
-) {}
+        String qrCodeUrl,
+        java.math.BigDecimal valorTotal,
+        java.time.Instant expiraEm,
+        boolean simulacaoDisponivel
+) {
+    public PedidoCriadoDTO(String pedidoId, String clientSecret, String pixCopiaECola, String qrCodeUrl) {
+        this(pedidoId, clientSecret, pixCopiaECola, qrCodeUrl, null, null, false);
+    }
+}

@@ -17,6 +17,7 @@ import java.util.ArrayList;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
 @TestPropertySource(properties = {"nhac.email.mock-mode=true", "nhac.google.enabled=false"})
@@ -63,6 +64,31 @@ class CodigoEntregaFlowIT extends AbstractIntegrationTest {
         p.setCodigoEntrega("0123");
         pedidos.saveAndFlush(p);
         authorization = "Bearer " + tokens.gerarToken(motoboy);
+    }
+
+    @Test
+    void chatETelefonePertencemAEntregaAtual() throws Exception {
+        String cliente = "Bearer " + tokens.gerarToken(usuarios.findById("cliente-codigo").orElseThrow());
+        String contato = "/api/v1/conversas/entregas/pedido-codigo";
+        String numero = usuarios.findById("motoboy-codigo").orElseThrow().getTelefone();
+        mockMvc.perform(get(contato + "/telefone").header("Authorization", cliente))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.telefone").value(numero));
+        String id = objectMapper.readTree(mockMvc.perform(post(contato).header("Authorization", cliente))
+                .andExpect(status().isOk()).andReturn().getResponse().getContentAsString()).get("id").asText();
+        mockMvc.perform(post("/api/v1/entregador/conversas/entregas/pedido-codigo").header("Authorization", authorization))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.id").value(id));
+        mockMvc.perform(post("/api/v1/conversas/" + id + "/mensagens").header("Authorization", cliente)
+                .contentType(MediaType.APPLICATION_JSON).content("{\"conteudo\":\"Estou no portão\"}"))
+                .andExpect(status().isOk());
+        String historico = "/api/v1/entregador/conversas/" + id + "/mensagens";
+        mockMvc.perform(get(historico).header("Authorization", authorization)).andExpect(status().isOk())
+                .andExpect(jsonPath("$.content[0].conteudo").value("Estou no portão"));
+        String terceiro = "Bearer " + tokens.gerarToken(usuario("outro-cliente"));
+        mockMvc.perform(post(contato).header("Authorization", terceiro)).andExpect(status().isForbidden());
+        mockMvc.perform(get(contato + "/telefone").header("Authorization", terceiro)).andExpect(status().isForbidden());
+        concluirCorretamente();
+        mockMvc.perform(get(historico).header("Authorization", authorization)).andExpect(status().isForbidden());
+        mockMvc.perform(get(contato + "/telefone").header("Authorization", cliente)).andExpect(status().isForbidden());
     }
 
     @Test

@@ -98,9 +98,12 @@ public class PedidoService {
         if (reserva.replay())
             return new ResultadoCriacaoPedido(new PedidoCriadoDTO(pedido.getId(), null, null, null), true);
         try {
-            if ("PIX".equalsIgnoreCase(pedido.getFormaPagamento()))
-                return new ResultadoCriacaoPedido(asaasPaymentService.criarCobrancaPix(
-                        pedido, usuarioLogado.getNome(), usuarioLogado.getEmail(), dto.cpfPagador()), false);
+            if ("PIX".equalsIgnoreCase(pedido.getFormaPagamento())) {
+                var cobranca = asaasPaymentService.criarCobrancaPix(pedido, usuarioLogado.getNome(),
+                        usuarioLogado.getEmail(), dto.cpfPagador());
+                return new ResultadoCriacaoPedido(new PedidoCriadoDTO(pedido.getId(), null, cobranca.pixCopiaECola(),
+                        cobranca.qrCodeUrl(), pedido.getValorTotal(), pedido.getPagamentoExpiraEm(), simulacaoDisponivel()), false);
+            }
             if (List.of("CARTAO", "GOOGLE_PAY", "STRIPE").contains(
                     pedido.getFormaPagamento().toUpperCase(java.util.Locale.ROOT)))
                 return new ResultadoCriacaoPedido(stripePaymentService.criarPaymentIntentCartao(pedido), false);
@@ -171,7 +174,7 @@ public class PedidoService {
         }
         return new PagamentoPendenteDTO(pedidoId, forma, pedido.getStatus(), pedido.getPagamentoExpiraEm(),
                 pedido.getValorTotal(),
-                pix, pix, clientSecret, simulacaoDisponivel());
+                pix, pix, clientSecret, simulacaoDisponivel(), !"PIX".equals(forma) && clientSecret == null);
     }
 
     @Transactional

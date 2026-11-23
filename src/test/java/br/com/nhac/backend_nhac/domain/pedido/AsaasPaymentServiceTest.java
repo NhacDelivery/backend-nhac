@@ -212,6 +212,10 @@ public class AsaasPaymentServiceTest {
         
         assertEquals(MediaType.APPLICATION_JSON, headers.getContentType());
         assertEquals(testApiKey, headers.getFirst("access_token"));
+        assertEquals("NhacDelivery/1.0", headers.getFirst(HttpHeaders.USER_AGENT));
+        assertEquals("000201...", asaasPaymentService.obterCodigoPix(pedido));
+        verify(restTemplate, times(1)).exchange(contains("/pixQrCode"), eq(HttpMethod.GET),
+                any(HttpEntity.class), eq(String.class));
     }
 
     @Test

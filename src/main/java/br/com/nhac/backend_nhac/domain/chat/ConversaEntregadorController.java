@@ -48,6 +48,12 @@ public class ConversaEntregadorController {
         this.chatService = chatService;
     }
 
+    @PostMapping("/entregas/{pedidoId}")
+    @PreAuthorize("hasRole('ENTREGADOR')")
+    public ConversaAbertaDTO abrirEntrega(@PathVariable String pedidoId, @AuthenticationPrincipal Usuario usuario) {
+        return new ConversaAbertaDTO(chatService.abrirConversaEntrega(pedidoId, usuario, ParticipanteTipo.ENTREGADOR).getId());
+    }
+
     @Operation(summary = "Listar conversas do entregador", description = "Conversas com lojas, mais recentes primeiro. Paginação limitada a 100 itens.")
     @GetMapping
     @PreAuthorize("hasAnyRole('ENTREGADOR', 'ADMIN')")

@@ -13,5 +13,6 @@ public record PagamentoPendenteDTO(
         String pixCopiaECola,
         String qrCodeUrl,
         String clientSecret,
-        boolean simulacaoDisponivel
+        boolean simulacaoDisponivel,
+        boolean aguardandoConfirmacao
 ) {}
