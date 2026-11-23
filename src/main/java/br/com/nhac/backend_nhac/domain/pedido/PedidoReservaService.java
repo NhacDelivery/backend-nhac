@@ -76,7 +76,9 @@ public class PedidoReservaService {
                 || "CARTAO".equalsIgnoreCase(pedido.getFormaPagamento())
                 || "STRIPE".equalsIgnoreCase(pedido.getFormaPagamento())
                 || "GOOGLE_PAY".equalsIgnoreCase(pedido.getFormaPagamento())) {
-            pedido.setPagamentoExpiraEm(pedido.getCriadoEm().plus(7, ChronoUnit.MINUTES));
+            // O TIMESTAMP do MariaDB persiste o vencimento com precisão de segundos.
+            pedido.setPagamentoExpiraEm(pedido.getCriadoEm().truncatedTo(ChronoUnit.SECONDS)
+                    .plus(7, ChronoUnit.MINUTES));
             pedido.setPagamentoCriacaoIncerta(true);
         }
 
