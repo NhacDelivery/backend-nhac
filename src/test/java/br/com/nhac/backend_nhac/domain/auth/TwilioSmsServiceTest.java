@@ -58,6 +58,19 @@ class TwilioSmsServiceTest {
     }
 
     @Test
+    void aceitaMessagingServiceSemNumeroRemetente() {
+        ReflectionTestUtils.setField(twilioSmsService, "mockMode", false);
+        ReflectionTestUtils.setField(twilioSmsService, "fromNumber", "");
+        ReflectionTestUtils.setField(twilioSmsService, "messagingServiceSid", "MGteste");
+        MessageCreator envio = mock(MessageCreator.class);
+        try (var messages = mockStatic(Message.class)) {
+            messages.when(() -> Message.creator(new PhoneNumber("+5511999999999"), "MGteste", "teste")).thenReturn(envio);
+            twilioSmsService.enviarSms("+5511999999999", "teste");
+            org.mockito.Mockito.verify(envio).create();
+        }
+    }
+
+    @Test
     void enviarSms_RealComFalhaDoProvedor_RetornaServicoIndisponivel() {
         ReflectionTestUtils.setField(twilioSmsService, "mockMode", false);
         String destino = "+5511999999999";

@@ -25,6 +25,9 @@ import br.com.nhac.backend_nhac.domain.notificacao.AvisoEntregadorEvent;
 import br.com.nhac.backend_nhac.domain.loja.Loja;
 import br.com.nhac.backend_nhac.domain.loja.LojaAccessService;
 import br.com.nhac.backend_nhac.domain.loja.LojaRepository;
+import br.com.nhac.backend_nhac.domain.pedido.Pedido;
+import br.com.nhac.backend_nhac.domain.pedido.PedidoRepository;
+import br.com.nhac.backend_nhac.domain.pedido.StatusPedido;
 import br.com.nhac.backend_nhac.domain.usuario.Papel;
 import br.com.nhac.backend_nhac.domain.usuario.Usuario;
 import br.com.nhac.backend_nhac.domain.usuario.UsuarioRepository;
@@ -50,12 +53,14 @@ public class ChatService {
     private final UsuarioRepository usuarioRepository;
     private final LojaAccessService lojaAccessService;
     private final EntregadorService entregadorService;
+    private final PedidoRepository pedidos;
     private final ApplicationEventPublisher eventPublisher;
 
     public ChatService(ConversaRepository conversaRepository, MensagemRepository mensagemRepository,
                         LojaRepository lojaRepository, UsuarioRepository usuarioRepository,
                         LojaAccessService lojaAccessService, EntregadorService entregadorService,
-                        ApplicationEventPublisher eventPublisher) {
+                        ApplicationEventPublisher eventPublisher, PedidoRepository pedidos) {
+        this.pedidos = pedidos;
         this.conversaRepository = conversaRepository;
         this.mensagemRepository = mensagemRepository;
         this.lojaRepository = lojaRepository;
@@ -71,6 +76,51 @@ public class ChatService {
         if (usuario == null || !usuario.isAtivo() || usuario.getPapel() != Papel.CLIENTE) {
             throw new AcessoNegadoException("Apenas clientes ativos podem acessar este chat.");
         }
+    }
+
+    private static boolean entregaEmAndamento(Pedido pedido) {
+        return (pedido.getStatus() == StatusPedido.PREPARANDO || pedido.getStatus() == StatusPedido.SAIU_ENTREGA)
+                && pedido.getEntregador() != null && pedido.getEntregador().isAtivo();
+    }
+
+    private static boolean participanteDaEntrega(Conversa conversa, String usuarioId, ParticipanteTipo lado) {
+        Pedido pedido = conversa.getPedido();
+        if (!entregaEmAndamento(pedido)) return false;
+        String entregador = pedido.getEntregador().getUsuario().getId();
+        if (!entregador.equals(conversa.getEntregadorUsuarioId())) return false;
+        return lado == ParticipanteTipo.CLIENTE ? pedido.getUsuarioId().equals(usuarioId) : entregador.equals(usuarioId);
+    }
+
+    @Transactional
+    public Conversa abrirConversaEntrega(String pedidoId, Usuario usuario, ParticipanteTipo lado) {
+        Pedido pedido = pedidos.findLockedById(pedidoId)
+                .orElseThrow(() -> new IdNaoEncontradoException("Pedido não encontrado."));
+        if (!usuario.isAtivo() || !entregaEmAndamento(pedido)) throw contatoIndisponivel();
+        String entregador = pedido.getEntregador().getUsuario().getId();
+        String participante = lado == ParticipanteTipo.CLIENTE ? pedido.getUsuarioId() : entregador;
+        if (!participante.equals(usuario.getId())) throw contatoIndisponivel();
+        return conversaRepository.findByPedidoIdAndEntregadorUsuarioId(pedidoId, entregador)
+                .orElseGet(() -> {
+                    var conversa = new Conversa("conv_" + UUID.randomUUID(), null, pedido.getUsuarioId(), ParticipanteTipo.ENTREGA);
+                    conversa.setPedido(pedido);
+                    conversa.setEntregadorUsuarioId(entregador);
+                    return conversaRepository.saveAndFlush(conversa);
+                });
+    }
+
+    @Transactional(readOnly = true)
+    public String telefoneEntregador(String pedidoId, Usuario usuario) {
+        Pedido pedido = pedidos.findById(pedidoId).orElseThrow(() -> new IdNaoEncontradoException("Pedido não encontrado."));
+        if (!usuario.isAtivo() || !pedido.getUsuarioId().equals(usuario.getId()) || !entregaEmAndamento(pedido)) {
+            throw contatoIndisponivel();
+        }
+        String telefone = pedido.getEntregador().getUsuario().getTelefone();
+        if (telefone == null || telefone.isBlank()) throw new RegraDeNegocioException("O entregador não tem telefone cadastrado. Use o chat.");
+        return telefone;
+    }
+
+    private static AcessoNegadoException contatoIndisponivel() {
+        return new AcessoNegadoException("O contato está disponível para os participantes da entrega em andamento.");
     }
 
     @Transactional
@@ -173,9 +223,7 @@ public class ChatService {
         exigirCliente(usuarioLogado);
         Conversa conversa = conversaRepository.findLockedById(conversaId)
                 .orElseThrow(() -> new IdNaoEncontradoException("Conversa não encontrada."));
-        if (conversa.getParticipanteTipo() != ParticipanteTipo.CLIENTE || !conversa.temCliente(usuarioLogado.getId())) {
-            throw new AcessoNegadoException("Você não faz parte desta conversa.");
-        }
+        validarParticipante(conversa, usuarioLogado.getId(), ParticipanteTipo.CLIENTE);
         conversa.marcarComoLidaPor(usuarioLogado.getId());
         conversaRepository.save(conversa);
     }
@@ -215,7 +263,7 @@ public class ChatService {
             throw new AcessoNegadoException("É necessário estar autenticado.");
         }
         Conversa conversa = buscarConversaDoParticipante(conversaId, usuarioLogado.getId(), ParticipanteTipo.ENTREGADOR);
-        conversa.marcarComoLidaPeloCliente(); // campo genérico do lado "participante" — ver Conversa
+        conversa.marcarComoLidaPor(usuarioLogado.getId());
         conversaRepository.save(conversa);
     }
 
@@ -238,10 +286,18 @@ public class ChatService {
     private Conversa buscarConversaDoParticipante(String conversaId, String participanteId, ParticipanteTipo tipoEsperado) {
         Conversa conversa = conversaRepository.findById(conversaId)
                 .orElseThrow(() -> new IdNaoEncontradoException("Conversa não encontrada."));
+        validarParticipante(conversa, participanteId, tipoEsperado);
+        return conversa;
+    }
+
+    private void validarParticipante(Conversa conversa, String participanteId, ParticipanteTipo tipoEsperado) {
+        if (conversa.getParticipanteTipo() == ParticipanteTipo.ENTREGA) {
+            if (!participanteDaEntrega(conversa, participanteId, tipoEsperado)) throw contatoIndisponivel();
+            return;
+        }
         if (conversa.getParticipanteTipo() != tipoEsperado || !conversa.temCliente(participanteId)) {
             throw new AcessoNegadoException("Você não faz parte desta conversa.");
         }
-        return conversa;
     }
 
     // ---------- Lado LOJA (lojista / funcionário) ----------
@@ -298,7 +354,10 @@ public class ChatService {
     public boolean podeAcessarConversa(String conversaId, Usuario usuario) {
         if (usuario == null || !usuario.isAtivo()) return false;
         return conversaRepository.findById(conversaId)
-                .map(c -> c.isEntreClientes()
+                .map(c -> c.getParticipanteTipo() == ParticipanteTipo.ENTREGA
+                        ? participanteDaEntrega(c, usuario.getId(), ParticipanteTipo.CLIENTE)
+                                || participanteDaEntrega(c, usuario.getId(), ParticipanteTipo.ENTREGADOR)
+                        : c.isEntreClientes()
                         ? usuario.getPapel() == Papel.CLIENTE && c.temCliente(usuario.getId())
                         : usuario.getId().equals(c.getClienteId())
                                 || lojaAccessService.temAcessoALoja(usuario, c.getLoja().getId()))
@@ -366,12 +425,22 @@ public class ChatService {
                     "Você recebeu uma mensagem da loja.", null, conversa.getLoja().getId(),
                     conversa.getLoja().getNome(), null));
         }
+        if (tipo == RemetenteTipo.CLIENTE && conversa.getParticipanteTipo() == ParticipanteTipo.ENTREGA) {
+            eventPublisher.publishEvent(new AvisoEntregadorEvent("mensagem_" + mensagem.getId(),
+                    conversa.getEntregadorUsuarioId(), "MENSAGEM", "Você recebeu uma mensagem do cliente.",
+                    conversa.getPedido().getId(), null, null, null));
+        }
         MensagemDTO dto = new MensagemDTO(mensagem);
         eventPublisher.publishEvent(new MensagemEnviadaEvent(dto));
         return dto;
     }
 
     private RemetenteTipo resolverTipoRemetente(Conversa conversa, Usuario usuario) {
+        if (conversa.getParticipanteTipo() == ParticipanteTipo.ENTREGA) {
+            if (participanteDaEntrega(conversa, usuario.getId(), ParticipanteTipo.CLIENTE)) return RemetenteTipo.CLIENTE;
+            if (participanteDaEntrega(conversa, usuario.getId(), ParticipanteTipo.ENTREGADOR)) return RemetenteTipo.ENTREGADOR;
+            throw contatoIndisponivel();
+        }
         if (conversa.isEntreClientes()) {
             exigirCliente(usuario);
             if (conversa.temCliente(usuario.getId())) return RemetenteTipo.CLIENTE;

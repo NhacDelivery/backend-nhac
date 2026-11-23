@@ -56,6 +56,14 @@ public class EnderecoUsuarioController {
         return ResponseEntity.status(HttpStatus.CREATED).build();
     }
 
+    @PostMapping(params = "somenteSeVazio=true")
+    public ResponseEntity<Void> adicionarEnderecoAutomatico(@PathVariable String usuarioId,
+            @RequestBody @Valid EnderecoUsuarioDTO dto, @AuthenticationPrincipal Usuario usuarioLogado) {
+        validarPropriedade(usuarioId, usuarioLogado);
+        usuarioService.adicionarPrimeiroEndereco(usuarioId, dto);
+        return ResponseEntity.noContent().build();
+    }
+
     @PutMapping("/{enderecoId}")
     public ResponseEntity<Void> atualizarEndereco(
             @PathVariable String usuarioId,

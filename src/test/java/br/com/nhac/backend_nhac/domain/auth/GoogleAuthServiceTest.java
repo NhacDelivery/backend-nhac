@@ -57,6 +57,7 @@ class GoogleAuthServiceTest {
         // Mocking GoogleIdTokenVerifier and GoogleIdToken
         GoogleIdToken mockIdToken = mock(GoogleIdToken.class);
         GoogleIdToken.Payload mockPayload = new GoogleIdToken.Payload();
+        mockPayload.setEmailVerified(true);
         mockPayload.setEmail("teste@gmail.com");
         mockPayload.set("name", "Teste da Silva");
         mockPayload.set("picture", "http://imagem.com/pic.jpg");
@@ -102,6 +103,7 @@ class GoogleAuthServiceTest {
 
         GoogleIdToken mockIdToken = mock(GoogleIdToken.class);
         GoogleIdToken.Payload mockPayload = new GoogleIdToken.Payload();
+        mockPayload.setEmailVerified(true);
         mockPayload.setEmail("novo@gmail.com");
         mockPayload.set("name", "Novo Usuario");
         mockPayload.set("picture", "http://imagem.com/new.jpg");

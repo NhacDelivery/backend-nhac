@@ -57,6 +57,10 @@ public class PedidoReservaService {
         }
 
 
+        if ("PIX".equalsIgnoreCase(dto.formaPagamento())) {
+            br.com.nhac.backend_nhac.domain.entregador.ValidacaoEntregador.cpf(dto.cpfPagador());
+        }
+
         Loja loja = lojaRepository.findByIdAndIsAbertoTrue(dto.lojaId())
                 .orElseThrow(() -> new LojaFechadaException(dto.lojaId()));
 

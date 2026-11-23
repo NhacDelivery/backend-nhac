@@ -32,6 +32,8 @@ public interface ConversaRepository extends JpaRepository<Conversa, String> {
     Page<Conversa> listarDoParticipantePorCanal(@Param("usuarioId") String usuarioId,
             @Param("tipo") ParticipanteTipo tipo, @Param("entreClientes") boolean entreClientes, Pageable pageable);
 
+    Optional<Conversa> findByPedidoIdAndEntregadorUsuarioId(String pedidoId, String entregadorUsuarioId);
+
     Optional<Conversa> findByLojaIdAndClienteIdAndParticipanteTipo(
             String lojaId, String clienteId, ParticipanteTipo participanteTipo);
 

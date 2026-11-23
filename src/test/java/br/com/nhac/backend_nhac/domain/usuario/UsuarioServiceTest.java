@@ -332,6 +332,18 @@ class UsuarioServiceTest {
     }
 
     @Test
+    void gpsSoCriaPrimeiroEnderecoSobLockESalvaComoPadrao() {
+        when(usuarioRepository.findLockedById("user_1")).thenReturn(Optional.of(usuarioPadrao("user_1")));
+        when(enderecoRepository.existsByUsuarioId("user_1")).thenReturn(false, true);
+        var dto = new EnderecoUsuarioDTO(null, "Rua A", "123", "Centro", "Campinas", "SP", "13000-100", null, false);
+        usuarioService.adicionarPrimeiroEndereco("user_1", dto);
+        usuarioService.adicionarPrimeiroEndereco("user_1", dto);
+        var captor = ArgumentCaptor.forClass(EnderecoUsuario.class);
+        verify(enderecoRepository).save(captor.capture());
+        assertTrue(captor.getValue().isPadrao());
+    }
+
+    @Test
     @DisplayName("Deve lançar IdNaoEncontradoException ao adicionar endereço para usuário inexistente")
     void deveLancarExcecaoAoAdicionarEnderecoParaUsuarioInexistente() {
         when(usuarioRepository.findLockedById("fantasma")).thenReturn(Optional.empty());

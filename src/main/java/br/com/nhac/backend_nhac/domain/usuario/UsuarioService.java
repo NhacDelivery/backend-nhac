@@ -145,14 +145,23 @@ public class UsuarioService {
 
     @Transactional
     public void adicionarEndereco(String usuarioId, EnderecoUsuarioDTO dto) {
-        // Serializa mudanças de padrão e exclusões da mesma conta.
+        adicionarEndereco(usuarioId, dto, false);
+    }
+
+    @Transactional
+    public void adicionarPrimeiroEndereco(String usuarioId, EnderecoUsuarioDTO dto) {
+        adicionarEndereco(usuarioId, dto, true);
+    }
+
+    private void adicionarEndereco(String usuarioId, EnderecoUsuarioDTO dto, boolean somenteSeVazio) {
         Usuario usuario = usuarioRepository.findLockedById(usuarioId)
                 .orElseThrow(() -> new IdNaoEncontradoException("Usuário não encontrado."));
         EnderecoUsuario endereco = dto.toEntity(usuario);
 
-        if (endereco.isPadrao()) {
-            garantirUnicoEnderecoPadrao(usuarioId, endereco.getId());
-        }
+        boolean jaTemEndereco = enderecoRepository.existsByUsuarioId(usuarioId);
+        if (somenteSeVazio && jaTemEndereco) return;
+        if (!jaTemEndereco) endereco.setPadrao(true);
+        else if (endereco.isPadrao()) garantirUnicoEnderecoPadrao(usuarioId, endereco.getId());
 
         enderecoRepository.save(endereco);
     }

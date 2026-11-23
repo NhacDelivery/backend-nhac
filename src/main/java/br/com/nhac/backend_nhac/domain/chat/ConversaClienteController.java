@@ -40,6 +40,16 @@ public class ConversaClienteController {
         this.chatService = chatService;
     }
 
+    @PostMapping("/entregas/{pedidoId}")
+    public ConversaAbertaDTO abrirEntrega(@PathVariable String pedidoId, @AuthenticationPrincipal Usuario usuario) {
+        return new ConversaAbertaDTO(chatService.abrirConversaEntrega(pedidoId, usuario, ParticipanteTipo.CLIENTE).getId());
+    }
+
+    @GetMapping("/entregas/{pedidoId}/telefone")
+    public java.util.Map<String, String> telefone(@PathVariable String pedidoId, @AuthenticationPrincipal Usuario usuario) {
+        return java.util.Map.of("telefone", chatService.telefoneEntregador(pedidoId, usuario));
+    }
+
     @Operation(summary = "Listar conversas do cliente", description = "Filtro opcional tipo=LOJA ou CLIENTE aplicado antes da paginação. Sem filtro mantém a caixa mista. Mais recentes primeiro; limite de 100 itens.")
     @GetMapping
     public ResponseEntity<Page<ConversaClienteResumoDTO>> listar(

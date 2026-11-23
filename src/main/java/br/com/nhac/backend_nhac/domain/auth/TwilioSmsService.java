@@ -28,6 +28,9 @@ public class TwilioSmsService implements SmsService {
     @Value("${twilio.from-number:}")
     private String fromNumber;
 
+    @Value("${twilio.messaging-service-sid:}")
+    private String messagingServiceSid;
+
     @Value("${nhac.sms.mock-mode:true}")
     private boolean mockMode;
 
@@ -43,7 +46,7 @@ public class TwilioSmsService implements SmsService {
     }
 
     private boolean configurado() {
-        return StringUtils.hasText(accountSid) && StringUtils.hasText(authToken) && StringUtils.hasText(fromNumber);
+        return StringUtils.hasText(accountSid) && StringUtils.hasText(authToken) && (StringUtils.hasText(fromNumber) || StringUtils.hasText(messagingServiceSid));
     }
 
     @Override
@@ -61,11 +64,11 @@ public class TwilioSmsService implements SmsService {
             throw new ServicoIndisponivelException(SMS_INDISPONIVEL);
         }
         try {
-            Message.creator(
-                new PhoneNumber(telefoneDestino),
-                new PhoneNumber(fromNumber),
-                mensagem
-            ).create();
+            PhoneNumber destino = new PhoneNumber(telefoneDestino);
+            var envio = StringUtils.hasText(messagingServiceSid)
+                    ? Message.creator(destino, messagingServiceSid.trim(), mensagem)
+                    : Message.creator(destino, new PhoneNumber(fromNumber.trim()), mensagem);
+            envio.create();
         } catch (ApiException e) {
             logger.error("Twilio recusou o envio de SMS. Código do provedor: {}", e.getCode());
             throw new ServicoIndisponivelException(SMS_INDISPONIVEL);

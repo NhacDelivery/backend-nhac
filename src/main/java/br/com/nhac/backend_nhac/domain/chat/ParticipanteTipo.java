@@ -9,5 +9,6 @@ package br.com.nhac.backend_nhac.domain.chat;
  */
 public enum ParticipanteTipo {
     CLIENTE,
-    ENTREGADOR
+    ENTREGADOR,
+    ENTREGA
 }

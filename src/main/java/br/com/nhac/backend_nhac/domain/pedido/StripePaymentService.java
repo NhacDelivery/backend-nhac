@@ -99,10 +99,16 @@ public class StripePaymentService {
     public String obterClientSecret(Pedido pedido) {
         if (mockMode) return "e2e_mock_client_secret";
         try {
-            return PaymentIntent.retrieve(pedido.getStripePaymentIntentId()).getClientSecret();
+            PaymentIntent intent = PaymentIntent.retrieve(pedido.getStripePaymentIntentId());
+            return aceitaPagamento(intent.getStatus()) ? intent.getClientSecret() : null;
         } catch (StripeException e) {
             throw new IllegalStateException("Falha ao recuperar o pagamento com cartão.", e);
         }
+    }
+
+    static boolean aceitaPagamento(String status) {
+        return "requires_payment_method".equals(status) || "requires_action".equals(status)
+                || "requires_confirmation".equals(status);
     }
 
     public String consultarStatus(String paymentIntentId) {

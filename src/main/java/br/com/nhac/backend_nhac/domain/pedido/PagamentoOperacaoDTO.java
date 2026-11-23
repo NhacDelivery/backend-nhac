@@ -3,7 +3,7 @@ package br.com.nhac.backend_nhac.domain.pedido;
 import java.time.Instant;
 
 /** Não expõe tokens, documentos nem identificadores externos ao cliente. */
-public record PagamentoOperacaoDTO(String pedidoId, String estado, Instant atualizadoEm, boolean podeSolicitarEstorno) {
+public record PagamentoOperacaoDTO(String pedidoId, String estado, Instant atualizadoEm, boolean podeSolicitarEstorno, boolean podeContinuarPagamento) {
     public static PagamentoOperacaoDTO de(Pedido p) {
         String estado = p.getEstornoStatus() == null ?
                 (p.getStatus() == StatusPedido.PENDENTE && (p.isPagamentoCriacaoIncerta()
@@ -15,6 +15,6 @@ public record PagamentoOperacaoDTO(String pedidoId, String estado, Instant atual
                     case "PIX" -> p.getAsaasPaymentId() != null && p.getStripePaymentIntentId() == null;
                     case "CARTAO", "STRIPE", "GOOGLE_PAY" -> p.getStripePaymentIntentId() != null && p.getAsaasPaymentId() == null;
                     default -> false;
-                });
+                }, false);
     }
 }

@@ -25,11 +25,22 @@ public class AsaasPaymentService {
     @Value("${asaas.api.key}")
     private String asaasApiKey;
 
-    @Value("${asaas.api.url:https://sandbox.asaas.com/api/v3}")
+    @Value("${asaas.api.url:https://api-sandbox.asaas.com/v3}")
     private String asaasApiUrl;
 
     @Value("${nhac.payments.mock-mode:false}")
     private boolean mockMode;
+
+    private final com.github.benmanes.caffeine.cache.Cache<String, String> codigosPix =
+            com.github.benmanes.caffeine.cache.Caffeine.newBuilder()
+                    .maximumSize(2048).expireAfterWrite(java.time.Duration.ofMinutes(2)).build();
+
+    @PostConstruct
+    void normalizarUrl() {
+        asaasApiUrl = asaasApiUrl.strip().replaceFirst("/+$", "");
+        if ("https://sandbox.asaas.com/api/v3".equals(asaasApiUrl)) asaasApiUrl = "https://api-sandbox.asaas.com/v3";
+        if ("https://www.asaas.com/api/v3".equals(asaasApiUrl)) asaasApiUrl = "https://api.asaas.com/v3";
+    }
 
     private RestTemplate restTemplate;
     private Gson gson = new Gson();
@@ -79,9 +90,8 @@ public class AsaasPaymentService {
     }
 
     private String criarCustomer(String nome, String email, String cpfCnpj, String referencia) {
-        HttpHeaders headers = new HttpHeaders();
+        HttpHeaders headers = cabecalhos();
         headers.setContentType(MediaType.APPLICATION_JSON);
-        headers.set("access_token", asaasApiKey);
 
         JsonObject customerBody = new JsonObject();
         customerBody.addProperty("name", nome);
@@ -121,9 +131,8 @@ public class AsaasPaymentService {
         try {
             String customerId = obterOuCriarCustomer(pedido.getUsuarioId(), nomePagador, emailPagador, cpfPagador);
 
-            HttpHeaders headers = new HttpHeaders();
+            HttpHeaders headers = cabecalhos();
             headers.setContentType(MediaType.APPLICATION_JSON);
-            headers.set("access_token", asaasApiKey);
 
             String dueDate = LocalDate.now().plusDays(7)
                     .format(DateTimeFormatter.ofPattern("yyyy-MM-dd"));
@@ -167,7 +176,7 @@ public class AsaasPaymentService {
                 pedidoRepository.marcarCriacaoPagamento(pedido.getId(), false);
                 pedido.setPagamentoCriacaoIncerta(false);
             }
-            log.error("Erro ao criar cobrança PIX no Asaas", e);
+            log.warn("Falha na criação do PIX do pedido {} ({})", pedido.getId(), e.getClass().getSimpleName());
             throw new RuntimeException("Erro ao comunicar com Asaas para criar cobrança PIX: " + e.getMessage(), e);
         }
     }
@@ -191,7 +200,11 @@ public class AsaasPaymentService {
     }
     public String obterCodigoPix(Pedido pedido) {
         if (mockMode) return "000201-e2e-mock";
-        JsonObject resposta = buscar("/payments/" + pedido.getAsaasPaymentId() + "/pixQrCode");
+        return codigosPix.get(pedido.getAsaasPaymentId(), this::consultarCodigoPix);
+    }
+
+    private String consultarCodigoPix(String paymentId) {
+        JsonObject resposta = buscar("/payments/" + paymentId + "/pixQrCode");
         if (resposta == null || !resposta.has("payload") || resposta.get("payload").isJsonNull()
                 || !resposta.get("payload").isJsonPrimitive() || !resposta.get("payload").getAsJsonPrimitive().isString()
                 || resposta.get("payload").getAsString().isBlank()) {
@@ -247,6 +260,8 @@ public class AsaasPaymentService {
     private HttpHeaders cabecalhos() {
         HttpHeaders headers = new HttpHeaders();
         headers.set("access_token", asaasApiKey);
+        headers.set(HttpHeaders.USER_AGENT, "NhacDelivery/1.0");
+        headers.setAccept(java.util.List.of(MediaType.APPLICATION_JSON));
         return headers;
     }
 }
