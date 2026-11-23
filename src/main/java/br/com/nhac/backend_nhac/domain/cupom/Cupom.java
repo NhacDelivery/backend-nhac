@@ -22,5 +22,7 @@ public class Cupom {
     @Column(name = "usos_atuais") private Integer usosAtuais = 0;
     @Column(name = "criado_em") private LocalDateTime criadoEm;
     @Column(name = "usuario_id", length = 50) private String usuarioId;
+    @ManyToOne(fetch = FetchType.LAZY) @JoinColumn(name = "loja_id") private br.com.nhac.backend_nhac.domain.loja.Loja loja;
+    @Column(name = "inicio") private LocalDateTime inicio;
     @Column(length = 30) private String origem;
 }

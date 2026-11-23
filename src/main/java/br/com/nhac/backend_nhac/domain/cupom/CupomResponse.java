@@ -7,11 +7,16 @@ public record CupomResponse(String id, String titulo, String descricao, String c
         BigDecimal desconto, String tipo, BigDecimal usoMinimo, LocalDateTime dataValidade,
         String status, BigDecimal descontoAplicado) {
     public static CupomResponse from(Cupom c, BigDecimal aplicado) {
-        String status = c.getUsosAtuais() >= c.getLimiteUsos() ? "USADO"
+        return from(c, aplicado, c.getUsosAtuais());
+    }
+    public static CupomResponse from(Cupom c, BigDecimal aplicado, long usos) {
+        String status = usos >= c.getLimiteUsos() ? "USADO"
                 : !c.isAtivo() || (c.getDataValidade() != null && !c.getDataValidade().isAfter(LocalDateTime.now()))
-                ? "EXPIRADO" : "DISPONIVEL";
-        return new CupomResponse(c.getId(), "Cupom de boas-vindas", c.getDescricao(), c.getCodigo(),
+                ? "EXPIRADO" : c.getInicio() != null && c.getInicio().isAfter(LocalDateTime.now()) ? "AGENDADO" : "DISPONIVEL";
+        LocalDateTime validade = c.getDataValidade();
+        if (c.getLoja() != null && validade != null) validade = validade.minusSeconds(1);
+        return new CupomResponse(c.getId(), c.getLoja() == null ? "Cupom de boas-vindas" : c.getCodigo() + " · " + c.getLoja().getNome(), c.getDescricao(), c.getCodigo(),
                 c.getValorDesconto(), c.getTipoDesconto(), c.getValorMinimoPedido(),
-                c.getDataValidade(), status, aplicado);
+                validade, status, aplicado);
     }
 }

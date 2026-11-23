@@ -1,5 +1,6 @@
 package br.com.nhac.backend_nhac.domain.cupom;
 
+import br.com.nhac.backend_nhac.domain.loja.FreteService;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.LocalDateTime;
@@ -18,8 +19,9 @@ public class CupomService {
     private final BigDecimal valor;
     private final BigDecimal minimo;
     private final int dias;
+    private final FreteService frete;
 
-    public CupomService(CupomRepository repository, UsuarioRepository usuarios,
+    public CupomService(CupomRepository repository, UsuarioRepository usuarios, FreteService frete,
             @Value("${nhac.cupom.boas-vindas.valor:5.00}") BigDecimal valor,
             @Value("${nhac.cupom.boas-vindas.minimo:25.00}") BigDecimal minimo,
             @Value("${nhac.cupom.boas-vindas.validade-dias:30}") int dias) {
@@ -28,6 +30,7 @@ public class CupomService {
         }
         this.repository = repository;
         this.usuarios = usuarios;
+        this.frete = frete;
         this.valor = valor;
         this.minimo = minimo;
         this.dias = dias;
@@ -37,6 +40,18 @@ public class CupomService {
     public List<CupomResponse> listar(String usuarioId) {
         return repository.findByUsuarioIdOrderByCriadoEmDesc(usuarioId).stream()
                 .map(c -> CupomResponse.from(c, BigDecimal.ZERO)).toList();
+    }
+
+    @Transactional(readOnly = true)
+    public List<CupomResponse> listar(String usuarioId, String lojaId) {
+        var resultado = new java.util.ArrayList<>(listar(usuarioId));
+        if (lojaId != null) {
+            for (Cupom c : repository.findByLojaIdOrderByCriadoEmDesc(lojaId)) {
+                var dto = CupomResponse.from(c, BigDecimal.ZERO, repository.usosDoCliente(usuarioId, c.getId()));
+                if ("DISPONIVEL".equals(dto.status())) resultado.add(dto);
+            }
+        }
+        return resultado;
     }
 
     @Transactional
@@ -65,13 +80,23 @@ public class CupomService {
 
     @Transactional
     public CupomResponse validar(String usuarioId, String cupomId, BigDecimal subtotal) {
-        Cupom cupom = obterValido(usuarioId, cupomId, subtotal);
-        return CupomResponse.from(cupom, desconto(cupom, subtotal));
+        return validar(usuarioId, cupomId, subtotal, null);
+    }
+
+    @Transactional
+    public CupomResponse validar(String usuarioId, String cupomId, BigDecimal subtotal, String lojaId) {
+        Cupom cupom = obterValido(usuarioId, cupomId, subtotal, lojaId);
+        return CupomResponse.from(cupom, desconto(cupom, subtotal), usos(usuarioId, cupom));
     }
 
     @Transactional
     public BigDecimal consumir(String usuarioId, String cupomId, BigDecimal subtotal) {
-        Cupom cupom = obterValido(usuarioId, cupomId, subtotal);
+        return consumir(usuarioId, cupomId, subtotal, null);
+    }
+
+    @Transactional
+    public BigDecimal consumir(String usuarioId, String cupomId, BigDecimal subtotal, String lojaId) {
+        Cupom cupom = obterValido(usuarioId, cupomId, subtotal, lojaId);
         BigDecimal desconto = desconto(cupom, subtotal);
         cupom.setUsosAtuais(cupom.getUsosAtuais() + 1);
         repository.save(cupom);
@@ -82,16 +107,22 @@ public class CupomService {
     public void devolver(String usuarioId, String cupomId) {
         Cupom cupom = repository.findLockedById(cupomId)
                 .orElseThrow(() -> new RegraDeNegocioException("Cupom não encontrado."));
-        if (!usuarioId.equals(cupom.getUsuarioId())) throw new RegraDeNegocioException("Cupom não pertence à conta.");
+        if (cupom.getLoja() == null && !usuarioId.equals(cupom.getUsuarioId())) throw new RegraDeNegocioException("Cupom não pertence à conta.");
         cupom.setUsosAtuais(Math.max(0, cupom.getUsosAtuais() - 1));
         repository.save(cupom);
     }
 
-    private Cupom obterValido(String usuarioId, String cupomId, BigDecimal subtotal) {
+    private long usos(String usuarioId, Cupom cupom) {
+        return cupom.getLoja() == null ? cupom.getUsosAtuais() : repository.usosDoCliente(usuarioId, cupom.getId());
+    }
+
+    private Cupom obterValido(String usuarioId, String cupomId, BigDecimal subtotal, String lojaId) {
         Cupom cupom = repository.findLockedById(cupomId)
                 .orElseThrow(() -> new RegraDeNegocioException("Cupom indisponível."));
-        if (!usuarioId.equals(cupom.getUsuarioId())) throw new RegraDeNegocioException("Cupom indisponível para esta conta.");
-        if (!"DISPONIVEL".equals(CupomResponse.from(cupom, BigDecimal.ZERO).status())) {
+        if (cupom.getLoja() != null) {
+            if (!cupom.getLoja().getId().equals(lojaId)) throw new RegraDeNegocioException("Este cupom pertence a outra loja.");
+        } else if (!usuarioId.equals(cupom.getUsuarioId())) throw new RegraDeNegocioException("Cupom indisponível para esta conta.");
+        if (!"DISPONIVEL".equals(CupomResponse.from(cupom, BigDecimal.ZERO, usos(usuarioId, cupom)).status())) {
             throw new RegraDeNegocioException("Cupom usado ou expirado.");
         }
         if (subtotal == null || subtotal.signum() <= 0 || subtotal.compareTo(cupom.getValorMinimoPedido()) < 0) {
@@ -101,6 +132,9 @@ public class CupomService {
     }
 
     private BigDecimal desconto(Cupom cupom, BigDecimal subtotal) {
+        if ("FRETE_GRATIS".equals(cupom.getTipoDesconto())) {
+            return frete.calcularTaxa(cupom.getLoja());
+        }
         BigDecimal desconto = "PERCENTUAL".equals(cupom.getTipoDesconto())
                 ? subtotal.multiply(cupom.getValorDesconto()).divide(new BigDecimal("100"), 2, RoundingMode.HALF_UP)
                 : cupom.getValorDesconto();
