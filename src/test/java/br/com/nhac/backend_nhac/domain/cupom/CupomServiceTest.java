@@ -23,7 +23,7 @@ class CupomServiceTest {
 
     @BeforeEach
     void setup() {
-        service = new CupomService(repository, usuarios, new BigDecimal("5.00"), new BigDecimal("25.00"), 30);
+        service = new CupomService(repository, usuarios, new br.com.nhac.backend_nhac.domain.loja.FreteService(), new BigDecimal("5.00"), new BigDecimal("25.00"), 30);
         cupom = new Cupom();
         cupom.setId("cupom");
         cupom.setUsuarioId("cliente");
@@ -73,5 +73,17 @@ class CupomServiceTest {
         cupom.setDataValidade(LocalDateTime.now().minusSeconds(1));
         assertThrows(RegraDeNegocioException.class, () -> service.validar("cliente", "cupom", new BigDecimal("25")));
         assertEquals(0, cupom.getUsosAtuais());
+    }
+
+    @Test
+    void promocaoExigeLojaCorretaEAplicaLimitePorCliente() {
+        var loja = new br.com.nhac.backend_nhac.domain.loja.Loja();
+        loja.setId("loja-a"); loja.setNome("Loja A");
+        cupom.setLoja(loja); cupom.setUsuarioId(null); cupom.setUsosAtuais(10);
+        when(repository.findLockedById("cupom")).thenReturn(Optional.of(cupom));
+        assertThrows(RegraDeNegocioException.class, () -> service.consumir("cliente","cupom",BigDecimal.TEN,"outra"));
+        assertEquals(new BigDecimal("5.00"),service.consumir("cliente","cupom",new BigDecimal("30"),"loja-a"));
+        when(repository.usosDoCliente("cliente","cupom")).thenReturn(1L);
+        assertThrows(RegraDeNegocioException.class, () -> service.consumir("cliente","cupom",new BigDecimal("30"),"loja-a"));
     }
 }

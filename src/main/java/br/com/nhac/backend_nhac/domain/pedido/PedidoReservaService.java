@@ -149,7 +149,7 @@ public class PedidoReservaService {
         pedido.setTaxaFrete(taxaFrete);
         BigDecimal desconto = BigDecimal.ZERO;
         if (dto.cupomId() != null && !dto.cupomId().isBlank()) {
-            desconto = cupomService.consumir(usuarioLogado.getId(), dto.cupomId(), valorTotalItens);
+            desconto = cupomService.consumir(usuarioLogado.getId(), dto.cupomId(), valorTotalItens, loja.getId());
         } else {
             pedido.setCupomId(null);
         }

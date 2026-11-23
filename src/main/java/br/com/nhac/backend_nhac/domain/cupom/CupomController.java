@@ -17,8 +17,8 @@ public class CupomController {
     public CupomController(CupomService service) { this.service = service; }
 
     @GetMapping
-    public List<CupomResponse> listar(@AuthenticationPrincipal Usuario usuario) {
-        return service.listar(usuario.getId());
+    public List<CupomResponse> listar(@AuthenticationPrincipal Usuario usuario, @RequestParam(required=false) String lojaId) {
+        return service.listar(usuario.getId(), lojaId);
     }
     @PostMapping("/boas-vindas")
     public CupomResponse ganhar(@AuthenticationPrincipal Usuario usuario) {
@@ -26,8 +26,8 @@ public class CupomController {
     }
     @PostMapping("/validar")
     public CupomResponse validar(@AuthenticationPrincipal Usuario usuario, @RequestBody @Valid ValidarCupomDTO dto) {
-        return service.validar(usuario.getId(), dto.cupomId(), dto.subtotal());
+        return service.validar(usuario.getId(), dto.cupomId(), dto.subtotal(), dto.lojaId());
     }
     public record ValidarCupomDTO(@NotBlank String cupomId,
-            @NotNull @DecimalMin("0.01") BigDecimal subtotal) {}
+            @NotNull @DecimalMin("0.01") BigDecimal subtotal, String lojaId) {}
 }

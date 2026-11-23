@@ -15,6 +15,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
 class CupomFlowIT extends AbstractIntegrationTest {
+    @Autowired br.com.nhac.backend_nhac.domain.loja.LojaRepository lojas;
     @Autowired CupomService service;
     @Autowired CupomRepository cupons;
     @Autowired UsuarioRepository usuarios;
@@ -30,6 +31,50 @@ class CupomFlowIT extends AbstractIntegrationTest {
         usuario.setTelefone("11999999999");
         usuarios.save(usuario);
         token = tokens.gerarToken(usuario);
+    }
+
+    @Test
+    void lojistaPublicaPromocaoParaSeuCheckoutEPodeDesativar() throws Exception {
+        Usuario dono = new Usuario();
+        dono.setId("dono");
+        dono.setNome("Lojista");
+        dono.setEmail("dono@exemplo.com");
+        dono.setPapel(br.com.nhac.backend_nhac.domain.usuario.Papel.LOJISTA);
+        usuarios.save(dono);
+        var loja = new br.com.nhac.backend_nhac.domain.loja.Loja();
+        loja.setId("loja");
+        loja.setNome("Loja");
+        loja.setUsuarioId(dono.getId());
+        loja.setDadosOperacionais(new br.com.nhac.backend_nhac.domain.loja.DadosOperacionais());
+        loja.setEndereco(new br.com.nhac.backend_nhac.domain.loja.EnderecoLoja(
+                "Rua Teste", "10", "Cidade", "SP", "01000-000", "Centro", null));
+        lojas.save(loja);
+        String cliente = "Bearer " + token;
+        String lojista = "Bearer " + tokens.gerarToken(dono);
+        String recurso = "/api/v1/lojista/cupons";
+        var hoje = java.time.LocalDate.now();
+        String dados = """
+                {"codigo":"LOJA10","tipo":"PERCENTUAL","valor":10,"minimo":20,
+                 "inicio":"%s","fim":"%s","limite":1,"ativo":true}
+                """.formatted(hoje, hoje.plusDays(1));
+        mockMvc.perform(post(recurso).header("Authorization", cliente)
+                .contentType(MediaType.APPLICATION_JSON).content(dados)).andExpect(status().isForbidden());
+        var resposta = mockMvc.perform(post(recurso).header("Authorization", lojista)
+                .contentType(MediaType.APPLICATION_JSON).content(dados)).andExpect(status().isCreated()).andReturn();
+        String id = objectMapper.readTree(resposta.getResponse().getContentAsString()).get("id").asText();
+        mockMvc.perform(get("/api/v1/cupons").param("lojaId", "loja").header("Authorization", cliente))
+                .andExpect(status().isOk()).andExpect(jsonPath("$[0].id").value(id));
+        String validar = """
+                {"cupomId":"%s","lojaId":"loja","subtotal":60}
+                """.formatted(id);
+        mockMvc.perform(post("/api/v1/cupons/validar").header("Authorization", cliente)
+                .contentType(MediaType.APPLICATION_JSON).content(validar))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.descontoAplicado").value(6));
+        mockMvc.perform(patch(recurso + "/" + id).header("Authorization", lojista)
+                .contentType(MediaType.APPLICATION_JSON).content("{\"ativo\":false}"))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.ativo").value(false));
+        mockMvc.perform(get("/api/v1/cupons").param("lojaId", "loja").header("Authorization", cliente))
+                .andExpect(status().isOk()).andExpect(jsonPath("$").isEmpty());
     }
 
     @Test
