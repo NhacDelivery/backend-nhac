@@ -16,5 +16,6 @@ public interface FavoritoRepository extends JpaRepository<Favorito, String> {
 
     long countByUsuarioId(String usuarioId);
 
+    @org.springframework.data.jpa.repository.EntityGraph(attributePaths = "loja")
     org.springframework.data.domain.Page<Favorito> findByUsuarioIdAndLojaIsAbertoTrue(String usuarioId, org.springframework.data.domain.Pageable pageable);
 }
