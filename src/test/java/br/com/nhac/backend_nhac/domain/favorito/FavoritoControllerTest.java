@@ -63,7 +63,7 @@ class FavoritoControllerTest {
     @DisplayName("Deve favoritar uma loja com sucesso")
     void deveFavoritarLoja() throws Exception {
         FavoritoCreateDTO dto = new FavoritoCreateDTO("loja_1");
-        FavoritoResponseDTO response = new FavoritoResponseDTO("fav_1", "loja_1", "Loja Teste", "imagem.png", Instant.now());
+        FavoritoResponseDTO response = new FavoritoResponseDTO("fav_1", "loja_1", "Loja Teste", "imagem.png", Instant.now(), "Japonesa", "capa.jpg", 20, 40, 4.7f, 12);
 
         when(favoritoService.favoritar(eq(USUARIO_LOGADO_ID), any(FavoritoCreateDTO.class))).thenReturn(response);
 
@@ -77,7 +77,7 @@ class FavoritoControllerTest {
     @Test
     @DisplayName("Deve listar favoritos do usuario logado")
     void deveListarFavoritos() throws Exception {
-        FavoritoResponseDTO response = new FavoritoResponseDTO("fav_1", "loja_1", "Loja Teste", "imagem.png", Instant.now());
+        FavoritoResponseDTO response = new FavoritoResponseDTO("fav_1", "loja_1", "Loja Teste", "imagem.png", Instant.now(), "Japonesa", "capa.jpg", 20, 40, 4.7f, 12);
         org.springframework.data.domain.Page<FavoritoResponseDTO> pagina = 
                 new org.springframework.data.domain.PageImpl<>(List.of(response));
 

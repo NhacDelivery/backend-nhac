@@ -1,5 +1,6 @@
 package br.com.nhac.backend_nhac.domain.favorito;
 
+import br.com.nhac.backend_nhac.domain.favorito.dto.FavoritoResponseDTO;
 import br.com.nhac.backend_nhac.exceptions.IdNaoEncontradoException;
 import br.com.nhac.backend_nhac.domain.favorito.FavoritoRepository;
 import br.com.nhac.backend_nhac.domain.loja.LojaRepository;
@@ -47,9 +48,7 @@ public class FavoritoService {
 
         favorito = favoritoRepository.save(favorito);
 
-        return new br.com.nhac.backend_nhac.domain.favorito.dto.FavoritoResponseDTO(
-                favorito.getId(), loja.getId(), loja.getNome(), loja.getImagemUrl(), favorito.getCriadoEm()
-        );
+        return FavoritoResponseDTO.de(favorito.getId(), loja, favorito.getCriadoEm());
     }
 
     public void removerFavorito(String usuarioId, String lojaId) {
@@ -62,9 +61,7 @@ public class FavoritoService {
     @org.springframework.transaction.annotation.Transactional(readOnly = true)
     public org.springframework.data.domain.Page<br.com.nhac.backend_nhac.domain.favorito.dto.FavoritoResponseDTO> listarFavoritos(String usuarioId, org.springframework.data.domain.Pageable pageable) {
         return favoritoRepository.findByUsuarioIdAndLojaIsAbertoTrue(usuarioId, pageable)
-                .map(f -> new br.com.nhac.backend_nhac.domain.favorito.dto.FavoritoResponseDTO(
-                        f.getId(), f.getLoja().getId(), f.getLoja().getNome(), f.getLoja().getImagemUrl(), f.getCriadoEm()
-                ));
+                .map(f -> FavoritoResponseDTO.de(f.getId(), f.getLoja(), f.getCriadoEm()));
     }
 
     public long contarSeguidores(String lojaId) {
