@@ -45,6 +45,9 @@ class CupomFlowIT extends AbstractIntegrationTest {
         loja.setId("loja");
         loja.setNome("Loja");
         loja.setUsuarioId(dono.getId());
+        loja.setDadosOperacionais(new br.com.nhac.backend_nhac.domain.loja.DadosOperacionais());
+        loja.setEndereco(new br.com.nhac.backend_nhac.domain.loja.EnderecoLoja(
+                "Rua Teste", "10", "Cidade", "SP", "01000-000", "Centro", null));
         lojas.save(loja);
         String cliente = "Bearer " + token;
         String lojista = "Bearer " + tokens.gerarToken(dono);
