@@ -51,7 +51,8 @@ public record PedidoResponseDTO(
                         pedido.getEnderecoEntrega().getCidade(),
                         pedido.getEnderecoEntrega().getEstado(),
                         pedido.getEnderecoEntrega().getCep(),
-                        pedido.getEnderecoEntrega().getComplemento()
+                        pedido.getEnderecoEntrega().getComplemento(),
+                        pedido.getEntregaLatitude(), pedido.getEntregaLongitude()
                 ) : null,
                 pedido.getItens() != null ? pedido.getItens().stream().map(item -> new ItemPedidoResponseDTO(
                         item.getId(),
@@ -95,7 +96,8 @@ public record PedidoResponseDTO(
                         pedido.getEnderecoEntrega().getCidade(),
                         pedido.getEnderecoEntrega().getEstado(),
                         pedido.getEnderecoEntrega().getCep(),
-                        pedido.getEnderecoEntrega().getComplemento()
+                        pedido.getEnderecoEntrega().getComplemento(),
+                        pedido.getEntregaLatitude(), pedido.getEntregaLongitude()
                 ) : null,
                 pedido.getItens() != null ? pedido.getItens().stream().map(item -> new ItemPedidoResponseDTO(
                         item.getId(),
@@ -121,8 +123,15 @@ public record PedidoResponseDTO(
             String cidade,
             String estado,
             String cep,
-            String complemento
-    ) {}
+            String complemento,
+            Double latitude,
+            Double longitude
+    ) {
+        public EnderecoEntregaResponseDTO(String rua, String numero, String bairro, String cidade,
+                String estado, String cep, String complemento) {
+            this(rua, numero, bairro, cidade, estado, cep, complemento, null, null);
+        }
+    }
 
     @Schema(description = "Item individual do pedido")
     public record ItemPedidoResponseDTO(
